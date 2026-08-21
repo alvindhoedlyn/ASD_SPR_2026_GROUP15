@@ -3,6 +3,6 @@
 Group Project Members:
 - Alvindho Edlyn
 - Keyuan Gan
-- Trong Phuc Dao
 - Renzo Van Herli Robin
+- Trong Phuc Dao
 - Yajun Ning 
