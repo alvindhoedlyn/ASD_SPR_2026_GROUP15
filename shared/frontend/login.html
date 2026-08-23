@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wayfare — Log in</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="index.html">Wayfare</a>
+        </div>
+    </header>
+
+    <main class="login-main">
+        <form class="login-card" id="login-form">
+            <p class="eyebrow">Welcome back</p>
+            <h1 class="login-title">Log in to Wayfare</h1>
+            <p class="login-sub">Log in to plan routes, track budget, and save flights, stays, and places.</p>
+
+            <label class="field-label" for="username">Username</label>
+            <input class="field-input" type="text" id="username" name="username" autocomplete="username" required>
+
+            <label class="field-label" for="password">Password</label>
+            <input class="field-input" type="password" id="password" name="password" autocomplete="current-password"
+                required>
+
+            <p class="field-error" id="login-error" hidden>Enter a username and password to continue.</p>
+
+            <button class="btn-primary" type="submit">Log in</button>
+            <p class="login-note">No account system yet — any username/password logs you in for this demo.</p>
+        </form>
+    </main>
+
+    <script src="js/main.js"></script>
+</body>
+
+</html>

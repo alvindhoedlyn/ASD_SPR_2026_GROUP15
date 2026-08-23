@@ -1,0 +1,6 @@
+
+
+CREATE TABLE IF NOT EXISTS placeholder (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note TEXT
+);

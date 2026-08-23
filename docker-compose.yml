@@ -1,0 +1,174 @@
+# =============================================================
+# Wayfare — Agentic AI Travel Itinerary Planner
+# Shared Docker Compose config for the whole project team.
+#
+# Run from the project root:
+#   docker-compose up --build
+#
+# Release 0: shared-frontend + student-1..5 + ai-mode only.
+# Release 1: uncomment mcp-server + rag-server.
+# Release 2: uncomment multi-agent-server + add cloud deployment.
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  # Unified home page (shared/frontend) — links out to each
+  # student's own frontend below.
+  # -----------------------------------------------------------
+  shared-frontend:
+    image: nginx:alpine
+    container_name: shared-frontend
+    volumes:
+      - ./shared/frontend:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    networks:
+      - wayfare-net
+    depends_on:
+      - student-AlvindhoEdlyn
+      - student-KeyuanGan
+      - student-RenzoRobin
+      - student-TrongDao
+      - student-YajunNing
+
+  # -----------------------------------------------------------
+  # Student services — each bundles frontend + backend/API in
+  # one container (per their own Dockerfile) with an SQLite
+  # file persisted via a named volume.
+  # -----------------------------------------------------------
+  student-AlvindhoEdlyn:
+    build: ./student-AlvindhoEdlyn
+    image: wayfare-student-alvindhoedlyn
+    container_name: student-AlvindhoEdlyn-app
+    ports:
+      - "5001:5000"
+    volumes:
+      - alvindhoedlyn-data:/app/database
+    environment:
+      - OLLAMA_BASE_URL=http://ai-mode:11434
+    networks:
+      - wayfare-net
+    depends_on:
+      - ai-mode
+
+  student-KeyuanGan:
+    build: ./student-KeyuanGan
+    image: wayfare-student-keyuangan
+    container_name: student-KeyuanGan-app
+    ports:
+      - "5002:5000"
+    volumes:
+      - keyuangan-data:/app/database
+    environment:
+      - OLLAMA_BASE_URL=http://ai-mode:11434
+    networks:
+      - wayfare-net
+    depends_on:
+      - ai-mode
+
+  student-RenzoRobin:
+    # Accommodation Recommender
+    build: ./student-RenzoRobin
+    image: wayfare-student-renzorobin
+    container_name: student-RenzoRobin-app
+    ports:
+      - "5003:5000"
+    volumes:
+      - renzorobin-data:/app/database
+    environment:
+      - OLLAMA_BASE_URL=http://ai-mode:11434
+    networks:
+      - wayfare-net
+    depends_on:
+      - ai-mode
+
+  student-TrongDao:
+    build: ./student-TrongDao
+    image: wayfare-student-trongdao
+    container_name: student-TrongDao-app
+    ports:
+      - "5004:5000"
+    volumes:
+      - trongdao-data:/app/database
+    environment:
+      - OLLAMA_BASE_URL=http://ai-mode:11434
+    networks:
+      - wayfare-net
+    depends_on:
+      - ai-mode
+
+  student-YajunNing:
+    build: ./student-YajunNing
+    image: wayfare-student-yajunning
+    container_name: student-YajunNing-app
+    ports:
+      - "5005:5000"
+    volumes:
+      - yajunning-data:/app/database
+    environment:
+      - OLLAMA_BASE_URL=http://ai-mode:11434
+    networks:
+      - wayfare-net
+    depends_on:
+      - ai-mode
+
+  # -----------------------------------------------------------
+  # AI services (shared across all students)
+  # -----------------------------------------------------------
+  ai-mode:
+    image: ollama/ollama:latest
+    container_name: ai-mode
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - wayfare-net
+  # --- Release 1: uncomment when MCP/RAG are implemented ---
+  # mcp-server:
+  #   build: ./ai-services/mcp-server
+  #   container_name: mcp-server
+  #   ports:
+  #     - "8100:8100"
+  #   networks:
+  #     - wayfare-net
+  #   depends_on:
+  #     - ai-mode
+  #
+  # rag-server:
+  #   build: ./ai-services/rag-server
+  #   container_name: rag-server
+  #   ports:
+  #     - "8200:8200"
+  #   volumes:
+  #     - rag-data:/app/data
+  #   networks:
+  #     - wayfare-net
+  #   depends_on:
+  #     - ai-mode
+
+  # --- Release 2: uncomment when Multi-Agent System is implemented ---
+  # multi-agent-server:
+  #   build: ./ai-services/multi-agent-server
+  #   container_name: multi-agent-server
+  #   ports:
+  #     - "8300:8300"
+  #   networks:
+  #     - wayfare-net
+  #   depends_on:
+  #     - ai-mode
+  #     - mcp-server
+  #     - rag-server
+
+networks:
+  wayfare-net:
+    driver: bridge
+
+volumes:
+  ollama-models:
+  alvindhoedlyn-data:
+  keyuangan-data:
+  renzorobin-data:
+  trongdao-data:
+  yajunning-data: # rag-data:

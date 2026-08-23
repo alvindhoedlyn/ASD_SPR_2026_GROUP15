@@ -1,14 +1,97 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <title>project-name</title>
-  <link rel="stylesheet" href="css/main.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wayfare — Plan your trip</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
-  <header><!-- shared layout/nav --></header>
-  <main id="app"></main>
-  <footer></footer>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <span class="brand">[Name of APPLICATION]</span>
+      <nav class="topnav">
+        <a href="#features">Features</a>
+        <a href="#" id="new-trip-link">New trip</a>
+        <a href="login.html" id="auth-link" class="auth-link">Log in</a>
+
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">Agentic AI trip planning</p>
+        <h1>One trip.<br>Five specialists.<br>Zero spreadsheets.</h1>
+        <p class="hero-sub">[NAME OF APP] pulls together flights, stays, routes, places, and budget into a single
+          itinerary —
+          planned, tracked, and adapted by AI as you go.</p>
+      </div>
+      <div class="route-map" aria-hidden="true">
+        <svg viewBox="0 0 520 220" width="100%" height="100%">
+          <path d="M20,180 C120,20 180,200 260,90 S420,10 500,60" fill="none" stroke="var(--line)" stroke-width="2"
+            stroke-dasharray="1 10" stroke-linecap="round" />
+          <circle cx="20" cy="180" r="5" fill="var(--coral)" />
+          <circle cx="260" cy="90" r="5" fill="var(--coral)" />
+          <circle cx="500" cy="60" r="5" fill="var(--coral)" />
+        </svg>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <p class="section-label">Your itinerary, five parts</p>
+      <div class="feature-grid">
+
+        <a class="feature-card" href="http://localhost:5005" data-feature="flights" data-requires-login="true">
+          <span class="card-index">01</span>
+          <h2>Flights</h2>
+          <p>[PUT DESC FOR FEATURE - STUDENT 5]</p>
+        </a>
+
+
+        <a class="feature-card" href="http://localhost:5004" data-feature="places" data-requires-login="true">
+          <span class="card-index">02</span>
+          <h2>Location</h2>
+          <p>[PUT DESC FOR FEATURE - 4].</p>
+        </a>
+
+        <a class="feature-card" href="http://localhost:5003" data-feature="stays" data-requires-login="true">
+          <span class="card-index">03</span>
+          <h2>Accommodation</h2>
+          <p>Accommodation recommendations weighted by your own priorities.</p>
+        </a>
+
+
+        <a class="feature-card" href="http://localhost:5001" data-feature="routes" data-requires-login="true">
+          <span class="card-index">04</span>
+          <h2>Map Routes</h2>
+          <p>[PUT DESC FOR FEATURE - STUDENT 1]</p>
+        </a>
+
+        <a class="feature-card" href="http://localhost:5002" data-feature="budget" data-requires-login="true">
+          <span class="card-index">05</span>
+          <h2>Budget</h2>
+          <p>[PUT DESC FOR FEATURE - STUDENT 2]</p>
+        </a>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>[Name of APPLICATION] — Group 15 ASD 2026 group project</p>
+  </footer>
+
   <script src="js/main.js"></script>
 </body>
+
 </html>
