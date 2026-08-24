@@ -1,21 +1,5 @@
-# =============================================================
-# Wayfare — Agentic AI Travel Itinerary Planner
-# Shared Docker Compose config for the whole project team.
-#
-# Run from the project root:
-#   docker-compose up --build
-#
-# Release 0: shared-frontend + student-1..5 + ai-mode only.
-# Release 1: uncomment mcp-server + rag-server.
-# Release 2: uncomment multi-agent-server + add cloud deployment.
-# =============================================================
-
 services:
 
-  # -----------------------------------------------------------
-  # Unified home page (shared/frontend) — links out to each
-  # student's own frontend below.
-  # -----------------------------------------------------------
   shared-frontend:
     image: nginx:alpine
     container_name: shared-frontend
@@ -32,11 +16,6 @@ services:
       - student-TrongDao
       - student-YajunNing
 
-  # -----------------------------------------------------------
-  # Student services — each bundles frontend + backend/API in
-  # one container (per their own Dockerfile) with an SQLite
-  # file persisted via a named volume.
-  # -----------------------------------------------------------
   student-AlvindhoEdlyn:
     build: ./student-AlvindhoEdlyn
     image: wayfare-student-alvindhoedlyn
@@ -125,41 +104,6 @@ services:
       - ollama-models:/root/.ollama
     networks:
       - wayfare-net
-  # --- Release 1: uncomment when MCP/RAG are implemented ---
-  # mcp-server:
-  #   build: ./ai-services/mcp-server
-  #   container_name: mcp-server
-  #   ports:
-  #     - "8100:8100"
-  #   networks:
-  #     - wayfare-net
-  #   depends_on:
-  #     - ai-mode
-  #
-  # rag-server:
-  #   build: ./ai-services/rag-server
-  #   container_name: rag-server
-  #   ports:
-  #     - "8200:8200"
-  #   volumes:
-  #     - rag-data:/app/data
-  #   networks:
-  #     - wayfare-net
-  #   depends_on:
-  #     - ai-mode
-
-  # --- Release 2: uncomment when Multi-Agent System is implemented ---
-  # multi-agent-server:
-  #   build: ./ai-services/multi-agent-server
-  #   container_name: multi-agent-server
-  #   ports:
-  #     - "8300:8300"
-  #   networks:
-  #     - wayfare-net
-  #   depends_on:
-  #     - ai-mode
-  #     - mcp-server
-  #     - rag-server
 
 networks:
   wayfare-net:

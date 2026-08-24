@@ -1,31 +1,5 @@
-// Wayfare — shared API base URLs
-// Each student's frontend imports this file so backend ports/hosts
-// are changed in exactly one place, not five.
-//
-// In Docker Compose, service names resolve as hostnames on the shared
-// network, e.g. http://student-3-backend:5000
-// In local (non-docker) dev, use http://localhost:<port> instead.
-
-// const API_CONFIG = {
-//     routes: "http://localhost:5001",  // Student 1 — Route Planner
-//     budget: "http://localhost:5002",  // Student 2 — Budget Tracker
-//     stays: "http://localhost:5003",  // Student 3 — Accommodation Recommender
-//     places: "http://localhost:5004",  // Student 4 — Location Recommender
-//     flights: "http://localhost:5005",  // Student 5 — Flight Recommender
-
-//     aiMode: "http://localhost:11434",
-//     mcpServer: "http://localhost:8100",
-//     ragServer: "http://localhost:8200",
-//     multiAgent: "http://localhost:8300"
-// };
-
-// // Node/CommonJS export (for backend use, if needed) — no-op in the browser
-// if (typeof module !== "undefined" && module.exports) {
-//     module.exports = API_CONFIG;
-// }
-
-const AUTH_KEY = "wayfare_logged_in";
-const AUTH_USER_KEY = "wayfare_username";
+const AUTH_KEY = "logged_in";
+const AUTH_USER_KEY = "username";
 
 function isLoggedIn() {
     return localStorage.getItem(AUTH_KEY) === "true";
