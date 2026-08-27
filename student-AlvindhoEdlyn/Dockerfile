@@ -10,6 +10,6 @@ COPY database/ ./database/
 
 WORKDIR /app/backend
 
-EXPOSE 5000
+EXPOSE 5001
 
 CMD ["python", "app.py"]
