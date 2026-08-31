@@ -1,100 +1,94 @@
 services:
-
   shared-frontend:
-    image: nginx:alpine
+    build: ./shared
+    image: journeybuddy-shared
     container_name: shared-frontend
     volumes:
-      - ./shared/frontend:/usr/share/nginx/html:ro
+      - shared-data:/app/instance
     ports:
       - "8080:80"
     networks:
-      - wayfare-net
+      - journeybuddy-net
     depends_on:
       - student-AlvindhoEdlyn
       - student-KeyuanGan
       - student-RenzoRobin
       - student-TrongDao
       - student-YajunNing
-
   student-AlvindhoEdlyn:
     build: ./student-AlvindhoEdlyn
-    image: wayfare-student-alvindhoedlyn
+    image: journeybuddy-student-alvindhoedlyn
     container_name: student-AlvindhoEdlyn-app
     ports:
       - "5001:5000"
     volumes:
-      - alvindhoedlyn-data:/app/database
+      - alvindhoedlyn-data:/app/instance
     environment:
       - OLLAMA_BASE_URL=http://ai-mode:11434
     networks:
-      - wayfare-net
+      - journeybuddy-net
     depends_on:
       - ai-mode
 
   student-KeyuanGan:
     build: ./student-KeyuanGan
-    image: wayfare-student-keyuangan
+    image: journeybuddy-student-keyuangan
     container_name: student-KeyuanGan-app
     ports:
       - "5002:5000"
     volumes:
-      - keyuangan-data:/app/database
+      - keyuangan-data:/app/instance
     environment:
       - OLLAMA_BASE_URL=http://ai-mode:11434
     networks:
-      - wayfare-net
+      - journeybuddy-net
     depends_on:
       - ai-mode
 
   student-RenzoRobin:
-    # Accommodation Recommender
     build: ./student-RenzoRobin
-    image: wayfare-student-renzorobin
+    image: journeybuddy-student-renzorobin
     container_name: student-RenzoRobin-app
     ports:
       - "5003:5000"
     volumes:
-      - renzorobin-data:/app/database
+      - renzorobin-data:/app/instance
     environment:
       - OLLAMA_BASE_URL=http://ai-mode:11434
     networks:
-      - wayfare-net
+      - journeybuddy-net
     depends_on:
       - ai-mode
 
   student-TrongDao:
     build: ./student-TrongDao
-    image: wayfare-student-trongdao
+    image: journeybuddy-student-trongdao
     container_name: student-TrongDao-app
     ports:
       - "5004:5000"
     volumes:
-      - trongdao-data:/app/database
+      - trongdao-data:/app/instance
     environment:
       - OLLAMA_BASE_URL=http://ai-mode:11434
     networks:
-      - wayfare-net
+      - journeybuddy-net
     depends_on:
       - ai-mode
 
   student-YajunNing:
     build: ./student-YajunNing
-    image: wayfare-student-yajunning
+    image: journeybuddy-student-yajunning
     container_name: student-YajunNing-app
     ports:
       - "5005:5000"
     volumes:
-      - yajunning-data:/app/database
+      - yajunning-data:/app/instance
     environment:
       - OLLAMA_BASE_URL=http://ai-mode:11434
     networks:
-      - wayfare-net
+      - journeybuddy-net
     depends_on:
       - ai-mode
-
-  # -----------------------------------------------------------
-  # AI services (shared across all students)
-  # -----------------------------------------------------------
   ai-mode:
     image: ollama/ollama:latest
     container_name: ai-mode
@@ -103,16 +97,17 @@ services:
     volumes:
       - ollama-models:/root/.ollama
     networks:
-      - wayfare-net
+      - journeybuddy-net
 
 networks:
-  wayfare-net:
+  journeybuddy-net:
     driver: bridge
 
 volumes:
   ollama-models:
+  shared-data:
   alvindhoedlyn-data:
   keyuangan-data:
   renzorobin-data:
   trongdao-data:
-  yajunning-data: # rag-data:
+  yajunning-data:
