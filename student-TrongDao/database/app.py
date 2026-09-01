@@ -66,6 +66,18 @@ def get_missing_recommendation_fields(data):
     ]
 
 
+def get_missing_saved_place_fields(data):
+    required_fields = [
+        "journey_id",
+        "attraction_id"
+    ]
+
+    return [
+        field for field in required_fields
+        if field not in data or data[field] in (None, "")
+    ]
+
+
 @app.get("/")
 @app.get("/health")
 def health():
@@ -514,6 +526,295 @@ def delete_recommendation_request(request_id):
     finally:
         conn.close()
 
+
+@app.get("/saved-places")
+def get_saved_places():
+    journey_id = request.args.get("journey_id", "").strip()
+
+    conn = get_db_connection()
+
+    try:
+        if journey_id:
+            saved_place_rows = conn.execute(
+                """
+                SELECT
+                    saved_places.saved_place_id,
+                    saved_places.journey_id,
+                    saved_places.attraction_id,
+                    saved_places.notes,
+                    saved_places.created_at,
+                    places.attraction_name,
+                    places.city,
+                    places.country,
+                    places.category,
+                    places.longitude,
+                    places.latitude,
+                    places.estimated_cost,
+                    places.currency,
+                    places.expected_duration_minutes
+                FROM saved_places
+                JOIN places
+                    ON saved_places.attraction_id =
+                       places.attraction_id
+                WHERE saved_places.journey_id = ?
+                ORDER BY saved_places.saved_place_id
+                """,
+                (journey_id,)
+            ).fetchall()
+
+        else:
+            saved_place_rows = conn.execute(
+                """
+                SELECT
+                    saved_places.saved_place_id,
+                    saved_places.journey_id,
+                    saved_places.attraction_id,
+                    saved_places.notes,
+                    saved_places.created_at,
+                    places.attraction_name,
+                    places.city,
+                    places.country,
+                    places.category,
+                    places.longitude,
+                    places.latitude,
+                    places.estimated_cost,
+                    places.currency,
+                    places.expected_duration_minutes
+                FROM saved_places
+                JOIN places
+                    ON saved_places.attraction_id =
+                       places.attraction_id
+                ORDER BY saved_places.saved_place_id
+                """
+            ).fetchall()
+
+        return jsonify([
+            dict(saved_place)
+            for saved_place in saved_place_rows
+        ]), 200
+
+    finally:
+        conn.close()
+
+
+@app.get("/saved-places/<int:saved_place_id>")
+def get_saved_place(saved_place_id):
+    conn = get_db_connection()
+
+    try:
+        saved_place = conn.execute(
+            """
+            SELECT
+                saved_places.saved_place_id,
+                saved_places.journey_id,
+                saved_places.attraction_id,
+                saved_places.notes,
+                saved_places.created_at,
+                places.attraction_name,
+                places.city,
+                places.country,
+                places.category,
+                places.longitude,
+                places.latitude,
+                places.estimated_cost,
+                places.currency,
+                places.expected_duration_minutes
+            FROM saved_places
+            JOIN places
+                ON saved_places.attraction_id =
+                   places.attraction_id
+            WHERE saved_places.saved_place_id = ?
+            """,
+            (saved_place_id,)
+        ).fetchone()
+
+        if saved_place is None:
+            return jsonify({
+                "error": "Saved place not found"
+            }), 404
+
+        return jsonify(dict(saved_place)), 200
+
+    finally:
+        conn.close()
+
+
+@app.post("/saved-places")
+def add_saved_place():
+    data = request.get_json(silent=True) or {}
+
+    missing_fields = get_missing_saved_place_fields(data)
+
+    if missing_fields:
+        return jsonify({
+            "error": "Missing required fields",
+            "fields": missing_fields
+        }), 400
+
+    conn = get_db_connection()
+
+    try:
+        place = conn.execute(
+            """
+            SELECT attraction_id
+            FROM places
+            WHERE attraction_id = ?
+            """,
+            (data["attraction_id"],)
+        ).fetchone()
+
+        if place is None:
+            return jsonify({
+                "error": "Place not found"
+            }), 404
+
+        cursor = conn.execute(
+            """
+            INSERT INTO saved_places (
+                journey_id,
+                attraction_id,
+                notes
+            )
+            VALUES (?, ?, ?)
+            """,
+            (
+                data["journey_id"],
+                data["attraction_id"],
+                data.get("notes", "")
+            )
+        )
+
+        conn.commit()
+
+        return jsonify({
+            "message": "Place saved successfully",
+            "saved_place_id": cursor.lastrowid
+        }), 201
+
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+
+        if "UNIQUE constraint failed" in str(exc):
+            return jsonify({
+                "error": (
+                    "This place is already saved "
+                    "for the selected journey"
+                )
+            }), 409
+
+        return jsonify({
+            "error": "Invalid saved place data",
+            "details": str(exc)
+        }), 400
+
+    finally:
+        conn.close()
+
+
+@app.put("/saved-places/<int:saved_place_id>")
+def update_saved_place(saved_place_id):
+    data = request.get_json(silent=True) or {}
+
+    missing_fields = get_missing_saved_place_fields(data)
+
+    if missing_fields:
+        return jsonify({
+            "error": "Missing required fields",
+            "fields": missing_fields
+        }), 400
+
+    conn = get_db_connection()
+
+    try:
+        place = conn.execute(
+            """
+            SELECT attraction_id
+            FROM places
+            WHERE attraction_id = ?
+            """,
+            (data["attraction_id"],)
+        ).fetchone()
+
+        if place is None:
+            return jsonify({
+                "error": "Place not found"
+            }), 404
+
+        cursor = conn.execute(
+            """
+            UPDATE saved_places
+            SET journey_id = ?,
+                attraction_id = ?,
+                notes = ?
+            WHERE saved_place_id = ?
+            """,
+            (
+                data["journey_id"],
+                data["attraction_id"],
+                data.get("notes", ""),
+                saved_place_id
+            )
+        )
+
+        if cursor.rowcount == 0:
+            return jsonify({
+                "error": "Saved place not found"
+            }), 404
+
+        conn.commit()
+
+        return jsonify({
+            "message": "Saved place updated successfully",
+            "saved_place_id": saved_place_id
+        }), 200
+
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+
+        if "UNIQUE constraint failed" in str(exc):
+            return jsonify({
+                "error": (
+                    "This place is already saved "
+                    "for the selected journey"
+                )
+            }), 409
+
+        return jsonify({
+            "error": "Invalid saved place data",
+            "details": str(exc)
+        }), 400
+
+    finally:
+        conn.close()
+
+
+@app.delete("/saved-places/<int:saved_place_id>")
+def delete_saved_place(saved_place_id):
+    conn = get_db_connection()
+
+    try:
+        cursor = conn.execute(
+            """
+            DELETE FROM saved_places
+            WHERE saved_place_id = ?
+            """,
+            (saved_place_id,)
+        )
+
+        if cursor.rowcount == 0:
+            return jsonify({
+                "error": "Saved place not found"
+            }), 404
+
+        conn.commit()
+
+        return jsonify({
+            "message": "Saved place deleted successfully",
+            "saved_place_id": saved_place_id
+        }), 200
+
+    finally:
+        conn.close()
     
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5004, debug=True)
