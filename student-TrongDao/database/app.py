@@ -46,6 +46,26 @@ def get_missing_place_fields(data):
     ]
 
 
+def get_missing_recommendation_fields(data):
+    required_fields = [
+        "journey_id",
+        "destination_city",
+        "arrival_date",
+        "departure_date",
+        "interests",
+        "weather_preferences",
+        "crowd_tolerance",
+        "budget_range",
+        "accessibility_needs",
+        "status"
+    ]
+
+    return [
+        field for field in required_fields
+        if field not in data or data[field] in (None, "")
+    ]
+
+
 @app.get("/")
 @app.get("/health")
 def health():
@@ -286,6 +306,214 @@ def delete_place(attraction_id):
     finally:
         conn.close()
 
+@app.get("/recommendation-requests")
+def get_recommendation_requests():
+    conn = get_db_connection()
 
+    try:
+        requests = conn.execute(
+            """
+            SELECT *
+            FROM recommendation_requests
+            ORDER BY request_id"""
+        ).fetchall()
+
+        return jsonify([
+            dict(request) for request in requests
+        ]), 200
+
+    finally:
+        conn.close()
+
+
+@app.get("/recommendation-requests/<int:request_id>")
+def get_recommendation_request(request_id):
+    conn = get_db_connection()
+
+    try:
+        request_data = conn.execute(
+            """
+            SELECT *
+            FROM recommendation_requests
+            WHERE request_id = ?
+            """, (request_id,)
+        ).fetchone()
+
+        if not request_data:
+            return jsonify({
+                "error": "Recommendation request not found"
+            }), 404
+
+        return jsonify(dict(request_data)), 200
+
+    finally:
+        conn.close()
+
+@app.post("/recommendation-requests")
+def add_recommendation_request():
+    data = request.get_json(silent = True) or {}
+
+    missing_fields = get_missing_recommendation_fields(data)
+
+    if missing_fields:
+        return jsonify({
+            "error": "Missing required fields",
+            "fields": missing_fields
+            }), 400
+    
+    conn = get_db_connection()
+
+    try:
+        cursor = conn.execute(
+            """
+            INSERT INTO recommendation_requests (
+            journey_id,
+            destination_city,
+            arrival_date, 
+            departure_date,
+            interests,
+            weather_preferences,
+            crowd_tolerance,
+            budget_range,
+            accessibility_needs,
+            status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, 
+            (data["journey_id"],
+             data["destination_city"],
+             data["arrival_date"],
+             data["departure_date"],
+             data["interests"],
+             data["weather_preferences"],
+             data["crowd_tolerance"],
+             data["budget_range"],
+             data["accessibility_needs"],
+             data["status"]
+             )
+        )
+
+        conn.commit()
+
+        return jsonify({
+            "message": "Recommendation request added successfully",
+            "request_id": cursor.lastrowid
+        }), 201
+
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+
+        return jsonify({
+            "error": "Invalid recommendation request data",
+            "details": str(exc)
+        }), 400
+
+    finally:
+        conn.close()
+        
+
+@app.put("/recommendation-requests/<int:request_id>")
+def update_recommendation_request(request_id):
+    data = request.get_json(silent = True) or {}
+
+    missing_fields = get_missing_recommendation_fields(data)
+
+    if missing_fields:
+        return jsonify({
+            "error": "Missing required fields",
+            "fields": missing_fields
+        }), 400
+
+    conn = get_db_connection()
+
+    try:
+        cursor = conn.execute(
+            """
+            UPDATE recommendation_requests
+            SET journey_id = ?,
+                destination_city = ?,
+                arrival_date = ?, 
+                departure_date = ?,
+                interests = ?,
+                weather_preferences = ?,
+                crowd_tolerance = ?,
+                budget_range = ?,
+                accessibility_needs = ?,
+                status = ?
+            WHERE request_id = ?
+            """, (
+                data["journey_id"],
+                data["destination_city"],
+                data["arrival_date"],
+                data["departure_date"],
+                data["interests"],
+                data["weather_preferences"],
+                data["crowd_tolerance"],
+                data["budget_range"],
+                data["accessibility_needs"],
+                data["status"],
+                request_id,
+            )
+        )
+
+        if cursor.rowcount == 0:
+            return jsonify({
+                "error": "Recommendation request not found"
+            }), 404
+        
+        conn.commit()
+
+        return jsonify({
+            "message": "Recommendation request updated successfully",
+            "request_id": request_id
+        }), 200
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+
+        return jsonify({
+            "error": "Invalid recommendation request data",
+            "details": str(exc)
+        }), 400
+
+    finally:
+        conn.close()
+
+
+@app.delete("/recommendation-requests/<int:request_id>")
+def delete_recommendation_request(request_id):
+    conn = get_db_connection()
+
+    try:
+        cursor = conn.execute(
+            """
+            DELETE FROM recommendation_requests
+            WHERE request_id = ?
+            """, (request_id,)
+        )
+
+        if cursor.rowcount == 0:
+            return jsonify({
+                "error": "Recommendation request not found"
+            }), 404
+
+        conn.commit()
+
+        return jsonify({
+            "message": "Recommendation request deleted successfully",
+            "request_id": request_id
+        }), 200
+
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+
+        return jsonify({
+            "error": "Recommendation request could not be deleted",
+            "details": str(exc)
+        }), 409
+
+    finally:
+        conn.close()
+
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5004, debug=True)
