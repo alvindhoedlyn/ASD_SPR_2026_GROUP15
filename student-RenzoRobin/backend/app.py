@@ -495,9 +495,11 @@ def generate_recommendations():
             "avg_rating": accom["avg_rating"],
             "review_count": accom["review_count"],
             "starting_price": accom["min_price"],
+            "facilities": accom["facilities"],
             "score": round(total, 3),
             "breakdown": breakdown,
         })
+    
 
     scored.sort(key=lambda x: x["score"], reverse=True)
     return jsonify({"recommendations": scored})
@@ -529,19 +531,37 @@ def similarity_match(accommodation_id):
         "starting_price": a["min_price"],
     } for a in others[:4]])
 
-
 @app.route("/recommendations/explain", methods=["POST"])
 def explain_recommendation():
     data = request.get_json() or {}
-    accommodation_name = data.get("name", "this accommodation")
-    breakdown = data.get("breakdown", {})
+    name = data.get("name", "this accommodation")
+    city = data.get("city_area", "")
+    price = data.get("starting_price")
+    rating = data.get("avg_rating")
+    reviews = data.get("review_count")
+    facilities = ", ".join(data.get("facilities", [])) or "none listed"
+    score = data.get("score")
+    match_pct = round((score or 0) * 100)
 
     question = (
-        f"In one short sentence, explain why '{accommodation_name}' is a good match "
-        f"given these scores (0-1 scale): price={breakdown.get('price_score')}, "
-        f"location={breakdown.get('location_score')}, facilities={breakdown.get('facility_score')}, "
-        f"reviews={breakdown.get('review_score')}. Be conversational, not technical."
+        f"Here is DATA about one accommodation. Only use the numbers given below — "
+        f"do not invent, estimate, or assume any other numbers (no averages, no comparisons "
+        f"to other listings, nothing not listed here).\n\n"
+        f"Name: {name}\n"
+        f"Location: {city}\n"
+        f"Price: ${price}/night\n"
+        f"Rating: {rating}★ from {reviews} reviews\n"
+        f"Facilities: {facilities}\n"
+        f"Overall match: {match_pct}%\n\n"
+        "Write 2 - 3 long sentence highlighting a real standout detail "
+        "about this accommodation — its actual price, rating, or a notable facility. "
+        "Do not mention the overall match percentage as if it were a fact about the "
+        "place itself (e.g. don't say 'this place has a 63% rating') — that number is "
+        "a ranking score, not a property of the accommodation." 
+        "Instead explain how it matches to that score."
     )
+
+    app.logger.info("explain prompt:\n%s", question)
 
     try:
         response = client.chat.completions.create(
@@ -550,8 +570,10 @@ def explain_recommendation():
                 {
                     "role": "system",
                     "content": (
-                        "You are a friendly travel assistant. "
-                        "Answer in one short, conversational sentence."
+                        "You are a friendly travel assistant. You only restate and lightly "
+                        "rephrase the facts you are given. You never invent statistics, "
+                        "averages, or details not present in the user's message. "
+                        "Answer in 2 - 3 long conversational sentence."
                     )
                 },
                 {
@@ -572,18 +594,44 @@ def explain_recommendation():
                      f"{OLLAMA_MODEL} is installed.",
             "detail": str(exc)
         }), 503
+    
+@app.route("/recommendations/explain-compare", methods=["POST"])
+def explain_compare():
+    data = request.get_json() or {}
+    items = data.get("items", [])
 
+    if not items:
+        return jsonify({"error": "items are required"}), 400
 
-# ---------- Generic AI-mode chat endpoint (frontend -> backend -> Ollama -> LLM) ----------
+    lines = []
+    for it in items:
+        facilities = ", ".join(it.get("facilities", [])) or "none listed"
+        match_pct = round((it.get("score") or 0) * 100)
+        it["_match_pct"] = match_pct  # stash for the winner calc below
+        lines.append(
+            f"- {it.get('name')}: ${it.get('starting_price')}/night in {it.get('city_area')}, "
+            f"★{it.get('avg_rating')} ({it.get('review_count')} reviews), facilities: {facilities}, "
+            f"overall match: {match_pct}%"
+        )
 
-@app.route("/ask", methods=["POST"])
-def ask_local_agent():
-    question = request.form.get("question", "").strip()
-    if not question and request.is_json:
-        question = (request.get_json() or {}).get("question", "").strip()
+    # Compute the winner ourselves — don't trust the model to compare numbers
+    winner = max(items, key=lambda it: it.get("score") or 0)
+    winner_name = winner.get("name")
+    winner_pct = winner["_match_pct"]
 
-    if not question:
-        return "<p>Question is required.</p>", 400
+    question = (
+        "Here is DATA about accommodation options a traveler is comparing. "
+        "Only use the numbers given below — do not invent, estimate, or assume any "
+        "other numbers (no 'average price', no 'average match', nothing not listed here).\n\n"
+        + "\n".join(lines) +
+        f"\n\nFACT (already calculated, do not recalculate or contradict this): "
+        f"the option with the highest overall match is \"{winner_name}\" at {winner_pct}%.\n\n"
+        "Write 2-3 conversational sentences comparing these options using ONLY their real "
+        "price, rating, and facilities listed above. End by naming the option with the highest "
+        f"overall match — it is \"{winner_name}\" — and briefly say why, based only on the data given."
+    )
+
+    app.logger.info("explain-compare prompt:\n%s", question)
 
     try:
         response = client.chat.completions.create(
@@ -592,61 +640,11 @@ def ask_local_agent():
                 {
                     "role": "system",
                     "content": (
-                        "You are a concise software engineering assistant. "
-                        "Answer in one short paragraph unless asked otherwise."
+                        "You are a travel assistant. You only restate and lightly rephrase the "
+                        "numbers you are given. You never invent statistics, averages, or facts "
+                        "not present in the user's message. You never do your own numeric comparisons — "
+                        "if a comparison result is given to you as a fact, you repeat it, you do not recompute it."
                     )
-                },
-                {
-                    "role": "user",
-                    "content": question
-                }
-            ],
-            max_tokens=200,
-            temperature=0.2,
-        )
-
-        answer = response.choices[0].message.content
-        return f"<p>{answer}</p>"
-
-    except Exception as exc:
-        return (
-            "<p>Local AI agent request failed. "
-            f"Check that Ollama is running and that {OLLAMA_MODEL} is installed.</p>"
-            f"<pre>{exc}</pre>",
-            503,
-        )
-
-@app.route("/recommendations/explain-compare", methods=["POST"])
-def explain_compare():
-    data = request.get_json() or {}
-    items = data.get("items", [])  # [{name, breakdown}, ...]
-
-    if not items:
-        return jsonify({"error": "items are required"}), 400
-
-    lines = []
-    for it in items:
-        b = it.get("breakdown", {})
-        lines.append(
-            f"- {it.get('name')}: price={b.get('price_score')}, "
-            f"location={b.get('location_score')}, facilities={b.get('facility_score')}, "
-            f"reviews={b.get('review_score')}"
-        )
-
-    question = (
-        "Here are accommodation match scores (0-1 scale, higher is better) for a few options "
-        f"being compared:\n" + "\n".join(lines) +
-        "\n\nIn 2-3 short sentences, explain how they compare and why one might edge out "
-        "the others, referencing the specific scores. Be conversational, not technical."
-    )
-
-    try:
-        response = client.chat.completions.create(
-            model=OLLAMA_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a friendly travel assistant. Be concise and specific."
                 },
                 {"role": "user", "content": question}
             ],
