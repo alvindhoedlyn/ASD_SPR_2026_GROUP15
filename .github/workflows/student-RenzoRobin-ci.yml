@@ -1,0 +1,39 @@
+name: Student RenzoRobin CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'student-RenzoRobin/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'student-RenzoRobin/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install backend dependencies
+        working-directory: student-RenzoRobin/backend
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Run pre-commit pytest validation
+        working-directory: student-RenzoRobin
+        run: pytest tests/ -v
+        continue-on-error: true  
+
+      - name: Build Docker image
+        run: docker build -t journeybuddy-student-renzorobin ./student-RenzoRobin
+
+      - name: Confirm image was built
+        run: docker images journeybuddy-student-renzorobin

@@ -1,0 +1,50 @@
+name: Integration CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build all services
+        run: docker compose build
+
+      - name: Start the full stack
+        run: docker compose up -d
+
+      - name: Wait for services to be ready
+        run: sleep 20
+
+      - name: Pull Ollama model
+        run: docker exec ai-mode ollama pull qwen2.5:0.5b
+
+      - name: Check all containers are running
+        run: |
+          docker compose ps
+          # Fail the build if any container exited instead of staying up
+          if docker compose ps --filter "status=exited" | grep -q "Exit"; then
+            echo "One or more containers exited unexpectedly"
+            docker compose logs
+            exit 1
+          fi
+
+      - name: Check shared home page responds
+        run: curl -f http://localhost:8080/ || (docker compose logs shared-frontend && exit 1)
+
+      - name: Check each student service responds
+        run: |
+          for port in 5001 5002 5003 5004 5005; do
+            curl -f http://localhost:$port/health || (echo "Port $port failed health check" && exit 1)
+          done
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
