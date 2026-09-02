@@ -35,6 +35,14 @@
             <button class="tab-btn" data-tab="manage" id="manage-tab-btn">Manage Listings</button>
         </div>
 
+        <div id="area-select-modal" class="modal-overlay">
+            <div class="modal-box">
+                <h2>Where are you headed?</h2>
+                <p class="panel-sub">Choose an area — we'll only show listings we actually have.</p>
+                <div id="area-options" class="area-options"></div>
+            </div>
+        </div>
+
         <!-- ===================== RECOMMENDATIONS TAB ===================== -->
         <section id="tab-recommend" class="tab-panel active">
 
@@ -74,10 +82,11 @@
                         <option value="price">Sort: Price (low to high)</option>
                         <option value="rating">Sort: Rating</option>
                     </select>
+                    <button class="btn-secondary" id="change-area-btn">Change area</button>
                     <button class="btn-secondary" id="compare-btn" disabled>Compare selected (0)</button>
                 </div>
             </div>
-
+            <p id="selected-area-label" class="panel-sub"></p>
             <div id="results-grid" class="results-grid"></div>
 
         </section>
@@ -124,7 +133,7 @@
 
         <!-- ===================== ADD/EDIT LISTING FORM (modal) ===================== -->
         <div id="listing-form-modal" class="modal-overlay" hidden>
-            <div class="modal-box">
+            <div class="modal-box modal-wide">
                 <button class="modal-close" id="listing-form-close">&times;</button>
                 <h2 id="listing-form-title">Add listing</h2>
                 <form id="listing-form">
@@ -150,6 +159,23 @@
 
                     <button class="btn-primary" type="submit">Save listing</button>
                 </form>
+                <div id="rooms-section" hidden>
+                    <h3 class="rooms-heading">Rooms</h3>
+                    <div id="rooms-list"></div>
+
+                    <div class="room-add-row">
+                        <input class="field-input" type="text" id="new-room-name" placeholder="Room name">
+                        <div class="room-add-row-fields">
+                            <input class="field-input" type="number" id="new-room-price" placeholder="Price/night"
+                                min="0">
+                            <input class="field-input" type="number" id="new-room-capacity" placeholder="Capacity"
+                                min="1" value="2">
+                            <input class="field-input" type="number" id="new-room-available" placeholder="Available"
+                                min="0" value="1">
+                            <button class="btn-secondary" id="add-room-btn" type="button">+ Add room</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

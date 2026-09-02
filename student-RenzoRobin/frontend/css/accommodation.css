@@ -432,6 +432,143 @@ select {
     width: 100%;
 }
 
+.area-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.area-option-btn {
+    padding: 10px 18px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--card-bg);
+    font-family: var(--font-body);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.area-option-btn:hover {
+    border-color: var(--teal);
+    color: var(--teal-deep);
+}
+
+.area-option-btn.selected {
+    background: var(--teal);
+    color: #fff;
+    border-color: var(--teal);
+}
+
+.rooms-heading {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 17px;
+    margin: 24px 0 10px;
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+}
+
+.room-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.room-item-row1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.room-item-row1 .room-item-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.room-item-row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.room-item-row2 label {
+    font-size: 11px;
+    color: var(--ink-soft);
+    display: block;
+    margin-bottom: 2px;
+}
+
+.room-item input {
+    padding: 7px 9px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 13px;
+    width: 100%;
+}
+
+.room-item-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.room-item-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--teal-deep);
+    padding: 4px 0;
+}
+
+.room-item-actions .delete-room-btn {
+    color: #B3341C;
+}
+
+/* Add-room row: 2 lines too — name on top, rest below */
+.room-add-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+}
+
+.room-add-row-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.room-add-row .field-input {
+    margin: 0;
+}
+
+.compare-room-list {
+    margin: 0;
+    padding-left: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+
+    .room-item-row2,
+    .room-add-row-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 @media (max-width: 860px) {
     .results-grid {
         grid-template-columns: 1fr 1fr;
