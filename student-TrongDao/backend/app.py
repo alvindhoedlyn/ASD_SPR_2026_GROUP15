@@ -157,7 +157,7 @@ def home():
 
 @app.route("/health")
 def health():
-    return {"status": "ok", "student": "4"}
+    return {"status": "ok", "student": "4: TrongDao"}
 
 
 @app.route("/api/places", methods=["GET"])
