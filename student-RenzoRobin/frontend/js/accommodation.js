@@ -153,36 +153,6 @@ document.getElementById("sort-select").addEventListener("change", (e) => {
     renderResults();
 });
 
-// ===================== ASK AI AGENT =====================
-
-document.getElementById("ask-btn").addEventListener("click", async () => {
-    const input = document.getElementById("ask-input");
-    const responseEl = document.getElementById("ask-response");
-    const question = input.value.trim();
-    if (!question) return;
-
-    responseEl.textContent = "Thinking...";
-    responseEl.classList.add("loading");
-
-    try {
-        const res = await fetch("/ask", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: `question=${encodeURIComponent(question)}`
-        });
-        const html = await res.text();
-        responseEl.classList.remove("loading");
-        responseEl.innerHTML = html;
-    } catch (e) {
-        responseEl.classList.remove("loading");
-        responseEl.textContent = "Failed to reach the AI agent. Check that Ollama is running.";
-    }
-});
-
-document.getElementById("ask-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") document.getElementById("ask-btn").click();
-});
-
 // ===================== DETAIL VIEW =====================
 
 async function openDetail(id) {
@@ -226,6 +196,12 @@ async function openDetail(id) {
             try {
                 const result = await apiSend("/recommendations/explain", "POST", {
                     name: listing.name,
+                    city_area: listing.city_area,
+                    starting_price: scoredMatch.starting_price,
+                    avg_rating: listing.avg_rating,
+                    review_count: listing.review_count,
+                    facilities: listing.facilities,
+                    score: scoredMatch.score,
                     breakdown: scoredMatch.breakdown
                 });
                 box.innerHTML = `<div class="explain-box">${result.explanation || result.error}</div>`;
@@ -241,24 +217,6 @@ document.getElementById("detail-close").addEventListener("click", () => {
 
 // ===================== COMPARATOR =====================
 
-document.getElementById("compare-btn").addEventListener("click", () => {
-    const selected = (window._lastScored || []).filter(l => compareSelection.has(l.accommodation_id));
-    const wrap = document.getElementById("compare-table-wrap");
-    wrap.innerHTML = `
-    <table class="compare-table">
-      <thead><tr><th>Listing</th>${selected.map(l => `<th>${l.name}</th>`).join("")}</tr></thead>
-      <tbody>
-        <tr><td>Price/night</td>${selected.map(l => `<td>$${l.starting_price}</td>`).join("")}</tr>
-        <tr><td>Price score</td>${selected.map(l => `<td>${Math.round(l.breakdown.price_score * 100)}%</td>`).join("")}</tr>
-        <tr><td>Location score</td>${selected.map(l => `<td>${Math.round(l.breakdown.location_score * 100)}%</td>`).join("")}</tr>
-        <tr><td>Facility score</td>${selected.map(l => `<td>${Math.round(l.breakdown.facility_score * 100)}%</td>`).join("")}</tr>
-        <tr><td>Review score</td>${selected.map(l => `<td>${Math.round(l.breakdown.review_score * 100)}%</td>`).join("")}</tr>
-        <tr><td><strong>Overall match</strong></td>${selected.map(l => `<td><strong>${Math.round(l.score * 100)}%</strong></td>`).join("")}</tr>
-      </tbody>
-    </table>
-  `;
-    document.getElementById("compare-modal").hidden = false;
-});
 document.getElementById("compare-close").addEventListener("click", () => {
     document.getElementById("compare-modal").hidden = true;
 });
@@ -381,11 +339,10 @@ document.getElementById("compare-btn").addEventListener("click", async () => {
     <table class="compare-table">
       <thead><tr><th>Listing</th>${selected.map(l => `<th>${l.name}</th>`).join("")}</tr></thead>
       <tbody>
+        <tr><td>City / area</td>${selected.map(l => `<td>${l.city_area}</td>`).join("")}</tr>
         <tr><td>Price/night</td>${selected.map(l => `<td>$${l.starting_price}</td>`).join("")}</tr>
-        <tr><td>Price score</td>${selected.map(l => `<td>${Math.round(l.breakdown.price_score * 100)}%</td>`).join("")}</tr>
-        <tr><td>Location score</td>${selected.map(l => `<td>${Math.round(l.breakdown.location_score * 100)}%</td>`).join("")}</tr>
-        <tr><td>Facility score</td>${selected.map(l => `<td>${Math.round(l.breakdown.facility_score * 100)}%</td>`).join("")}</tr>
-        <tr><td>Review score</td>${selected.map(l => `<td>${Math.round(l.breakdown.review_score * 100)}%</td>`).join("")}</tr>
+        <tr><td>Rating</td>${selected.map(l => `<td>★ ${l.avg_rating} (${l.review_count} reviews)</td>`).join("")}</tr>
+        <tr><td>Facilities</td>${selected.map(l => `<td>${(l.facilities || []).join(", ") || "—"}</td>`).join("")}</tr>
         <tr><td><strong>Overall match</strong></td>${selected.map(l => `<td><strong>${Math.round(l.score * 100)}%</strong></td>`).join("")}</tr>
       </tbody>
     </table>
@@ -395,7 +352,16 @@ document.getElementById("compare-btn").addEventListener("click", async () => {
 
     try {
         const result = await apiSend("/recommendations/explain-compare", "POST", {
-            items: selected.map(l => ({ name: l.name, breakdown: l.breakdown }))
+            items: selected.map(l => ({
+                name: l.name,
+                breakdown: l.breakdown,
+                starting_price: l.starting_price,
+                city_area: l.city_area,
+                avg_rating: l.avg_rating,
+                review_count: l.review_count,
+                facilities: l.facilities,
+                score: l.score
+            }))
         });
         const box = document.getElementById("compare-explain");
         box.classList.remove("loading");
