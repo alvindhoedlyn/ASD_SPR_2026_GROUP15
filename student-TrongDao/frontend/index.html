@@ -3,12 +3,261 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>AlvindhoEdlyn — placeholder</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>JourneyBuddy Location Recommender</title>
+
+  <link rel="stylesheet" href="/static/css/location.css">
+  <script src="/static/js/location.js" defer></script>
 </head>
 
 <body>
-  <h1>4's service — placeholder</h1>
+  <header>
+    <h1>JourneyBuddy</h1>
+    <p>Find attractions that match your trip preferences.</p>
+  </header>
+
+  <main>
+    <section>
+      <h2>Attraction Preferences</h2>
+
+      <form id="recommendation-form">
+        <div>
+          <label for="journey-id">Journey ID</label>
+          <input
+            type="text"
+            id="journey-id"
+            name="journey_id"
+            placeholder="For example: TRIP-01"
+            required
+          >
+        </div>
+
+        <div>
+          <label for="destination-city">Destination city</label>
+          <input
+            type="text"
+            id="destination-city"
+            name="destination_city"
+            value="Sydney"
+            required
+          >
+        </div>
+
+        <div>
+          <label for="arrival-date">Arrival date</label>
+          <input
+            type="date"
+            id="arrival-date"
+            name="arrival_date"
+            required
+          >
+        </div>
+
+        <div>
+          <label for="departure-date">Departure date</label>
+          <input
+            type="date"
+            id="departure-date"
+            name="departure_date"
+            required
+          >
+        </div>
+
+        <fieldset>
+          <legend>Interests</legend>
+
+          <label>
+            <input
+              type="checkbox"
+              name="interests"
+              value="nature"
+            >
+            Nature
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="interests"
+              value="history"
+            >
+            History
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="interests"
+              value="art"
+            >
+            Art
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="interests"
+              value="landmark"
+            >
+            Landmarks
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="interests"
+              value="beach"
+            >
+            Beaches
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="interests"
+              value="wildlife"
+            >
+            Wildlife
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="interests"
+              value="entertainment"
+            >
+            Entertainment
+          </label>
+        </fieldset>
+
+        <div>
+          <label for="weather-preferences">
+            Activity preference
+          </label>
+
+          <select
+            id="weather-preferences"
+            name="weather_preferences"
+            required
+          >
+            <option value="">Choose a preference</option>
+            <option value="indoor">Indoor</option>
+            <option value="outdoor">Outdoor</option>
+            <option value="both">Either indoor or outdoor</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="crowd-tolerance">Crowd tolerance</label>
+
+          <select
+            id="crowd-tolerance"
+            name="crowd_tolerance"
+            required
+          >
+            <option value="">Choose a crowd level</option>
+            <option value="low">Low crowds only</option>
+            <option value="medium">Low or medium crowds</option>
+            <option value="high">Any crowd level</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="budget-range">Budget range</label>
+
+          <select
+            id="budget-range"
+            name="budget_range"
+            required
+          >
+            <option value="">Choose a budget</option>
+            <option value="free">Free activities</option>
+            <option value="low">Low — up to $25</option>
+            <option value="medium">Medium — up to $60</option>
+            <option value="high">High — no maximum</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="accessibility-needs">
+            Accessibility needs
+          </label>
+
+          <input
+            type="text"
+            id="accessibility-needs"
+            name="accessibility_needs"
+            value="None"
+            placeholder="For example: wheelchair access"
+            required
+          >
+        </div>
+
+        <button type="submit">
+          Find attractions
+        </button>
+
+        <div>
+          <label for="ai-mode">
+            <input
+              type="checkbox"
+              id="ai-mode"
+              name="ai_mode"
+            >
+            Use AI Mode
+          </label>
+
+          <p>
+            Qwen will explain the recommendations and Llama will review them.
+          </p>
+        </div>
+      </form>
+
+      <p id="form-message" role="status"></p>
+    </section>
+
+    <section>
+      <h2>Recommended Attractions</h2>
+
+      <article id="ai-response" hidden>
+        <h3>AI-reviewed explanation</h3>
+
+        <p id="ai-models"></p>
+        <p id="ai-explanation"></p>
+        <p id="ai-warning" role="status"></p>
+
+        <details>
+          <summary>View agent workflow evidence</summary>
+
+          <h4>Qwen implementation draft</h4>
+          <pre id="ai-draft"></pre>
+
+          <h4>Llama reviewed response</h4>
+          <pre id="ai-review"></pre>
+        </details>
+      </article>
+
+      <div id="recommendation-results">
+        <p>Your recommendations will appear here.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Saved Attractions</h2>
+
+      <button type="button" id="load-saved-places">
+        Load saved attractions
+      </button>
+
+      <div id="saved-places-results">
+        <p>Your saved attractions will appear here.</p>
+      </div>
+    </section>
+  </main>
 </body>
 
 </html>

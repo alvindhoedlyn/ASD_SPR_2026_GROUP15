@@ -1,5 +1,8 @@
 import os
 import requests
+import json
+from datetime import datetime, timezone
+from flask_cors import CORS
 from flask import Flask, render_template, jsonify, request
 
 app = Flask(
@@ -9,10 +12,142 @@ app = Flask(
     static_url_path="/static"
 )
 
+CORS(app)
+
 DATABASE_API_URL = os.getenv(
     "DATABASE_API_URL",
     "http://localhost:5404"
 )
+
+
+OLLAMA_API_URL = os.getenv(
+    "OLLAMA_API_URL",
+    "http://localhost:11434"
+)
+
+
+OLLAMA_MODEL = os.getenv(
+    "OLLAMA_MODEL",
+    "qwen2.5:0.5b"
+)
+
+
+OLLAMA_REVIEW_MODEL = os.getenv(
+    "OLLAMA_REVIEW_MODEL",
+    "llama3.1:8b"
+)
+
+
+def call_ollama(system_prompt, user_prompt, model):
+    response = requests.post(
+        f"{OLLAMA_API_URL}/api/chat",
+        json={
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+            "stream": False
+        },
+        timeout=180
+    )
+
+    response.raise_for_status()
+
+    response_data = response.json()
+
+    return response_data["message"]["content"]
+
+
+def record_workflow_step(workflow_log, journey_id, phase, status, details):
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "journey_id": journey_id,
+        "phase": phase,
+        "status": status,
+        "details": details
+    }
+
+    workflow_log.append(entry)
+
+    print(
+        "AGENTIC_WORKFLOW "
+        + json.dumps(entry),
+        flush=True
+    )
+
+
+def create_ai_explanation(preferences, recommendations):
+    system_prompt = """
+You are the JourneyBuddy attraction recommendation assistant.
+Explain why the provided attractions suit the traveller.
+Use only the supplied attraction data.
+Do not invent attractions, prices, facilities, or other facts.
+Keep the response concise and beginner-friendly.
+"""
+
+    prompt_data = {
+        "traveller_preferences": {
+            "destination_city": preferences["destination_city"],
+            "interests": preferences["interests"],
+            "weather_preferences": preferences[
+                "weather_preferences"
+            ],
+            "crowd_tolerance": preferences["crowd_tolerance"],
+            "budget_range": preferences["budget_range"],
+            "accessibility_needs": preferences[
+                "accessibility_needs"
+            ]
+        },
+        "recommended_attractions": recommendations
+    }
+
+    user_prompt = (
+        "Explain these evidence-based recommendations:\n"
+        + json.dumps(prompt_data, indent=2)
+    )
+
+    return call_ollama(
+        system_prompt,
+        user_prompt,
+        OLLAMA_MODEL
+    )
+
+
+def review_ai_explanation(preferences, recommendations, draft_explanation):
+    system_prompt = """
+You are the JourneyBuddy review agent.
+Review the draft recommendation explanation against the supplied
+database evidence.
+Remove or correct every unsupported claim.
+Do not invent locations, categories, prices, facilities, suitability,
+accessibility details, or traveller information.
+Return only the corrected final explanation.
+Keep it concise and beginner-friendly.
+"""
+
+    review_data = {
+        "traveller_preferences": preferences,
+        "database_recommendations": recommendations,
+        "qwen_draft": draft_explanation
+    }
+
+    user_prompt = (
+        "Review and correct this recommendation:\n"
+        + json.dumps(review_data, indent=2)
+    )
+
+    return call_ollama(
+        system_prompt,
+        user_prompt,
+        OLLAMA_REVIEW_MODEL
+    )
 
 
 @app.route("/")
@@ -183,6 +318,145 @@ def create_recommendations():
             )
         )
 
+        top_recommendations = recommendations[:5]
+
+        ai_mode = data.get("ai_mode", False)
+
+        ai_draft = None
+        ai_review = None
+        ai_explanation = None
+        ai_error = None
+        review_error = None
+        workflow_log = []
+
+        if ai_mode:
+            record_workflow_step(
+                workflow_log,
+                data["journey_id"],
+                "PLAN",
+                "completed",
+                (
+                    "Validated the traveller preferences and planned "
+                    "an evidence-based attraction recommendation."
+                )
+            )
+
+            record_workflow_step(
+                workflow_log,
+                data["journey_id"],
+                "ACT",
+                "completed",
+                (
+                    f"Retrieved {len(places)} database attractions, "
+                    f"applied the ranking rules, and selected "
+                    f"{len(top_recommendations)} recommendations."
+                )
+            )
+
+            if top_recommendations:
+                try:
+                    ai_draft = create_ai_explanation(
+                        data,
+                        top_recommendations
+                    )
+
+                    ai_explanation = ai_draft
+
+                    record_workflow_step(
+                        workflow_log,
+                        data["journey_id"],
+                        "OBSERVE",
+                        "completed",
+                        (
+                            f"{OLLAMA_MODEL} generated an explanation "
+                            "for the database-backed recommendations."
+                        )
+                    )
+
+                except requests.RequestException as error:
+                    ai_error = (
+                        "Qwen is unavailable. "
+                        "The data-based recommendations are still valid."
+                    )
+
+                    record_workflow_step(
+                        workflow_log,
+                        data["journey_id"],
+                        "OBSERVE",
+                        "failed",
+                        f"Qwen request failed: {error}"
+                    )
+
+                if ai_draft:
+                    try:
+                        ai_review = review_ai_explanation(
+                            data,
+                            top_recommendations,
+                            ai_draft
+                        )
+
+                        ai_explanation = ai_review
+
+                        record_workflow_step(
+                            workflow_log,
+                            data["journey_id"],
+                            "REVIEW",
+                            "completed",
+                            (
+                                f"{OLLAMA_REVIEW_MODEL} reviewed and "
+                                "corrected the Qwen explanation."
+                            )
+                        )
+
+                    except requests.RequestException as error:
+                        review_error = (
+                            "Llama review is unavailable. "
+                            "The displayed AI explanation is unreviewed."
+                        )
+
+                        record_workflow_step(
+                            workflow_log,
+                            data["journey_id"],
+                            "REVIEW",
+                            "failed",
+                            f"Llama review failed: {error}"
+                        )
+
+            else:
+                record_workflow_step(
+                    workflow_log,
+                    data["journey_id"],
+                    "OBSERVE",
+                    "completed",
+                    "No attractions matched the traveller preferences."
+                )
+
+            if ai_review:
+                adapt_details = (
+                    "Used the Llama-reviewed explanation as the final "
+                    "AI response."
+                )
+
+            elif ai_draft:
+                adapt_details = (
+                    "Used the Qwen draft with an unreviewed warning "
+                    "because the review agent was unavailable."
+                )
+
+            else:
+                adapt_details = (
+                    "Returned the deterministic database results "
+                    "without an AI explanation."
+                )
+
+            record_workflow_step(
+                workflow_log,
+                data["journey_id"],
+                "ADAPT",
+                "completed",
+                adapt_details
+            )
+
         request_record = {
             "journey_id": data["journey_id"],
             "destination_city": data["destination_city"],
@@ -210,8 +484,21 @@ def create_recommendations():
         return jsonify({
             "request_id": saved_request["request_id"],
             "journey_id": data["journey_id"],
-            "recommendation_count": len(recommendations[:5]),
-            "recommendations": recommendations[:5]
+            "mode": "ai" if ai_mode else "data",
+            "implementation_model": (
+                OLLAMA_MODEL if ai_mode else None
+            ),
+            "review_model": (
+                OLLAMA_REVIEW_MODEL if ai_mode else None
+            ),
+            "ai_draft": ai_draft,
+            "ai_review": ai_review,
+            "ai_explanation": ai_explanation,
+            "ai_error": ai_error,
+            "review_error": review_error,
+            "recommendation_count": len(top_recommendations),
+            "recommendations": top_recommendations,
+            "agentic_workflow": workflow_log
         }), 200
 
     except requests.RequestException as error:
@@ -342,7 +629,8 @@ def delete_saved_place(saved_place_id):
             "error": "Could not connect to the database service",
             "details": str(error)
         }), 503
-    
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5004)
+    port = int(os.getenv("PORT", "5004"))
+    app.run(host="0.0.0.0", port=port)
