@@ -74,9 +74,6 @@ recommendationForm.addEventListener("submit", async function (event) {
     accessibility_needs: document.getElementById(
       "accessibility-needs"
     ).value,
-    accessibility_needs: document.getElementById(
-    "accessibility-needs"
-    ).value,
     ai_mode: document.getElementById("ai-mode").checked
   };
 

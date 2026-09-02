@@ -84,15 +84,14 @@ services:
     environment:
       PORT: "5000"
       DATABASE_API_URL: http://student-TrongDao-database:5000
-      OLLAMA_API_URL: http://host.docker.internal:11434
+      OLLAMA_API_URL: http://ai-mode:11434
       OLLAMA_MODEL: qwen2.5:0.5b
       OLLAMA_REVIEW_MODEL: llama3.1:8b
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - journeybuddy-net
     depends_on:
       - student-TrongDao-database
+      - ai-mode
 
   student-TrongDao-database:
     build:
