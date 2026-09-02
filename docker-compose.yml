@@ -28,7 +28,8 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      - ai-mode
+      ai-mode:
+        condition: service_healthy
 
   student-KeyuanGan:
     build: ./student-KeyuanGan
@@ -43,7 +44,8 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      - ai-mode
+      ai-mode:
+        condition: service_healthy
 
   student-RenzoRobin:
     build: ./student-RenzoRobin
@@ -58,7 +60,8 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      - ai-mode
+      ai-mode:
+        condition: service_healthy
 
   student-TrongDao:
     build: ./student-TrongDao
@@ -73,7 +76,8 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      - ai-mode
+      ai-mode:
+        condition: service_healthy
 
   student-YajunNing:
     build: ./student-YajunNing
@@ -88,7 +92,8 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      - ai-mode
+      ai-mode:
+        condition: service_healthy
   ai-mode:
     image: ollama/ollama:latest
     container_name: ai-mode
@@ -98,6 +103,18 @@ services:
       - ollama-models:/root/.ollama
     networks:
       - journeybuddy-net
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "ollama serve &
+       sleep 5 &&
+       ollama pull qwen2.5:0.5b &&
+       wait"
+    healthcheck:
+      test: [ "CMD", "ollama", "list" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 networks:
   journeybuddy-net:

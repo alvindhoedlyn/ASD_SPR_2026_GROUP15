@@ -67,6 +67,7 @@ async function fetchRecommendations() {
     try {
         const result = await apiSend("/recommendations", "POST", {
             user_id: USER_ID,
+            city: selectedArea,
             desired_facilities: ["wifi", "pool", "breakfast"]
         });
         return result.recommendations || [];
@@ -77,11 +78,20 @@ async function fetchRecommendations() {
 }
 
 async function renderResults() {
+    document.getElementById("selected-area-label").textContent =
+        selectedArea ? `Showing stays in ${selectedArea}` : "";
+
     const grid = document.getElementById("results-grid");
     let scored = await fetchRecommendations();
 
     if (currentSort === "price") scored.sort((a, b) => a.starting_price - b.starting_price);
     if (currentSort === "rating") scored.sort((a, b) => b.avg_rating - a.avg_rating);
+
+    if (scored.length === 0) {
+        grid.innerHTML = `<p class="panel-sub">No listings found for this area yet.</p>`;
+        window._lastScored = [];
+        return;
+    }
 
     grid.innerHTML = scored.map(l => `
     <div class="stay-card" data-id="${l.accommodation_id}">
@@ -182,7 +192,7 @@ async function openDetail(id) {
     </div>
     ${scoredMatch ? `
       <div class="detail-section">
-        <button class="btn-secondary" id="explain-btn">Why this match?</button>
+        <button class="btn-secondary" id="explain-btn">Overview</button>
         <div id="explain-box"></div>
       </div>
     ` : ""}
@@ -272,6 +282,7 @@ async function openListingForm(id) {
     editingListingId = id;
     const form = document.getElementById("listing-form");
     const title = document.getElementById("listing-form-title");
+    const roomsSection = document.getElementById("rooms-section");
 
     if (id) {
         const l = await apiGet(`/accommodations/${id}`);
@@ -283,13 +294,17 @@ async function openListingForm(id) {
         document.getElementById("f-facilities").value = l.facilities.join(", ");
         document.getElementById("f-price").value = 0;
         document.getElementById("f-rating").value = l.avg_rating;
+
+        await renderRoomsSection(id);
     } else {
         title.textContent = "Add listing";
         form.reset();
         document.getElementById("f-id").value = "";
+        roomsSection.hidden = true;   // no rooms until the listing is created and saved
     }
     document.getElementById("listing-form-modal").hidden = false;
 }
+
 document.getElementById("listing-form-close").addEventListener("click", () => {
     document.getElementById("listing-form-modal").hidden = true;
 });
@@ -335,20 +350,40 @@ document.getElementById("listing-form").addEventListener("submit", async (e) => 
 document.getElementById("compare-btn").addEventListener("click", async () => {
     const selected = (window._lastScored || []).filter(l => compareSelection.has(l.accommodation_id));
     const wrap = document.getElementById("compare-table-wrap");
+
+    // Fetch rooms for each selected listing
+    wrap.innerHTML = `<p class="panel-sub">Loading room details…</p>`;
+    document.getElementById("compare-modal").hidden = false;
+
+    const roomsByListing = await Promise.all(
+        selected.map(l => apiGet(`/accommodations/${l.accommodation_id}/rooms`).catch(() => []))
+    );
+
     wrap.innerHTML = `
     <table class="compare-table">
       <thead><tr><th>Listing</th>${selected.map(l => `<th>${l.name}</th>`).join("")}</tr></thead>
       <tbody>
         <tr><td>City / area</td>${selected.map(l => `<td>${l.city_area}</td>`).join("")}</tr>
-        <tr><td>Price/night</td>${selected.map(l => `<td>$${l.starting_price}</td>`).join("")}</tr>
+        <tr><td>Starting price/night</td>${selected.map(l => `<td>$${l.starting_price}</td>`).join("")}</tr>
         <tr><td>Rating</td>${selected.map(l => `<td>★ ${l.avg_rating} (${l.review_count} reviews)</td>`).join("")}</tr>
         <tr><td>Facilities</td>${selected.map(l => `<td>${(l.facilities || []).join(", ") || "—"}</td>`).join("")}</tr>
+        <tr>
+          <td>Rooms</td>
+          ${roomsByListing.map(rooms => `
+            <td>
+              ${rooms.length
+            ? `<ul class="compare-room-list">${rooms.map(r =>
+                `<li>${r.room_name} — $${r.price_per_night}/night (sleeps ${r.capacity}, ${r.available_rooms} available)</li>`
+            ).join("")}</ul>`
+            : "No rooms listed"}
+            </td>
+          `).join("")}
+        </tr>
         <tr><td><strong>Overall match</strong></td>${selected.map(l => `<td><strong>${Math.round(l.score * 100)}%</strong></td>`).join("")}</tr>
       </tbody>
     </table>
     <div id="compare-explain" class="explain-box loading">Thinking...</div>
   `;
-    document.getElementById("compare-modal").hidden = false;
 
     try {
         const result = await apiSend("/recommendations/explain-compare", "POST", {
@@ -373,17 +408,156 @@ document.getElementById("compare-btn").addEventListener("click", async () => {
     }
 });
 
+let selectedArea = null;
+
+async function loadAreas() {
+    try {
+        return await apiGet("/areas");
+    } catch (e) {
+        console.error("Failed to load areas:", e);
+        return [];
+    }
+}
+
+async function showAreaSelect() {
+    return new Promise(async (resolve) => {
+        const container = document.getElementById("area-options");
+        container.innerHTML = `<p class="panel-sub">Loading areas…</p>`;
+        document.getElementById("area-select-modal").hidden = false;
+
+        const areas = await loadAreas();
+
+        if (areas.length === 0) {
+            container.innerHTML = `<p class="panel-sub">Couldn't load areas. Check the backend is running.</p>`;
+            return;
+        }
+
+        container.innerHTML = areas.map((a, i) =>
+            `<button class="area-option-btn" data-area="${a}">${i + 1}. ${a}</button>`
+        ).join("");
+
+        container.querySelectorAll(".area-option-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                selectedArea = btn.dataset.area;
+                document.getElementById("area-select-modal").hidden = true;
+                resolve();
+            });
+        });
+    });
+}
+
+document.getElementById("change-area-btn").addEventListener("click", async () => {
+    await showAreaSelect();
+    renderResults();
+});
+
+async function renderRoomsSection(accommodationId) {
+    const section = document.getElementById("rooms-section");
+    section.hidden = false;
+
+    const rooms = await apiGet(`/accommodations/${accommodationId}/rooms`);
+    const list = document.getElementById("rooms-list");
+
+    list.innerHTML = rooms.map(r => `
+    <div class="room-item" data-room-id="${r.room_id}">
+      <div class="room-item-row1">
+        <input class="room-item-name" type="text" value="${r.room_name || ""}" data-field="room_name" placeholder="Room name">
+      </div>
+      <div class="room-item-row2">
+        <div>
+          <label>Price/night</label>
+          <input type="number" value="${r.price_per_night}" min="0" data-field="price_per_night">
+        </div>
+        <div>
+          <label>Capacity</label>
+          <input type="number" value="${r.capacity}" min="1" data-field="capacity">
+        </div>
+        <div>
+          <label>Available</label>
+          <input type="number" value="${r.available_rooms}" min="0" data-field="available_rooms">
+        </div>
+        <div class="room-item-actions">
+          <button class="save-room-btn">Save</button>
+          <button class="delete-room-btn">Delete</button>
+        </div>
+      </div>
+    </div>
+  `).join("") || `<p class="panel-sub">No rooms yet — add one below.</p>`;
+
+    list.querySelectorAll(".room-item").forEach(item => {
+        const roomId = item.dataset.roomId;
+
+        item.querySelector(".save-room-btn").addEventListener("click", async () => {
+            const data = {
+                room_name: item.querySelector('[data-field="room_name"]').value,
+                price_per_night: parseFloat(item.querySelector('[data-field="price_per_night"]').value) || 0,
+                capacity: parseInt(item.querySelector('[data-field="capacity"]').value) || 1,
+                available_rooms: parseInt(item.querySelector('[data-field="available_rooms"]').value) || 0,
+            };
+            try {
+                await apiSend(`/rooms/${roomId}`, "PUT", data);
+                renderResults();
+            } catch (e) {
+                alert("Failed to save room.");
+            }
+        });
+
+        item.querySelector(".delete-room-btn").addEventListener("click", async () => {
+            if (!confirm("Delete this room?")) return;
+            try {
+                await apiSend(`/rooms/${roomId}`, "DELETE", {});
+                renderRoomsSection(accommodationId);
+                renderResults();
+            } catch (e) {
+                alert("Failed to delete room.");
+            }
+        });
+    });
+}
+document.getElementById("add-room-btn").addEventListener("click", async () => {
+    const accommodationId = document.getElementById("f-id").value;
+    if (!accommodationId) return;
+
+    const name = document.getElementById("new-room-name").value.trim();
+    const price = parseFloat(document.getElementById("new-room-price").value) || 0;
+    const capacity = parseInt(document.getElementById("new-room-capacity").value) || 2;
+    const available = parseInt(document.getElementById("new-room-available").value) || 1;
+
+    if (!name || price <= 0) {
+        alert("Enter a room name and a price greater than 0.");
+        return;
+    }
+
+    try {
+        await apiSend(`/accommodations/${accommodationId}/rooms`, "POST", {
+            room_name: name,
+            price_per_night: price,
+            capacity,
+            available_rooms: available
+        });
+        document.getElementById("new-room-name").value = "";
+        document.getElementById("new-room-price").value = "";
+        document.getElementById("new-room-capacity").value = 2;
+        document.getElementById("new-room-available").value = 1;
+        renderRoomsSection(accommodationId);
+        renderResults();
+    } catch (e) {
+        alert("Failed to add room.");
+    }
+});
+
 // ===================== INIT =====================
 
 (async function init() {
-    await window.jbSessionReady;   // wait for token verification to finish
+    await window.jbSessionReady;
 
     if (!isAdmin()) {
         const manageBtn = document.getElementById("manage-tab-btn");
         if (manageBtn) manageBtn.hidden = true;
     }
 
+    await showAreaSelect();     // sets selectedArea
     await loadListings();
     await loadPriorities();
-    await renderResults();
+    await renderResults();      // fetches /recommendations filtered by selectedArea
 })();
