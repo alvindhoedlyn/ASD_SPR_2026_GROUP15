@@ -3,13 +3,63 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Map Route</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JourneyBuddy — Map Planner</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body>
-  <h1>1's service — placeholder</h1>
-  <p>test</p>
+
+  <header class="app-header">
+    <div class="brand">JourneyBuddy</div>
+    <div class="user-area">
+      <span>Welcome <span id="userName">{user}</span></span>
+      <button class="avatar-btn" id="openChatBtn" aria-label="Open Ask Your Buddy chat">🎧</button>
+    </div>
+  </header>
+
+  <main>
+    <h1 class="title">Map Planner <span class="plane">✈️</span></h1>
+
+    <div class="plan-frame">
+      <div class="day-row" id="dayRow">
+        <!-- day cards injected by script.js -->
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="addLocationBtn">Add Location</button>
+      <button class="btn" id="generatePlanBtn">Generate Plan</button>
+      <button class="btn" id="rewriteDayBtn" disabled>Rewrite Day</button>
+    </div>
+  </main>
+
+  <!-- Day detail modal -->
+  <div class="overlay" id="dayOverlay">
+    <div class="day-modal">
+      <button class="close-x" id="closeDayModal" aria-label="Close">&times;</button>
+      <h2 id="dayModalTitle">Day 01 — {Location}</h2>
+      <div class="activity-grid" id="activityGrid"></div>
+    </div>
+  </div>
+
+  <!-- Chat panel -->
+  <aside class="chat-panel" id="chatPanel" aria-hidden="true">
+    <div class="chat-header">
+      <h2>Ask Your Buddy!</h2>
+      <button class="close-x" id="closeChatBtn" aria-label="Close chat">&times;</button>
+    </div>
+    <div class="chat-body" id="chatBody">
+      <div class="bubble assistant">Welcome! What can I help you with?</div>
+    </div>
+    <div class="chat-input-row">
+      <button class="icon-btn attach" aria-label="Attach file">📎</button>
+      <input type="text" id="chatInput" placeholder="Ask Anything...">
+      <button class="icon-btn send" id="sendChatBtn" aria-label="Send message">↑</button>
+    </div>
+  </aside>
+
+  <script src="script.js"></script>
 </body>
 
 </html>
