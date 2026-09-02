@@ -58,10 +58,11 @@ jobs:
         run: |
           python student-TrongDao/database/init_db.py --reset
 
-      - name: Run backend tests
+      - name: Run backend and database tests
         run: |
           python -m pytest \
             student-TrongDao/tests/test_backend.py \
+            student-TrongDao/tests/test_database.py \
             -v
 
   docker-build:
