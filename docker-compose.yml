@@ -28,8 +28,7 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      ai-mode:
-        condition: service_healthy
+      - ai-mode
 
   student-KeyuanGan:
     build: ./student-KeyuanGan
@@ -44,8 +43,7 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      ai-mode:
-        condition: service_healthy
+      - ai-mode
 
   student-RenzoRobin:
     build: ./student-RenzoRobin
@@ -60,24 +58,57 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      ai-mode:
-        condition: service_healthy
+      - ai-mode
 
   student-TrongDao:
-    build: ./student-TrongDao
-    image: journeybuddy-student-trongdao
-    container_name: student-TrongDao-app
+    build:
+      context: ./student-TrongDao
+      target: frontend
+    image: journeybuddy-trongdao-frontend
+    container_name: student-TrongDao-frontend
     ports:
-      - "5004:5000"
-    volumes:
-      - trongdao-data:/app/instance
-    environment:
-      - OLLAMA_BASE_URL=http://ai-mode:11434
+      - "5004:80"
     networks:
       - journeybuddy-net
     depends_on:
-      ai-mode:
-        condition: service_healthy
+      - student-TrongDao-backend
+
+  student-TrongDao-backend:
+    build:
+      context: ./student-TrongDao
+      target: backend
+    image: journeybuddy-trongdao-backend
+    container_name: student-TrongDao-backend
+    ports:
+      - "5104:5000"
+    environment:
+      PORT: "5000"
+      DATABASE_API_URL: http://student-TrongDao-database:5000
+      OLLAMA_API_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: qwen2.5:0.5b
+      OLLAMA_REVIEW_MODEL: llama3.1:8b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - journeybuddy-net
+    depends_on:
+      - student-TrongDao-database
+
+  student-TrongDao-database:
+    build:
+      context: ./student-TrongDao
+      target: database
+    image: journeybuddy-trongdao-database
+    container_name: student-TrongDao-database
+    ports:
+      - "5404:5000"
+    environment:
+      PORT: "5000"
+      DATABASE_PATH: /app/database/data/location_recommender.db
+    volumes:
+      - trongdao-data:/app/database/data
+    networks:
+      - journeybuddy-net
 
   student-YajunNing:
     build: ./student-YajunNing
@@ -92,8 +123,7 @@ services:
     networks:
       - journeybuddy-net
     depends_on:
-      ai-mode:
-        condition: service_healthy
+      - ai-mode
   ai-mode:
     image: ollama/ollama:latest
     container_name: ai-mode
@@ -103,18 +133,6 @@ services:
       - ollama-models:/root/.ollama
     networks:
       - journeybuddy-net
-    entrypoint: [ "/bin/sh", "-c" ]
-    command: >
-      "ollama serve &
-       sleep 5 &&
-       ollama pull qwen2.5:0.5b &&
-       wait"
-    healthcheck:
-      test: [ "CMD", "ollama", "list" ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
 
 networks:
   journeybuddy-net:
