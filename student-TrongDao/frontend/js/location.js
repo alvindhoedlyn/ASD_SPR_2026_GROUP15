@@ -31,6 +31,14 @@ const recommendationResults = document.getElementById(
   "recommendation-results"
 );
 
+const recommendationSection = document.getElementById(
+  "recommendation-section"
+);
+
+const savedPlacesSection = document.getElementById(
+  "saved-places-section"
+);
+
 
 recommendationForm.addEventListener("submit", async function (event) {
   event.preventDefault();
@@ -79,7 +87,13 @@ recommendationForm.addEventListener("submit", async function (event) {
 
   formMessage.textContent = "Finding attractions...";
 
-  recommendationResults.replaceChildren();
+  recommendationSection.hidden = false;
+  showResultsMessage(
+    recommendationResults,
+    "Finding recommendations..."
+  );
+
+  scrollToSection(recommendationSection);
 
   aiResponse.hidden = true;
   aiModels.textContent = "";
@@ -119,10 +133,36 @@ recommendationForm.addEventListener("submit", async function (event) {
   } catch (error) {
     formMessage.textContent = error.message;
 
-    recommendationResults.textContent =
-      "Recommendations could not be loaded.";
+    showResultsMessage(
+      recommendationResults,
+      "Recommendations could not be loaded."
+    );
   }
 });
+
+function scrollToSection(section) {
+  window.requestAnimationFrame(function () {
+    section.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
+}
+
+function showResultsMessage(container, message) {
+  const messageElement = document.createElement("p");
+  messageElement.textContent = message;
+  container.replaceChildren(messageElement);
+}
+
+function formatAiExplanation(explanation) {
+  return explanation
+    .replace(/\r\n/g, "\n")
+    .replace(/#{1,6}\s*/g, "\n")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 function displayAiResponse(responseData) {
   if (responseData.mode !== "ai") {
@@ -137,7 +177,9 @@ function displayAiResponse(responseData) {
     `Review agent: ${responseData.review_model}`;
 
   if (responseData.ai_explanation) {
-    aiExplanation.textContent = responseData.ai_explanation;
+    aiExplanation.textContent = formatAiExplanation(
+      responseData.ai_explanation
+    );
   } else {
     aiExplanation.textContent =
       "No AI explanation was generated.";
@@ -166,8 +208,10 @@ function displayRecommendations(recommendations, journeyId) {
   recommendationResults.replaceChildren();
 
   if (recommendations.length === 0) {
-    recommendationResults.textContent =
-      "No attractions matched your preferences.";
+    showResultsMessage(
+      recommendationResults,
+      "No attractions matched your preferences."
+    );
 
     return;
   }
@@ -278,8 +322,6 @@ async function saveAttraction(
 
     saveButton.textContent = "Saved";
 
-    await loadSavedPlaces(journeyId);
-
   } catch (error) {
     saveButton.disabled = false;
     saveButton.textContent = "Save place";
@@ -300,13 +342,17 @@ loadSavedPlacesButton.addEventListener("click", function () {
     return;
   }
 
+  savedPlacesSection.hidden = false;
+  scrollToSection(savedPlacesSection);
   loadSavedPlaces(journeyId);
 });
 
 
 async function loadSavedPlaces(journeyId) {
-  savedPlacesResults.textContent =
-    "Loading saved attractions...";
+  showResultsMessage(
+    savedPlacesResults,
+    "Loading saved attractions..."
+  );
 
   try {
     const response = await fetch(
@@ -327,7 +373,7 @@ async function loadSavedPlaces(journeyId) {
     displaySavedPlaces(responseData);
 
   } catch (error) {
-    savedPlacesResults.textContent = error.message;
+    showResultsMessage(savedPlacesResults, error.message);
   }
 }
 
@@ -336,8 +382,10 @@ function displaySavedPlaces(savedPlaces) {
   savedPlacesResults.replaceChildren();
 
   if (savedPlaces.length === 0) {
-    savedPlacesResults.textContent =
-      "No attractions have been saved for this journey.";
+    showResultsMessage(
+      savedPlacesResults,
+      "No attractions have been saved for this journey."
+    );
 
     return;
   }
@@ -500,8 +548,10 @@ async function deleteSavedPlace(
     card.remove();
 
     if (savedPlacesResults.children.length === 0) {
-      savedPlacesResults.textContent =
-        "No attractions have been saved for this journey.";
+      showResultsMessage(
+        savedPlacesResults,
+        "No attractions have been saved for this journey."
+      );
     }
 
   } catch (error) {

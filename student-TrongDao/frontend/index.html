@@ -16,23 +16,33 @@
   href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600&display=swap"
   rel="stylesheet"
 >
-<link rel="stylesheet" href="/css/location.css">
-<script src="/js/location.js" defer></script>
+<link rel="stylesheet" href="/css/location.css?v=20260903-2">
+<script src="/js/location.js?v=20260903-2" defer></script>
 </head>
 
 <body>
   <header>
-    <a class="back-link" href="http://localhost:8080">
-      ← Back to JourneyBuddy
+    <a class="brand-link" href="http://localhost:8080">
+      JourneyBuddy
     </a>
 
-    <h1>JourneyBuddy</h1>
+    <h1>Attraction Recommender</h1>
     <p>Find attractions that match your trip preferences.</p>
   </header>
 
   <main>
     <section>
-      <h2>Attraction Preferences</h2>
+      <div class="section-heading-row">
+        <h2>Attraction Preferences</h2>
+
+        <button
+          type="button"
+          id="load-saved-places"
+          aria-controls="saved-places-section"
+        >
+          Load saved attractions
+        </button>
+      </div>
 
       <form id="recommendation-form">
         <div>
@@ -230,7 +240,11 @@
       <p id="form-message" role="status"></p>
     </section>
 
-    <section class="results-section">
+    <section
+      class="results-section"
+      id="recommendation-section"
+      hidden
+    >
       <h2>Recommended Attractions</h2>
 
       <article id="ai-response" hidden>
@@ -240,8 +254,8 @@
         <p id="ai-explanation"></p>
         <p id="ai-warning" role="status"></p>
 
-        <details>
-          <summary>View agent workflow evidence</summary>
+        <details open>
+          <summary>Qwen and Llama workflow evidence (raw output)</summary>
 
           <h4>Qwen implementation draft</h4>
           <pre id="ai-draft"></pre>
@@ -251,21 +265,17 @@
         </details>
       </article>
 
-      <div id="recommendation-results">
-        <p>Your recommendations will appear here.</p>
-      </div>
+      <div id="recommendation-results"></div>
     </section>
 
-    <section class="results-section">
+    <section
+      class="results-section"
+      id="saved-places-section"
+      hidden
+    >
       <h2>Saved Attractions</h2>
 
-      <button type="button" id="load-saved-places">
-        Load saved attractions
-      </button>
-
-      <div id="saved-places-results">
-        <p>Your saved attractions will appear here.</p>
-      </div>
+      <div id="saved-places-results"></div>
     </section>
   </main>
 </body>
