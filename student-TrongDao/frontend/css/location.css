@@ -34,22 +34,23 @@ header {
   border-bottom: 1px solid var(--line);
 }
 
-.back-link {
+.brand-link {
   position: absolute;
   top: 24px;
   left: max(24px, calc((100% - 1100px) / 2));
   display: inline-flex;
   align-items: center;
   min-height: 42px;
-  padding: 8px 14px;
-  color: var(--teal-deep);
-  font-size: 14px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 20px;
   font-weight: 600;
+  letter-spacing: 0.01em;
   text-decoration: none;
 }
 
-.back-link:hover {
-  color:#26241f
+.brand-link:hover {
+  color: var(--teal-deep);
 }
 
 header h1 {
@@ -73,11 +74,24 @@ section {
   margin-bottom: 32px;
 }
 
-section > h2 {
+.section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+section > h2,
+.section-heading-row > h2 {
   margin: 0 0 18px;
   font-family: var(--font-display);
   font-size: 28px;
   font-weight: 500;
+}
+
+.section-heading-row > h2 {
+  margin-bottom: 0;
 }
 
 .results-section {
@@ -194,15 +208,15 @@ form > button {
   font-size: 14px;
 }
 
+#form-message {
+  text-align: center;
+}
+
 #recommendation-results,
 #saved-places-results {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 18px;
-}
-
-#load-saved-places {
-  margin-bottom: 22px;
 }
 
 #recommendation-results > article,
@@ -265,6 +279,11 @@ article button {
   font-size: 13px;
 }
 
+#ai-explanation {
+  line-height: 1.75;
+  white-space: pre-line;
+}
+
 details {
   margin-top: 18px;
   padding-top: 14px;
@@ -296,7 +315,7 @@ pre {
     padding-top: 88px;
   }
 
-  .back-link {
+  .brand-link {
     top: 20px;
     left: 20px;
   }
@@ -318,5 +337,10 @@ pre {
 
   form {
     padding: 20px;
+  }
+
+  .section-heading-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
