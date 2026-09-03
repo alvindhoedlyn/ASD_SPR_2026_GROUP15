@@ -5,7 +5,7 @@ Respond with ONLY a JSON object in this exact shape, no prose, no markdown fence
 
 {
   "location": "the primary location/area for this day",
-  "summary": "a 3-6 word theme for the day",
+  "summary": "a 3-5 word theme for the day",
   "activities": ["Visit X", "Visit Y", "..."]
 }
 

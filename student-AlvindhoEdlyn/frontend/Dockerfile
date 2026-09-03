@@ -2,8 +2,10 @@ FROM nginx:alpine
 
 WORKDIR /usr/share/nginx/html
 
-COPY css/style.css ./css/style.css
-COPY index.html .
-COPY script.js .
+RUN rm -rf ./*
+
+COPY frontend/css/ ./css/
+COPY frontend/index.html .
+COPY frontend/script.js .
 
 EXPOSE 80

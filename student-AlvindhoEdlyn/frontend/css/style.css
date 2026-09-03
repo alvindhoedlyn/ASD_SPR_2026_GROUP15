@@ -1,37 +1,34 @@
 :root {
     --header-bg: #ddc3b3;
-    --page-bg: #d3ab88;
-    --card-frame: #cffdbc;
-    --card-face: #ecd8bb;
+    --page-bg: #ded4bc;
+    --card-frame: #1b4d3e;
+    --header-bg: #e8e2d5;
+    --card-face: #f0eae1;
     --ink: #241a12;
     --line: #191008;
     --panel-bg: #a9856a;
-    --panel-header: #cffdbc;
+    --panel-header: #;
     --panel-face: #e6d3b8;
     --modal-bg: #6f4226;
     --modal-face: #fff;
     --radius-lg: 18px;
     --radius-md: 12px;
     --border-w: 3px;
+    --font-display: "Fraunces", serif;
+    --font-body: "Times New Roman", Times, serif;
 }
 
 * {
     box-sizing: border-box;
 }
 
-/* [hidden] is a browser default (display:none) that lives in the lowest-
-     priority stylesheet layer, so ANY author rule that sets display on the
-     same element — e.g. .frame-state / .day-row using display:flex — will
-     silently win and keep the element visible even with hidden set. This
-     line guarantees hidden always actually hides, no matter what display
-     value a class elsewhere sets. See: MDN "hidden" global attribute. */
 [hidden] {
     display: none !important;
 }
 
 body {
     margin: 0;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: "Times New Roman", Times, serif;
     color: var(--ink);
     background: var(--page-bg);
     min-height: 100vh;
@@ -88,7 +85,7 @@ header.app-header {
 main {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 36px 28px 60px;
+    padding: 12px 28px 40px;
 }
 
 h1.title {
@@ -96,7 +93,7 @@ h1.title {
     font-size: clamp(2.2rem, 5vw, 3.4rem);
     font-weight: 900;
     letter-spacing: -0.01em;
-    margin: 0 0 28px;
+    margin: 0 0 16px;
 }
 
 h1.title .plane {
@@ -109,7 +106,9 @@ h1.title .plane {
     border: var(--border-w) solid var(--line);
     border-radius: var(--radius-lg);
     padding: 16px;
-    min-height: 340px;
+    height: 250px;
+    display: flex;
+    align-items: center;
     position: relative;
 }
 
@@ -137,6 +136,7 @@ h1.title .plane {
     text-align: center;
     max-width: 420px;
     width: 100%;
+    height: 400px;
 }
 
 .inset-card h2 {
@@ -157,6 +157,11 @@ h1.title .plane {
 .form-card {
     text-align: left;
     max-width: 460px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 100;
 }
 
 .form-card h2 {
@@ -230,6 +235,8 @@ a.btn {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     padding-bottom: 8px;
+    align-items: center;
+    width: 100%;
 }
 
 .day-row::-webkit-scrollbar {
@@ -244,6 +251,7 @@ a.btn {
 .day-card {
     scroll-snap-align: start;
     flex: 0 0 240px;
+    height: 175px;
     background: var(--card-face);
     border: var(--border-w) solid var(--line);
     border-radius: var(--radius-md);
@@ -394,12 +402,13 @@ a.btn {
 }
 
 .day-modal {
-    background: var(--modal-bg);
+    background: var(--card-frame);
     color: var(--modal-face);
     border-radius: 24px;
     max-width: 760px;
     width: 100%;
-    height: 250px;
+    height: auto;
+    max-height: 90vh;
     padding: 30px 34px 34px;
     position: relative;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
@@ -447,6 +456,7 @@ a.btn {
     justify-content: center;
     font-size: 2.2rem;
     color: rgba(255, 255, 255, 0.85);
+    overflow: hidden;
 }
 
 .activity-card figcaption {
@@ -461,6 +471,8 @@ a.btn {
     justify-content: center;
     gap: 18px;
     margin-top: 26px;
+    position: relative;
+    z-index: 2;
 }
 
 /* ---------- Chat panel ---------- */
@@ -471,7 +483,7 @@ a.btn {
     width: 380px;
     max-width: 92vw;
     height: 100%;
-    background: var(--panel-bg);
+    background: var(--modal-bg);
     border-left: var(--border-w) solid var(--line);
     display: flex;
     flex-direction: column;
@@ -572,7 +584,7 @@ a.btn {
 }
 
 .icon-btn.send {
-    background: var(--card-frame);
+    background: #008080;
     color: #fff;
 }
 

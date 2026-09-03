@@ -10,6 +10,14 @@
 let journeys = [
     { journey_id: 1, label: "Sydney Weekend", locations: ["Bondi Beach", "Opera House", "Blue Mountains", "Harbour Bridge"] },
     { journey_id: 2, label: "Melbourne Foodie Trip", locations: ["Queen Victoria Market", "St Kilda", "Yarra Valley"] },
+    { journey_id: 3, label: "Tropical North Queensland", locations: ["Great Barrier Reef", "Daintree Rainforest", "Cape Tribulation", "Kuranda"] },
+    { journey_id: 4, label: "Red Centre Adventure", locations: ["Uluru", "Kata Tjuta", "Kings Canyon", "Alice Springs"] },
+    { journey_id: 5, label: "Tasmanian Wilderness", locations: ["Cradle Mountain", "Freycinet National Park", "Mona Museum", "Port Arthur"] },
+    { journey_id: 6, label: "Perth & Rottnest Island", locations: ["Kings Park", "Cottesloe Beach", "Rottnest Island", "Fremantle Markets"] },
+    { journey_id: 7, label: "Barossa Wine & Culture", locations: ["Tanunda", "Barossa Valley Vineyards", "Adelaide Central Market", "Hahndorf"] },
+    { journey_id: 8, label: "Great Ocean Road", locations: ["Twelve Apostles", "Lorne", "Bells Beach", "Loch Ard Gorge"] },
+    { journey_id: 9, label: "Darwin & Top End", locations: ["Kakadu National Park", "Litchfield National Park", "Mindil Beach", "Katherine Gorge"] },
+    { journey_id: 10, label: " Ningaloo Reef Explorer", locations: ["Exmouth", "Coral Bay", "Cape Range National Park", "Turquoise Bay"] }
 ];
 
 // A pool of sample day content, cycled through by the mock generator below.
@@ -375,16 +383,16 @@ async function sendMessage() {
     addBubble("assistant", "…thinking…");
     const placeholder = chatBody.lastElementChild;
     try {
-        // Replace with the real call, e.g.:
-        // const tripId = trips[currentTripIndex]?.trip_id;
-        // const res = await fetch(`/api/trips/${tripId}/chat`, {
-        //   method: "POST",
-        //   headers: {"Content-Type": "application/json"},
-        //   body: JSON.stringify({ message: text })
-        // });
-        // const data = await res.json();
-        // placeholder.textContent = data.reply ?? "Day updated!";
-        placeholder.textContent = "This is a placeholder reply — wire this panel up to /api/trips/<id>/chat.";
+        const formData = new FormData();
+        formData.append("question", text);
+
+        const res = await fetch("http://localhost:5001/ask-with-context", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await res.text();
+        placeholder.innerHTML = data;
     } catch (err) {
         placeholder.textContent = "Sorry, something went wrong reaching Buddy.";
     }

@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request
+from flask_cors import CORS
 from dotenv import load_dotenv
 from openai import OpenAI
 from pathlib import Path
@@ -10,8 +11,9 @@ load_dotenv()
 
 DATABASE_NAME = "plan.db"
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 app = Flask(
     __name__,
@@ -19,13 +21,12 @@ app = Flask(
     static_folder="../frontend",
     static_url_path="/static"
 )
+CORS(app)
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
     api_key="ollama"
 )
-
-PROMPT_DIR = Path(__file__).with_name("prompts")
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_NAME)
@@ -62,26 +63,19 @@ def view_trip(trip_it):
 
     return html
 
-
-
 @app.route("/ask-with-context", methods=["POST"])
 def ask_with_context():
     question = request.form.get("question", "").strip()
+    itinerary_context = request.form.get("itinerary", "No itinerary provided yet.")
 
     if not question:
         return "<p>Question is required.</p>", 400
 
-    implementation = 'prompts/implementation_system_prompt.txt'
-    context_qa = 'prompts/context_qa_task_prompt.txt'
-
-    with open(implementation, 'r') as file:
-        sys_imp = file.read()
-    with open(context_qa, 'r') as file:
-        context = file.read()
-    
-    usr_resp = f"{context}. Based on this context, here is the user's question: {question}" 
-
     try:
+        sys_imp = load_prompt("plan_suggestions.txt")
+
+        usr_resp = f"Itinerary Context:\n{itinerary_context}\n\nUser Question: {question}"
+
         response = client.chat.completions.create(
             model=OLLAMA_MODEL,
             messages=[
@@ -93,16 +87,13 @@ def ask_with_context():
         )
 
         answer = response.choices[0].message.content
-
         return f"<p>{answer}</p>"
-    
+
     except Exception as exc:
-        print("no")
+        print(f"Backend Error: {exc}")
         return (
-            "<p>Local AI agent request failed. "
-            "Please input proper context first.</p>"
-            f"<pre>{exc}</pre>",
-            503,
+            f"<p>Local AI agent request failed.</p><pre>{exc}</pre>",
+            500,
         )
 
 if __name__ == "__main__":
