@@ -1,0 +1,49 @@
+name: Student YajunNing CI
+
+on:
+  push:
+    paths:
+      - 'student-YajunNing/**'
+      - '.github/workflows/student-5-ci.yml'
+      - 'docker-compose.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'student-YajunNing/**'
+      - '.github/workflows/student-5-ci.yml'
+      - 'docker-compose.yml'
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Flight Recommender dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r student-YajunNing/backend/requirements.txt
+          pip install -r student-YajunNing/database/requirements.txt
+
+      - name: Run Flight Recommender tests
+        working-directory: student-YajunNing
+        run: python -m unittest discover -s tests -v
+
+      - name: Validate Student 5 Docker Compose
+        run: docker compose -f student-YajunNing/docker-compose.yml config --quiet
+
+      - name: Build Flight frontend image
+        run: docker build -t journeybuddy-yajun-frontend ./student-YajunNing/frontend
+
+      - name: Build Flight backend image
+        run: docker build -t journeybuddy-yajun-backend ./student-YajunNing/backend
+
+      - name: Build Flight database image
+        run: docker build -t journeybuddy-yajun-database ./student-YajunNing/database

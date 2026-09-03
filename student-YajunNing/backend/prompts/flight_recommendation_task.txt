@@ -1,0 +1,11 @@
+Traveller search:
+{{SEARCH}}
+
+Ranked flight records:
+{{FLIGHTS}}
+
+Plan-Act-Observe-Adapt evidence:
+{{AGENT_TRACE}}
+
+Task:
+Explain why the ranked result suits the traveller's stated priority. Mention the leading flight by flight number. Prefer qualitative comparison; do not repeat numeric price, duration, or stop facts because those remain visible on the verified flight cards.

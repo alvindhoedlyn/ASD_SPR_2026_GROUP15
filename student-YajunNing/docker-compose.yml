@@ -1,0 +1,44 @@
+services:
+  yajunning-frontend-service:
+    build: ./frontend
+    container_name: yajunning-flight-frontend
+    ports:
+      - "5505:80"
+    depends_on:
+      - yajunning-backend-service
+    networks:
+      - flight-network
+
+  yajunning-backend-service:
+    build: ./backend
+    container_name: yajunning-flight-backend
+    ports:
+      - "5605:5000"
+    environment:
+      DATABASE_SERVICE_URL: http://yajunning-database-service:5001
+      AUTH_SERVICE_URL: http://host.docker.internal:8080
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+      OLLAMA_MODEL: qwen2.5:0.5b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - yajunning-database-service
+    networks:
+      - flight-network
+
+  yajunning-database-service:
+    build: ./database
+    container_name: yajunning-flight-database
+    ports:
+      - "5705:5001"
+    volumes:
+      - flight-data:/app/data
+    networks:
+      - flight-network
+
+volumes:
+  flight-data:
+
+networks:
+  flight-network:
+    driver: bridge
