@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JourneyBuddy — Map Planner</title>
+  <title>JourneyBuddy — Itinerary Planner</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -19,18 +19,65 @@
   </header>
 
   <main>
-    <h1 class="title">Map Planner <span class="plane">✈️</span></h1>
+    <h1 class="title">Itinerary Planner</h1>
 
-    <div class="plan-frame">
-      <div class="day-row" id="dayRow">
-        <!-- day cards injected by script.js -->
+    <!-- plan-frame holds four mutually-exclusive states, toggled by script.js:
+       1. emptyTripState   — Trip table empty (default landing state)
+       2. dayRow           — a trip is loaded, showing its day cards
+       3. noJourneyState   — "Generate New Trip" clicked but Journey table is empty
+       4. generateFormState — "Generate New Trip" clicked and journeys exist -->
+    <div class="plan-frame" id="planFrame">
+
+      <div class="frame-state" id="emptyTripState">
+        <p class="empty-line">No Trips Yet?</p>
+        <p class="empty-line">Make one with your JourneyBuddy!</p>
       </div>
+
+      <div class="day-row" id="dayRow" hidden></div>
+
+      <div class="frame-state" id="noJourneyState" hidden>
+        <div class="inset-card">
+          <h2>No Journey Found</h2>
+          <p>Please Visit Locations!</p>
+          <a class="btn" id="goToLocationBtn" href="/locations">Go to Location</a>
+        </div>
+      </div>
+
+      <div class="frame-state" id="generateFormState" hidden>
+        <div class="inset-card form-card">
+          <h2 class="underline">Ready for a New Trip?</h2>
+
+          <label class="field-row">
+            <span>How Many Days?</span>
+            <input type="number" id="dayCountInput" min="1" max="30" value="4">
+          </label>
+
+          <label class="field-row">
+            <span>Which Set of Locations?</span>
+            <select id="journeySelect"></select>
+          </label>
+
+          <label class="field-column">
+            <span>Preferences <em class="optional">(optional)</em></span>
+            <textarea id="preferencesInput" rows="2" placeholder="e.g. less hiking, more food"></textarea>
+          </label>
+
+          <button class="btn" id="generateConfirmBtn">Generate!</button>
+        </div>
+      </div>
+
     </div>
 
     <div class="actions">
-      <button class="btn" id="addLocationBtn">Add Location</button>
-      <button class="btn" id="generatePlanBtn">Generate Plan</button>
-      <button class="btn" id="rewriteDayBtn" disabled>Rewrite Day</button>
+      <button class="btn" id="generateNewTripBtn">Generate New Trip</button>
+      <button class="btn" id="regenerateTripBtn" disabled>Re-generate Current Trip</button>
+      <button class="btn btn-danger" id="deleteTripBtn" disabled>Delete Trip</button>
+    </div>
+
+    <div class="trip-nav" id="tripNav">
+      <button class="trip-nav-arrow" id="prevTripBtn" aria-label="Previous trip" disabled>◀</button>
+      <span class="trip-nav-label" id="tripNavLabel">No trips</span>
+      <button class="trip-nav-arrow" id="nextTripBtn" aria-label="Next trip" disabled>▶</button>
     </div>
   </main>
 
@@ -40,6 +87,10 @@
       <button class="close-x" id="closeDayModal" aria-label="Close">&times;</button>
       <h2 id="dayModalTitle">Day 01 — {Location}</h2>
       <div class="activity-grid" id="activityGrid"></div>
+      <div class="day-modal-actions">
+        <button class="btn" id="regenerateDayBtn">Re-generate</button>
+        <button class="btn btn-danger" id="deleteDayBtn">Delete</button>
+      </div>
     </div>
   </div>
 
@@ -59,7 +110,7 @@
     </div>
   </aside>
 
-  <script src="script.js"></script>
+  <script src="script.js" defer></script>
 </body>
 
 </html>

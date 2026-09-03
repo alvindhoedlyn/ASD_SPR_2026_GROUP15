@@ -41,6 +41,29 @@ def load_prompt(filename):
 def home():
     return render_template("index.html")
 
+@app.route("/trip/<int:trip_id>")
+def view_trip(trip_it):
+    conn = get_db_connection()
+    days = conn.execute(
+        "SELECT student_id, student_name, subject_code FROM day WHERE trip_id = trip_it"
+    ).fetchall()
+    conn.close()
+
+    html = "<ul>"
+    for day in days:
+        html += (
+            f"<li>"
+            f"{day['student_id']} - "
+            f"{day['student_name']} - "
+            f"{day['subject_code']}"
+            f"</li>"
+        )
+    html += "</ul>"
+
+    return html
+
+
+
 @app.route("/ask-with-context", methods=["POST"])
 def ask_with_context():
     question = request.form.get("question", "").strip()
