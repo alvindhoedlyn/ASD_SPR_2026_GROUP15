@@ -1,12 +1,12 @@
 :root {
     --header-bg: #ddc3b3;
     --page-bg: #d3ab88;
-    --card-frame: #e8853d;
+    --card-frame: #cffdbc;
     --card-face: #ecd8bb;
     --ink: #241a12;
     --line: #191008;
     --panel-bg: #a9856a;
-    --panel-header: #e8853d;
+    --panel-header: #cffdbc;
     --panel-face: #e6d3b8;
     --modal-bg: #6f4226;
     --modal-face: #fff;
@@ -17,6 +17,16 @@
 
 * {
     box-sizing: border-box;
+}
+
+/* [hidden] is a browser default (display:none) that lives in the lowest-
+     priority stylesheet layer, so ANY author rule that sets display on the
+     same element — e.g. .frame-state / .day-row using display:flex — will
+     silently win and keep the element visible even with hidden set. This
+     line guarantees hidden always actually hides, no matter what display
+     value a class elsewhere sets. See: MDN "hidden" global attribute. */
+[hidden] {
+    display: none !important;
 }
 
 body {
@@ -39,7 +49,7 @@ header.app-header {
 
 .app-header .brand {
     font-size: 1.6rem;
-    font-weight: 600;
+    font-weight: 800;
     letter-spacing: -0.02em;
 }
 
@@ -99,10 +109,119 @@ h1.title .plane {
     border: var(--border-w) solid var(--line);
     border-radius: var(--radius-lg);
     padding: 16px;
-    height: 275px;
+    min-height: 340px;
+    position: relative;
+}
+
+/* ---------- plan-frame states ---------- */
+.frame-state {
+    min-height: 308px;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.empty-line {
+    text-align: center;
+    color: #fff;
+    font-weight: 800;
+    font-size: 1.3rem;
+    margin: 4px 0;
+}
+
+.inset-card {
+    background: var(--card-face);
+    border: 2px solid #b98a55;
+    border-radius: var(--radius-md);
+    padding: 34px 42px;
+    text-align: center;
+    max-width: 420px;
+    width: 100%;
+}
+
+.inset-card h2 {
+    margin: 0 0 10px;
+    font-size: 1.6rem;
+}
+
+.inset-card p {
+    margin: 0 0 22px;
+    font-weight: 600;
+}
+
+.inset-card h2.underline {
+    text-decoration: underline;
+    margin-bottom: 22px;
+}
+
+.form-card {
+    text-align: left;
+    max-width: 460px;
+}
+
+.form-card h2 {
+    text-align: center;
+}
+
+.field-row,
+.field-column {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 16px;
+    font-weight: 700;
+}
+
+.field-column {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.field-column span {
+    margin-bottom: 6px;
+}
+
+.optional {
+    font-weight: 500;
+    font-style: italic;
+    color: #6b5844;
+}
+
+.field-row input[type="number"],
+.field-row select {
+    border: 2px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    font-weight: 700;
+    width: 90px;
+    background: #fff;
+}
+
+.field-row select {
+    width: auto;
+    min-width: 140px;
+}
+
+.field-column textarea {
+    border: 2px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+    font: inherit;
+    resize: vertical;
+    background: #fff;
+}
+
+.form-card .btn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+}
+
+a.btn {
+    display: inline-block;
+    text-decoration: none;
 }
 
 .day-row {
@@ -131,7 +250,6 @@ h1.title .plane {
     padding: 18px 16px;
     cursor: pointer;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
-    height: 175px;
 }
 
 .day-card:hover {
@@ -218,6 +336,47 @@ h1.title .plane {
     box-shadow: none;
 }
 
+.btn-danger {
+    background: #a34a3a;
+}
+
+/* ---------- Trip navigator ---------- */
+.trip-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    max-width: 260px;
+    margin: 22px auto 0;
+    padding: 10px 22px;
+    border: 3px dashed #6b4226;
+    border-radius: 999px;
+    font-weight: 800;
+}
+
+.trip-nav-arrow {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    color: #6b4226;
+    cursor: pointer;
+    padding: 2px 6px;
+}
+
+.trip-nav-arrow:hover:not([disabled]) {
+    transform: scale(1.15);
+}
+
+.trip-nav-arrow[disabled] {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.trip-nav-label {
+    min-width: 80px;
+    text-align: center;
+}
+
 /* ---------- Day detail modal ---------- */
 .overlay {
     position: fixed;
@@ -240,6 +399,7 @@ h1.title .plane {
     border-radius: 24px;
     max-width: 760px;
     width: 100%;
+    height: 250px;
     padding: 30px 34px 34px;
     position: relative;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
@@ -294,6 +454,13 @@ h1.title .plane {
     font-weight: 700;
     margin-top: 10px;
     font-size: 0.95rem;
+}
+
+.day-modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin-top: 26px;
 }
 
 /* ---------- Chat panel ---------- */
