@@ -27,13 +27,44 @@ jobs:
         working-directory: student-RenzoRobin/backend
         run: pip install --no-cache-dir -r requirements.txt
 
+      - name: Install database dependencies
+        working-directory: student-RenzoRobin/database
+        run: pip install --no-cache-dir -r requirements.txt
+
       - name: Run pre-commit pytest validation
         working-directory: student-RenzoRobin
         run: pytest tests/ -v
-        continue-on-error: true  
+        continue-on-error: true
 
-      - name: Build Docker image
-        run: docker build -t journeybuddy-student-renzorobin ./student-RenzoRobin
+      - name: Build service images via docker compose
+        run: |
+          docker compose build \
+            student-RenzoRobin-frontend \
+            student-RenzoRobin-backend \
+            student-RenzoRobin-database
 
-      - name: Confirm image was built
-        run: docker images journeybuddy-student-renzorobin
+      - name: Confirm images were built
+        run: docker images | grep journeybuddy-renzorobin
+
+      - name: Start database + backend and smoke-test
+        run: |
+          docker compose up -d student-RenzoRobin-database student-RenzoRobin-backend
+          sleep 5
+          echo "--- database logs ---"
+          docker compose logs student-RenzoRobin-database
+          echo "--- backend logs ---"
+          docker compose logs student-RenzoRobin-backend
+          # Fail the build if either container exited/crashed
+          docker compose ps student-RenzoRobin-database student-RenzoRobin-backend | grep -q "Up" || (echo "A container failed to start" && exit 1)
+
+      - name: Verify database service responds
+        run: |
+          curl -f http://localhost:6003/health || (echo "database /health failed" && exit 1)
+
+      - name: Verify backend service responds
+        run: |
+          curl -f http://localhost:5003/health || (echo "backend /health failed" && exit 1)
+
+      - name: Tear down
+        if: always()
+        run: docker compose down

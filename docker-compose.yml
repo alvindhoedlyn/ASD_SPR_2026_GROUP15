@@ -1,179 +1,70 @@
-services:
-  shared-frontend:
-    build: ./shared
-    image: journeybuddy-shared
-    container_name: shared-frontend
-    volumes:
-      - shared-data:/app/instance
-    ports:
-      - "8080:80"
-    networks:
-      - journeybuddy-net
-    depends_on:
-      - student-AlvindhoEdlyn
-      - student-KeyuanGan
-      - student-RenzoRobin-backend
-      - student-TrongDao
-      - student-YajunNing
-  student-AlvindhoEdlyn:
-    build: ./student-AlvindhoEdlyn
-    image: journeybuddy-student-alvindhoedlyn
-    container_name: student-AlvindhoEdlyn-app
-    ports:
-      - "5001:5000"
-    volumes:
-      - alvindhoedlyn-data:/app/instance
-    environment:
-      - OLLAMA_BASE_URL=http://ai-mode:11434
-    networks:
-      - journeybuddy-net
-    depends_on:
-      - ai-mode
+name: Student 3 - Accommodation Recommender CI
 
-  student-KeyuanGan:
-    build: ./student-KeyuanGan
-    image: journeybuddy-student-keyuangan
-    container_name: student-KeyuanGan-app
-    ports:
-      - "5002:5000"
-    volumes:
-      - keyuangan-data:/app/instance
-    environment:
-      - OLLAMA_BASE_URL=http://ai-mode:11434
-    networks:
-      - journeybuddy-net
-    depends_on:
-      - ai-mode
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'student-RenzoRobin/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'student-RenzoRobin/**'
 
-  student-RenzoRobin-frontend:
-    build:
-      context: ./student-RenzoRobin/frontend
-    image: journeybuddy-renzorobin-frontend
-    container_name: student-RenzoRobin-frontend
-    ports:
-      - "3003:80"
-    networks:
-      - journeybuddy-net
-    depends_on:
-      - student-RenzoRobin-backend
-    restart: unless-stopped
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
 
-  student-RenzoRobin-backend:
-    build:
-      context: ./student-RenzoRobin/backend
-    image: journeybuddy-renzorobin-backend
-    container_name: student-RenzoRobin-backend
-    ports:
-      - "5003:5003"
-    environment:
-      PORT: "5003"
-      DATABASE_API_URL: http://student-RenzoRobin-database:6003
-      OLLAMA_BASE_URL: http://ai-mode:11434
-      OLLAMA_MODEL: qwen2.5:0.5b
-    networks:
-      - journeybuddy-net
-    depends_on:
-      - student-RenzoRobin-database
-      - ai-mode
-    restart: unless-stopped
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  student-RenzoRobin-database:
-    build:
-      context: ./student-RenzoRobin/database
-    image: journeybuddy-renzorobin-database
-    container_name: student-RenzoRobin-database
-    ports:
-      - "6003:6003"
-    environment:
-      PORT: "6003"
-      DATABASE_PATH: /app/data/accommodation.db
-    volumes:
-      - renzorobin-data:/app/data
-    networks:
-      - journeybuddy-net
-    restart: unless-stopped
-  student-TrongDao:
-    build:
-      context: ./student-TrongDao
-      target: frontend
-    image: journeybuddy-trongdao-frontend
-    container_name: student-TrongDao-frontend
-    ports:
-      - "5004:80"
-    networks:
-      - journeybuddy-net
-    depends_on:
-      - student-TrongDao-backend
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-  student-TrongDao-backend:
-    build:
-      context: ./student-TrongDao
-      target: backend
-    image: journeybuddy-trongdao-backend
-    container_name: student-TrongDao-backend
-    ports:
-      - "5104:5000"
-    environment:
-      PORT: "5000"
-      DATABASE_API_URL: http://student-TrongDao-database:5000
-      OLLAMA_API_URL: http://ai-mode:11434
-      OLLAMA_MODEL: qwen2.5:0.5b
-      OLLAMA_REVIEW_MODEL: llama3.1:8b
-    networks:
-      - journeybuddy-net
-    depends_on:
-      - student-TrongDao-database
-      - ai-mode
+      - name: Install backend dependencies
+        working-directory: student-RenzoRobin/backend
+        run: pip install --no-cache-dir -r requirements.txt
 
-  student-TrongDao-database:
-    build:
-      context: ./student-TrongDao
-      target: database
-    image: journeybuddy-trongdao-database
-    container_name: student-TrongDao-database
-    ports:
-      - "5404:5000"
-    environment:
-      PORT: "5000"
-      DATABASE_PATH: /app/database/data/location_recommender.db
-    volumes:
-      - trongdao-data:/app/database/data
-    networks:
-      - journeybuddy-net
+      - name: Install database dependencies
+        working-directory: student-RenzoRobin/database
+        run: pip install --no-cache-dir -r requirements.txt
 
-  student-YajunNing:
-    build: ./student-YajunNing
-    image: journeybuddy-student-yajunning
-    container_name: student-YajunNing-app
-    ports:
-      - "5005:5000"
-    volumes:
-      - yajunning-data:/app/instance
-    environment:
-      - OLLAMA_BASE_URL=http://ai-mode:11434
-    networks:
-      - journeybuddy-net
-    depends_on:
-      - ai-mode
-  ai-mode:
-    image: ollama/ollama:latest
-    container_name: ai-mode
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-models:/root/.ollama
-    networks:
-      - journeybuddy-net
+      - name: Run pre-commit pytest validation
+        working-directory: student-RenzoRobin
+        run: pytest tests/ -v
+        continue-on-error: true
 
-networks:
-  journeybuddy-net:
-    driver: bridge
+      - name: Build service images via docker compose
+        run: |
+          docker compose build \
+            student-RenzoRobin-frontend \
+            student-RenzoRobin-backend \
+            student-RenzoRobin-database
 
-volumes:
-  ollama-models:
-  shared-data:
-  alvindhoedlyn-data:
-  keyuangan-data:
-  renzorobin-data:
-  trongdao-data:
-  yajunning-data:
+      - name: Confirm images were built
+        run: docker images | grep journeybuddy-renzorobin
+
+      - name: Start database + backend and smoke-test
+        run: |
+          docker compose up -d student-RenzoRobin-database student-RenzoRobin-backend
+          sleep 5
+          echo "--- database logs ---"
+          docker compose logs student-RenzoRobin-database
+          echo "--- backend logs ---"
+          docker compose logs student-RenzoRobin-backend
+          # Fail the build if either container exited/crashed
+          docker compose ps student-RenzoRobin-database student-RenzoRobin-backend | grep -q "Up" || (echo "A container failed to start" && exit 1)
+
+      - name: Verify database service responds
+        run: |
+          curl -f http://localhost:6003/health || (echo "database /health failed" && exit 1)
+
+      - name: Verify backend service responds
+        run: |
+          curl -f http://localhost:5003/health || (echo "backend /health failed" && exit 1)
+
+      - name: Tear down
+        if: always()
+        run: docker compose down
