@@ -42,18 +42,14 @@ header {
   align-items: center;
   min-height: 42px;
   padding: 8px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
   color: var(--teal-deep);
-  background: var(--card-bg);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
 }
 
 .back-link:hover {
-  border-color: var(--teal);
-  background: var(--sand);
+  color:#26241f
 }
 
 header h1 {
