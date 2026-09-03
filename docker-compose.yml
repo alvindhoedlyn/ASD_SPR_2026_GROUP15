@@ -24,7 +24,7 @@ services:
     volumes:
       - alvindhoedlyn-data:/app/instance
     environment:
-      - OLLAMA_BASE_URL=http://ai-mode:11434
+      - OLLAMA_BASE_URL=http://ai-mode:11434/v1
     networks:
       - journeybuddy-net
     depends_on:

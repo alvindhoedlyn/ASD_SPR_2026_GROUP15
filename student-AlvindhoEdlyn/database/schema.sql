@@ -13,11 +13,3 @@ CREATE TABLE IF NOT EXISTS day(
     activity TEXT,
     FOREIGN KEY (trip_ID) REFERENCES trip(trip_ID)
 );
-
-CREATE TABLE IF NOT EXISTS loc_list (
-    day_ID INTEGER NOT NULL,
-    location_ID INTEGER NOT NULL,
-    PRIMARY KEY (day_ID, location_ID),
-    FOREIGN KEY (day_ID) REFERENCES day(day_ID),
-    FOREIGN KEY (location_ID) REFERENCES loc(location_ID)
-);
