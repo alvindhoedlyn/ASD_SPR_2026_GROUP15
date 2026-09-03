@@ -3,12 +3,948 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>AlvindhoEdlyn — placeholder</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JourneyBuddy - Flight Recommender</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 
-<body>
-  <h1>5's service — placeholder</h1>
+<body class="auth-pending">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="http://localhost:8080">JourneyBuddy</a>
+      <span class="feature-name"><span id="session-user"></span>Flight Recommender</span>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <div class="flight-hero">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">Flight specialist</p>
+        <h1 id="page-title">Find a flight that fits your trip.</h1>
+        <p class="intro-copy">
+          Compare available flights by price, travel time, and number of stops. Turn on AI mode
+          for a clear explanation tailored to your trip.
+        </p>
+      </section>
+
+      <section class="search-card" aria-labelledby="search-heading">
+        <div class="section-heading">
+          <p class="step-label">Start your journey</p>
+          <h2 id="search-heading">Search flights</h2>
+        </div>
+
+        <form id="flight-search-form" class="search-form">
+          <div class="trip-options" aria-label="Trip options">
+            <label class="trip-choice">
+              <input name="trip_type" type="radio" value="return" checked>
+              <span>Return</span>
+            </label>
+            <label class="trip-choice">
+              <input name="trip_type" type="radio" value="one_way">
+              <span>One-way</span>
+            </label>
+            <span class="option-divider" aria-hidden="true"></span>
+            <label class="compact-ai-toggle" for="ai_mode">
+              <input id="ai_mode" name="ai_mode" type="checkbox" value="true">
+              <span><strong>AI recommendations</strong> with a grounded explanation</span>
+            </label>
+          </div>
+
+          <div class="search-fields-row">
+            <div class="field search-field search-field-location">
+              <label class="sr-only" for="origin">Leaving from</label>
+              <input id="origin" name="origin" type="text" placeholder="Leaving from" required>
+            </div>
+
+            <span class="route-swap" aria-hidden="true">⇄</span>
+
+            <div class="field search-field search-field-location">
+              <label class="sr-only" for="destination">Going to</label>
+              <input id="destination" name="destination" type="text" placeholder="Going to" required>
+            </div>
+
+            <div class="date-range-field">
+              <button id="date-range-trigger" class="date-range-trigger" type="button" aria-haspopup="dialog"
+                aria-expanded="false">
+                <span class="date-range-copy">
+                  <span>
+                    <small>Depart</small>
+                    <strong id="departure-date-display">Select date</strong>
+                  </span>
+                  <i aria-hidden="true">—</i>
+                  <span id="return-date-panel">
+                    <small>Return</small>
+                    <strong id="return-date-display">Select date</strong>
+                  </span>
+                </span>
+                <span class="calendar-symbol" aria-hidden="true">▣</span>
+              </button>
+              <input id="departure_date" name="departure_date" type="hidden">
+              <input id="return_date" name="return_date" type="hidden">
+
+              <div id="date-picker-popover" class="date-picker-popover is-hidden" role="dialog"
+                aria-label="Select departure and return dates">
+                <div class="date-picker-heading">
+                  <div>
+                    <span id="date-picker-step">Select departure date</span>
+                    <strong id="date-picker-selection">Choose your travel dates</strong>
+                  </div>
+                  <div class="calendar-navigation">
+                    <button id="previous-month" type="button" aria-label="Previous month">←</button>
+                    <button id="next-month" type="button" aria-label="Next month">→</button>
+                  </div>
+                </div>
+                <div id="calendar-months" class="calendar-months"></div>
+              </div>
+            </div>
+
+            <div class="field search-field search-field-budget">
+              <label class="sr-only" for="max_budget">Budget (AUD)</label>
+              <input id="max_budget" name="max_budget" type="number" min="1" step="1" placeholder="Budget (AUD)"
+                required>
+            </div>
+
+            <div class="field search-field search-field-priority">
+              <label class="sr-only" for="preference">Priority</label>
+              <select id="preference" name="preference" required>
+                <option value="best_overall">Best overall</option>
+                <option value="cheapest">Cheapest</option>
+                <option value="fastest">Fastest</option>
+                <option value="fewest_stops">Fewest stops</option>
+              </select>
+            </div>
+
+            <button class="primary-button search-submit-button" type="submit">
+              <span aria-hidden="true">⌕</span>
+              Search
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <section id="recommendation-results" class="results-card is-hidden" aria-labelledby="results-heading"
+      aria-live="polite">
+      <h2 id="results-heading">Recommendations will appear here</h2>
+      <div id="results-content">
+        <p class="empty-state">Complete the search form to compare catalogue flights.</p>
+      </div>
+    </section>
+
+    <section id="trust-section" class="trust-section" aria-labelledby="trust-heading">
+      <div class="trust-inner">
+        <div class="trust-heading-row">
+          <div>
+            <p class="eyebrow">Why JourneyBuddy</p>
+            <h2 id="trust-heading">Travel with confidence</h2>
+          </div>
+          <a class="trust-link" href="#flight-search-form">Start a search <span aria-hidden="true">↑</span></a>
+        </div>
+
+        <div class="trust-grid">
+          <article class="trust-card">
+            <span class="trust-icon is-compass" aria-hidden="true">✦</span>
+            <h3>Recommendations that fit</h3>
+            <p>Compare price, travel time, and stops without sorting through an endless list.</p>
+          </article>
+
+          <article class="trust-card">
+            <span class="trust-icon is-budget" aria-hidden="true">$</span>
+            <h3>Your budget stays visible</h3>
+            <p>Set a clear spending limit and see suitable options ranked around what matters to you.</p>
+          </article>
+
+          <article class="trust-card">
+            <span class="trust-icon is-ai" aria-hidden="true">AI</span>
+            <h3>AI when you want it</h3>
+            <p>Turn on AI mode for a concise explanation, while regular search always remains available.</p>
+          </article>
+
+          <article class="trust-card">
+            <span class="trust-icon is-grounded" aria-hidden="true">✓</span>
+            <h3>Grounded flight choices</h3>
+            <p>Recommendations only use flights in the catalogue, helping prevent invented prices or routes.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="saved-flights-section" class="saved-flights-card" aria-labelledby="saved-flights-heading">
+      <div class="saved-flights-heading-row">
+        <div>
+          <p class="step-label">Your flight shortlist</p>
+          <h2 id="saved-flights-heading">My saved flights</h2>
+        </div>
+        <button id="refresh-saved-flights" class="secondary-button" type="button">Refresh</button>
+      </div>
+
+      <p class="saved-flights-copy">
+        Save a recommendation, update your booking status or personal note, and remove it when you no longer need it.
+        Airline details and prices remain read-only.
+      </p>
+      <p id="saved-flights-message" class="saved-flights-message" role="status" aria-live="polite"></p>
+      <div id="saved-flights-list" class="saved-flights-list" aria-live="polite">
+        <p class="empty-state">Loading your saved flights...</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const JB_HOME = "http://localhost:8080";
+    const TOKEN_KEY = "jb_token";
+    const USER_KEY = "jb_username";
+    const ROLE_KEY = "jb_role";
+    let currentToken = new URLSearchParams(window.location.search).get("token") || localStorage.getItem(TOKEN_KEY) || "";
+    let currentUsername = "";
+    let currentRole = "";
+
+    function apiFetch(url, options = {}) {
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          "X-Session-Token": currentToken,
+        },
+      });
+    }
+
+    async function initializeSession() {
+      if (!currentToken) {
+        window.location.replace(`${JB_HOME}/login.html`);
+        return;
+      }
+
+      try {
+        const response = await apiFetch("/api/session");
+        if (!response.ok) throw new Error("Invalid session");
+        const session = await response.json();
+        currentUsername = session.username;
+        currentRole = session.role;
+        localStorage.setItem(TOKEN_KEY, currentToken);
+        localStorage.setItem(USER_KEY, currentUsername);
+        localStorage.setItem(ROLE_KEY, currentRole);
+
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("token");
+        window.history.replaceState(null, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+        document.getElementById("session-user").textContent = `${currentUsername} · ${currentRole} · `;
+        document.body.classList.remove("auth-pending");
+        await loadSavedFlights();
+      } catch (error) {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(ROLE_KEY);
+        window.location.replace(`${JB_HOME}/login.html`);
+      }
+    }
+
+    const searchForm = document.getElementById("flight-search-form");
+    const trustSection = document.getElementById("trust-section");
+    const resultsSection = document.getElementById("recommendation-results");
+    const resultsHeading = document.getElementById("results-heading");
+    const resultsContent = document.getElementById("results-content");
+    const searchButton = searchForm.querySelector("button[type='submit']");
+    const returnDateInput = document.getElementById("return_date");
+    const departureDateInput = document.getElementById("departure_date");
+    const dateRangeTrigger = document.getElementById("date-range-trigger");
+    const datePickerPopover = document.getElementById("date-picker-popover");
+    const departureDateDisplay = document.getElementById("departure-date-display");
+    const returnDateDisplay = document.getElementById("return-date-display");
+    const returnDatePanel = document.getElementById("return-date-panel");
+    const datePickerStep = document.getElementById("date-picker-step");
+    const datePickerSelection = document.getElementById("date-picker-selection");
+    const calendarMonths = document.getElementById("calendar-months");
+    const previousMonthButton = document.getElementById("previous-month");
+    const nextMonthButton = document.getElementById("next-month");
+    const tripTypeInputs = searchForm.querySelectorAll("input[name='trip_type']");
+    const savedFlightsList = document.getElementById("saved-flights-list");
+    const savedFlightsMessage = document.getElementById("saved-flights-message");
+    const refreshSavedFlightsButton = document.getElementById("refresh-saved-flights");
+    let savedFlightKeys = new Set();
+    let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let selectingDate = "departure";
+
+    function toIsoDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function parseIsoDate(value) {
+      if (!value) return null;
+      const [year, month, day] = value.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    function formatTravelDate(value) {
+      const date = parseIsoDate(value);
+      return date
+        ? new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short" }).format(date)
+        : "Select date";
+    }
+
+    function savedFlightKey(flightId, departureDate, returnDate) {
+      return `${flightId}|${departureDate}|${returnDate || ""}`;
+    }
+
+    function syncRecommendationSaveButtons() {
+      document.querySelectorAll(".select-flight-button[data-save-key]").forEach((button) => {
+        const isSaved = savedFlightKeys.has(button.dataset.saveKey);
+        button.classList.toggle("is-selected", isSaved);
+        button.textContent = isSaved ? "Saved" : "Save flight";
+        button.disabled = isSaved;
+      });
+    }
+
+    function updateDateRangeDisplay() {
+      departureDateDisplay.textContent = formatTravelDate(departureDateInput.value);
+      returnDateDisplay.textContent = formatTravelDate(returnDateInput.value);
+      datePickerSelection.textContent = departureDateInput.value
+        ? `${formatTravelDate(departureDateInput.value)}${returnDateInput.value ? ` — ${formatTravelDate(returnDateInput.value)}` : ""}`
+        : "Choose your travel dates";
+      datePickerStep.textContent = selectingDate === "departure" ? "Select departure date" : "Now select return date";
+    }
+
+    function createCalendarMonth(monthDate) {
+      const month = document.createElement("section");
+      month.className = "calendar-month";
+      const title = document.createElement("h3");
+      title.textContent = new Intl.DateTimeFormat("en-AU", { month: "long", year: "numeric" }).format(monthDate);
+      const weekdays = document.createElement("div");
+      weekdays.className = "calendar-weekdays";
+      ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach((day) => {
+        const label = document.createElement("span");
+        label.textContent = day;
+        weekdays.appendChild(label);
+      });
+
+      const days = document.createElement("div");
+      days.className = "calendar-days";
+      const year = monthDate.getFullYear();
+      const monthIndex = monthDate.getMonth();
+      const firstWeekday = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
+      const dayCount = new Date(year, monthIndex + 1, 0).getDate();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const departure = parseIsoDate(departureDateInput.value);
+      const returning = parseIsoDate(returnDateInput.value);
+
+      for (let index = 0; index < firstWeekday; index += 1) {
+        const spacer = document.createElement("span");
+        spacer.className = "calendar-spacer";
+        days.appendChild(spacer);
+      }
+
+      for (let day = 1; day <= dayCount; day += 1) {
+        const date = new Date(year, monthIndex, day);
+        const isoDate = toIsoDate(date);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = String(day);
+        button.dataset.date = isoDate;
+        button.setAttribute("aria-label", new Intl.DateTimeFormat("en-AU", { dateStyle: "full" }).format(date));
+        if (date < today) button.disabled = true;
+        if (departure && isoDate === toIsoDate(departure)) button.classList.add("is-range-start");
+        if (returning && isoDate === toIsoDate(returning)) button.classList.add("is-range-end");
+        if (departure && returning && date > departure && date < returning) button.classList.add("is-in-range");
+        button.addEventListener("click", () => selectCalendarDate(isoDate));
+        days.appendChild(button);
+      }
+
+      month.append(title, weekdays, days);
+      return month;
+    }
+
+    function renderCalendars() {
+      calendarMonths.replaceChildren();
+      const secondMonth = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1);
+      calendarMonths.append(createCalendarMonth(calendarCursor), createCalendarMonth(secondMonth));
+      updateDateRangeDisplay();
+    }
+
+    function closeDatePicker() {
+      datePickerPopover.classList.add("is-hidden");
+      dateRangeTrigger.setAttribute("aria-expanded", "false");
+    }
+
+    function openDatePicker() {
+      const selectedDeparture = parseIsoDate(departureDateInput.value);
+      if (selectedDeparture) {
+        calendarCursor = new Date(selectedDeparture.getFullYear(), selectedDeparture.getMonth(), 1);
+      }
+      selectingDate = departureDateInput.value && !returnDateInput.value ? "return" : "departure";
+      renderCalendars();
+      datePickerPopover.classList.remove("is-hidden");
+      dateRangeTrigger.setAttribute("aria-expanded", "true");
+    }
+
+    function selectCalendarDate(isoDate) {
+      const isOneWay = searchForm.elements.trip_type.value === "one_way";
+      if (selectingDate === "departure" || !departureDateInput.value) {
+        departureDateInput.value = isoDate;
+        returnDateInput.value = "";
+        selectingDate = isOneWay ? "departure" : "return";
+        renderCalendars();
+        if (isOneWay) closeDatePicker();
+        return;
+      }
+
+      if (isoDate < departureDateInput.value) {
+        departureDateInput.value = isoDate;
+        returnDateInput.value = "";
+        selectingDate = "return";
+        renderCalendars();
+        return;
+      }
+
+      returnDateInput.value = isoDate;
+      selectingDate = "departure";
+      renderCalendars();
+      closeDatePicker();
+    }
+
+    dateRangeTrigger.addEventListener("click", () => {
+      if (datePickerPopover.classList.contains("is-hidden")) openDatePicker();
+      else closeDatePicker();
+    });
+
+    datePickerPopover.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
+    previousMonthButton.addEventListener("click", () => {
+      calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1);
+      renderCalendars();
+    });
+
+    nextMonthButton.addEventListener("click", () => {
+      calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1);
+      renderCalendars();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".date-range-field")) closeDatePicker();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeDatePicker();
+    });
+
+    tripTypeInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        const isOneWay = input.checked && input.value === "one_way";
+        if (isOneWay) returnDateInput.value = "";
+        returnDateInput.disabled = isOneWay;
+        returnDatePanel.classList.toggle("is-hidden", isOneWay);
+        selectingDate = "departure";
+        updateDateRangeDisplay();
+      });
+    });
+
+    updateDateRangeDisplay();
+
+    function formatDuration(minutes) {
+      return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    }
+
+    function showMessage(message, isError = false) {
+      resultsSection.classList.remove("is-hidden");
+      document.getElementById("recommendation-results").classList.remove("has-results");
+      resultsContent.replaceChildren();
+      const paragraph = document.createElement("p");
+      paragraph.className = isError ? "result-message is-error" : "result-message";
+      paragraph.textContent = message;
+      resultsContent.appendChild(paragraph);
+    }
+
+    function renderAgentTrace(agenticLoop) {
+      const details = document.createElement("details");
+      details.className = "agent-trace";
+      const summary = document.createElement("summary");
+      summary.textContent = "How this recommendation was made";
+      const traceList = document.createElement("ol");
+
+      agenticLoop.trace.forEach((step) => {
+        const item = document.createElement("li");
+        const stage = document.createElement("strong");
+        stage.textContent = `${step.stage}: `;
+        item.append(stage, document.createTextNode(step.detail));
+        traceList.appendChild(item);
+      });
+
+      details.append(summary, traceList);
+      return details;
+    }
+
+    function renderRecommendations(data) {
+      resultsSection.classList.remove("is-hidden");
+      document.getElementById("recommendation-results").classList.add("has-results");
+      resultsContent.replaceChildren();
+      const flights = data.recommendations;
+
+      if (data.message) {
+        const notice = document.createElement("p");
+        notice.className = "adaptation-notice";
+        notice.textContent = data.message;
+        resultsContent.appendChild(notice);
+      }
+
+      if (data.ai.requested) {
+        const aiPanel = document.createElement("aside");
+        aiPanel.className = data.ai.status === "ready" ? "ai-panel" : "ai-panel is-unavailable";
+        const aiTitle = document.createElement("strong");
+        const aiTitles = {
+          ready: "AI explanation",
+          guarded_fallback: "Grounded fallback explanation",
+          unavailable: "AI explanation unavailable",
+          no_results: "AI explanation unavailable",
+        };
+        aiTitle.textContent = aiTitles[data.ai.status] || "Recommendation explanation";
+        const aiText = document.createElement("p");
+        aiText.textContent = data.ai.explanation || "The deterministic recommendations are still available below.";
+        aiPanel.append(aiTitle, aiText);
+        resultsContent.appendChild(aiPanel);
+      }
+
+      const summary = document.createElement("div");
+      summary.className = "result-summary-bar";
+      const summaryRoute = document.createElement("div");
+      const summaryEyebrow = document.createElement("span");
+      summaryEyebrow.textContent = "Recommended departures";
+      const summaryTitle = document.createElement("strong");
+      summaryTitle.textContent = `${data.search.origin} → ${data.search.destination}`;
+      summaryRoute.append(summaryEyebrow, summaryTitle);
+      const summaryMeta = document.createElement("span");
+      summaryMeta.textContent = `${data.returned_count} options · ${data.search.departure_date} · AUD $${data.search.max_budget} max`;
+      summary.append(summaryRoute, summaryMeta);
+      resultsContent.appendChild(summary);
+
+      const workspace = document.createElement("div");
+      workspace.className = "flight-results-workspace";
+
+      const filters = document.createElement("aside");
+      filters.className = "flight-filter-panel";
+      const filterTitle = document.createElement("h3");
+      filterTitle.textContent = "Recommended filters";
+      const directLabel = document.createElement("label");
+      directLabel.className = "filter-check";
+      const directCheckbox = document.createElement("input");
+      directCheckbox.type = "checkbox";
+      const directText = document.createElement("span");
+      directText.textContent = "Direct flights only";
+      directLabel.append(directCheckbox, directText);
+      const budgetFact = document.createElement("div");
+      budgetFact.className = "filter-fact";
+      budgetFact.append(document.createTextNode("Budget ceiling"));
+      const budgetValue = document.createElement("strong");
+      budgetValue.textContent = `AUD $${data.search.max_budget}`;
+      budgetFact.appendChild(budgetValue);
+      const airportFact = document.createElement("div");
+      airportFact.className = "filter-fact";
+      airportFact.append(document.createTextNode("Tokyo airports"));
+      const airportValue = document.createElement("strong");
+      airportValue.textContent = "NRT + HND";
+      airportFact.appendChild(airportValue);
+      filters.append(filterTitle, directLabel, budgetFact, airportFact);
+
+      const mainResults = document.createElement("div");
+      mainResults.className = "flight-results-main";
+      const sortBar = document.createElement("div");
+      sortBar.className = "flight-sort-bar";
+      const list = document.createElement("div");
+      list.className = "flight-result-list";
+      const resultCount = document.createElement("span");
+      resultCount.className = "visible-result-count";
+
+      const sortOptions = [
+        ["best_overall", "Recommended"],
+        ["cheapest", "Cheapest"],
+        ["fastest", "Fastest"],
+        ["fewest_stops", "Fewest stops"],
+      ];
+      let activeSort = data.search.preference;
+
+      function sortedFlights() {
+        const visible = directCheckbox.checked
+          ? flights.filter((flight) => flight.stops === 0)
+          : [...flights];
+        const sorters = {
+          best_overall: (a, b) => b.score - a.score,
+          cheapest: (a, b) => a.price_aud - b.price_aud,
+          fastest: (a, b) => a.duration_minutes - b.duration_minutes,
+          fewest_stops: (a, b) => a.stops - b.stops || a.duration_minutes - b.duration_minutes,
+        };
+        return visible.sort(sorters[activeSort]);
+      }
+
+      function drawFlightRows() {
+        list.replaceChildren();
+        const visibleFlights = sortedFlights();
+        resultCount.textContent = `${visibleFlights.length} flight${visibleFlights.length === 1 ? "" : "s"} shown`;
+
+        if (!visibleFlights.length) {
+          const empty = document.createElement("p");
+          empty.className = "filtered-empty-state";
+          empty.textContent = "No direct recommendation is available. Clear the filter to view one-stop options.";
+          list.appendChild(empty);
+          return;
+        }
+
+        const lowestPrice = Math.min(...flights.map((flight) => flight.price_aud));
+        visibleFlights.forEach((flight, index) => {
+          const row = document.createElement("article");
+          row.className = "flight-result-row";
+
+          const badges = document.createElement("div");
+          badges.className = "flight-badges";
+          if (index === 0) {
+            const topBadge = document.createElement("span");
+            topBadge.className = "result-badge is-top";
+            topBadge.textContent = "Top match";
+            badges.appendChild(topBadge);
+          }
+          if (flight.price_aud === lowestPrice) {
+            const cheapBadge = document.createElement("span");
+            cheapBadge.className = "result-badge";
+            cheapBadge.textContent = "Lowest price";
+            badges.appendChild(cheapBadge);
+          }
+          if (flight.stops === 0) {
+            const directBadge = document.createElement("span");
+            directBadge.className = "result-badge is-direct";
+            directBadge.textContent = "Direct";
+            badges.appendChild(directBadge);
+          }
+
+          const rowBody = document.createElement("div");
+          rowBody.className = "flight-row-body";
+          const airline = document.createElement("div");
+          airline.className = "airline-block";
+          const airlineMark = document.createElement("span");
+          airlineMark.className = "airline-mark";
+          airlineMark.textContent = flight.airline.split(" ").map((word) => word[0]).join("").slice(0, 2);
+          const airlineCopy = document.createElement("div");
+          const airlineName = document.createElement("strong");
+          airlineName.textContent = flight.airline;
+          const flightNumber = document.createElement("span");
+          flightNumber.textContent = flight.flight_number;
+          airlineCopy.append(airlineName, flightNumber);
+          airline.append(airlineMark, airlineCopy);
+
+          const schedule = document.createElement("div");
+          schedule.className = "flight-schedule";
+          const departure = document.createElement("div");
+          const departureTime = document.createElement("strong");
+          departureTime.textContent = flight.departure_time;
+          const departureAirport = document.createElement("span");
+          departureAirport.textContent = flight.origin;
+          departure.append(departureTime, departureAirport);
+          const journey = document.createElement("div");
+          journey.className = "journey-line";
+          const duration = document.createElement("span");
+          duration.textContent = formatDuration(flight.duration_minutes);
+          const line = document.createElement("i");
+          const stopText = document.createElement("span");
+          stopText.textContent = flight.stops === 0 ? "Direct" : `${flight.stops} stop`;
+          journey.append(duration, line, stopText);
+          const arrival = document.createElement("div");
+          const arrivalTime = document.createElement("strong");
+          arrivalTime.textContent = flight.arrival_time;
+          const arrivalAirport = document.createElement("span");
+          arrivalAirport.textContent = flight.destination;
+          arrival.append(arrivalTime, arrivalAirport);
+          schedule.append(departure, journey, arrival);
+
+          const price = document.createElement("div");
+          price.className = "flight-price";
+          const priceLabel = document.createElement("span");
+          priceLabel.textContent = "from";
+          const priceValue = document.createElement("strong");
+          priceValue.textContent = `AUD $${flight.price_aud}`;
+          const selectButton = document.createElement("button");
+          selectButton.type = "button";
+          selectButton.className = "select-flight-button";
+          selectButton.dataset.saveKey = savedFlightKey(flight.id, data.search.departure_date, data.search.return_date);
+          const flightIsSaved = savedFlightKeys.has(selectButton.dataset.saveKey);
+          selectButton.textContent = flightIsSaved ? "Saved" : "Save flight";
+          selectButton.classList.toggle("is-selected", flightIsSaved);
+          selectButton.disabled = flightIsSaved;
+          selectButton.addEventListener("click", () => saveRecommendedFlight(flight, data.search, selectButton));
+          price.append(priceLabel, priceValue, selectButton);
+
+          rowBody.append(airline, schedule, price);
+          const reason = document.createElement("p");
+          reason.className = "flight-row-reason";
+          reason.textContent = flight.reason;
+          row.append(badges, rowBody, reason);
+          list.appendChild(row);
+        });
+      }
+
+      sortOptions.forEach(([value, label]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = value === activeSort ? "sort-tab is-active" : "sort-tab";
+        button.textContent = label;
+        button.addEventListener("click", () => {
+          activeSort = value;
+          sortBar.querySelectorAll(".sort-tab").forEach((tab) => tab.classList.remove("is-active"));
+          button.classList.add("is-active");
+          drawFlightRows();
+        });
+        sortBar.appendChild(button);
+      });
+      sortBar.appendChild(resultCount);
+      directCheckbox.addEventListener("change", drawFlightRows);
+      mainResults.append(sortBar, list);
+      workspace.append(filters, mainResults);
+      resultsContent.appendChild(workspace);
+      drawFlightRows();
+      resultsContent.appendChild(renderAgentTrace(data.agentic_loop));
+    }
+
+    function showSavedFlightsMessage(message, isError = false) {
+      savedFlightsMessage.textContent = message;
+      savedFlightsMessage.className = isError
+        ? "saved-flights-message is-error"
+        : "saved-flights-message";
+    }
+
+    function renderSavedFlights(savedFlights) {
+      savedFlightsList.replaceChildren();
+
+      if (!savedFlights.length) {
+        const empty = document.createElement("div");
+        empty.className = "saved-flights-empty";
+        const title = document.createElement("strong");
+        title.textContent = "No saved flights yet";
+        const copy = document.createElement("p");
+        copy.textContent = "Search for a flight and choose “Save flight” to build your shortlist.";
+        empty.append(title, copy);
+        savedFlightsList.appendChild(empty);
+        return;
+      }
+
+      savedFlights.forEach((savedFlight) => {
+        const card = document.createElement("article");
+        card.className = "saved-flight-row";
+
+        const summary = document.createElement("div");
+        summary.className = "saved-flight-summary";
+        const airlineCopy = document.createElement("div");
+        const title = document.createElement("h3");
+        title.textContent = `${savedFlight.airline} ${savedFlight.flight_number}`;
+        const route = document.createElement("p");
+        const stopLabel = savedFlight.stops === 0 ? "Direct" : `${savedFlight.stops} stop`;
+        route.textContent = `${savedFlight.origin} ${savedFlight.departure_time} → ${savedFlight.destination} ${savedFlight.arrival_time} · ${formatDuration(savedFlight.duration_minutes)} · ${stopLabel}`;
+        airlineCopy.append(title, route);
+        const price = document.createElement("strong");
+        price.className = "saved-flight-price";
+        price.textContent = `AUD $${savedFlight.price_aud}`;
+        summary.append(airlineCopy, price);
+
+        const dates = document.createElement("p");
+        dates.className = "saved-flight-dates";
+        dates.textContent = `Travel dates: ${savedFlight.departure_date}${savedFlight.return_date ? ` → ${savedFlight.return_date}` : " · One-way"}`;
+
+        const editor = document.createElement("div");
+        editor.className = "saved-flight-editor";
+        const statusField = document.createElement("label");
+        statusField.textContent = "Status";
+        const statusSelect = document.createElement("select");
+        statusSelect.setAttribute("aria-label", `Status for ${savedFlight.flight_number}`);
+        [["considering", "Considering"], ["booked", "Booked"], ["cancelled", "Cancelled"]].forEach(([value, label]) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = label;
+          option.selected = savedFlight.status === value;
+          statusSelect.appendChild(option);
+        });
+        statusField.appendChild(statusSelect);
+
+        const noteField = document.createElement("label");
+        noteField.textContent = "Personal note";
+        const noteInput = document.createElement("input");
+        noteInput.type = "text";
+        noteInput.maxLength = 300;
+        noteInput.value = savedFlight.note || "";
+        noteInput.placeholder = "e.g. Check baggage allowance";
+        noteInput.setAttribute("aria-label", `Note for ${savedFlight.flight_number}`);
+        noteField.appendChild(noteInput);
+
+        const actions = document.createElement("div");
+        actions.className = "saved-flight-actions";
+        const updateButton = document.createElement("button");
+        updateButton.type = "button";
+        updateButton.className = "text-button";
+        updateButton.textContent = "Update";
+        updateButton.addEventListener("click", () => updateSavedFlight(
+          savedFlight.id,
+          statusSelect.value,
+          noteInput.value,
+          updateButton,
+        ));
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "text-button is-danger";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", () => deleteSavedFlight(savedFlight));
+        actions.append(updateButton, deleteButton);
+
+        editor.append(statusField, noteField, actions);
+        card.append(summary, dates, editor);
+        savedFlightsList.appendChild(card);
+      });
+    }
+
+    async function loadSavedFlights() {
+      refreshSavedFlightsButton.disabled = true;
+      try {
+        const response = await apiFetch("/api/saved-flights");
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load your saved flights.");
+        savedFlightKeys = new Set(data.map((savedFlight) => savedFlightKey(
+          savedFlight.flight_id,
+          savedFlight.departure_date,
+          savedFlight.return_date,
+        )));
+        renderSavedFlights(data);
+        syncRecommendationSaveButtons();
+      } catch (error) {
+        showSavedFlightsMessage(error.message, true);
+      } finally {
+        refreshSavedFlightsButton.disabled = false;
+      }
+    }
+
+    async function saveRecommendedFlight(flight, search, button) {
+      button.disabled = true;
+      button.textContent = "Saving...";
+      try {
+        const response = await apiFetch("/api/saved-flights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            flight_id: flight.id,
+            departure_date: search.departure_date,
+            return_date: search.return_date,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not save this flight.");
+        button.classList.add("is-selected");
+        button.textContent = "Saved";
+        showSavedFlightsMessage(`${data.flight_number} was added to your shortlist.`);
+        await loadSavedFlights();
+      } catch (error) {
+        button.textContent = error.message.includes("already saved") ? "Already saved" : "Try again";
+        showSavedFlightsMessage(error.message, true);
+        if (error.message.includes("already saved")) await loadSavedFlights();
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function updateSavedFlight(savedFlightId, status, note, button) {
+      button.disabled = true;
+      button.textContent = "Updating...";
+      try {
+        const response = await apiFetch(`/api/saved-flights/${savedFlightId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status, note }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not update this saved flight.");
+        showSavedFlightsMessage(`${data.flight_number} was updated.`);
+        await loadSavedFlights();
+      } catch (error) {
+        showSavedFlightsMessage(error.message, true);
+        button.disabled = false;
+        button.textContent = "Update";
+      }
+    }
+
+    async function deleteSavedFlight(savedFlight) {
+      if (!window.confirm(`Remove ${savedFlight.airline} ${savedFlight.flight_number} from your saved flights?`)) return;
+      try {
+        const response = await apiFetch(`/api/saved-flights/${savedFlight.id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Could not delete this saved flight.");
+        }
+        showSavedFlightsMessage(`${savedFlight.flight_number} was removed.`);
+        await loadSavedFlights();
+      } catch (error) {
+        showSavedFlightsMessage(error.message, true);
+      }
+    }
+
+    searchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      trustSection.classList.add("is-hidden");
+      const payload = Object.fromEntries(new FormData(searchForm));
+      delete payload.trip_type;
+      if (!payload.departure_date) {
+        resultsHeading.textContent = "Select your travel date";
+        showMessage("Choose a departure date before searching.", true);
+        openDatePicker();
+        return;
+      }
+      payload.max_budget = Number(payload.max_budget);
+      payload.ai_mode = searchForm.elements.ai_mode.checked;
+
+      searchButton.disabled = true;
+      searchButton.textContent = payload.ai_mode ? "Running AI agent..." : "Searching...";
+      resultsHeading.textContent = "Searching available flights";
+      showMessage("Comparing price, duration, and stops...");
+
+      try {
+        const response = await fetch("/api/flight-searches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "The search request could not be completed.");
+        }
+
+        if (!data.recommendations.length) {
+          resultsHeading.textContent = "No matching flights";
+          showMessage(data.message || "No flights matched this search.");
+          return;
+        }
+
+        resultsHeading.textContent = data.agentic_loop.adapted
+          ? "Nearest available alternative"
+          : "Top flight recommendations";
+        renderRecommendations(data);
+      } catch (error) {
+        resultsHeading.textContent = "Search unavailable";
+        showMessage(error.message, true);
+      } finally {
+        searchButton.disabled = false;
+        searchButton.replaceChildren();
+        const searchIcon = document.createElement("span");
+        searchIcon.setAttribute("aria-hidden", "true");
+        searchIcon.textContent = "⌕";
+        searchButton.append(searchIcon, document.createTextNode(" Search"));
+      }
+    });
+
+    refreshSavedFlightsButton.addEventListener("click", loadSavedFlights);
+    initializeSession();
+  </script>
 </body>
 
 </html>
