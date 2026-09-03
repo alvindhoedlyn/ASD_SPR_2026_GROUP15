@@ -56,14 +56,6 @@ const SAMPLE_DAY_POOL = [
     },
 ];
 
-// Trips the user has generated. TEST DATA is pre-populated below so the app
-// opens straight into the day-card view (dayRow), bypassing "Generate New
-// Trip" entirely — use this to test day cards, the day-detail modal,
-// Re-generate/Delete, and the trip navigator without needing the generate
-// flow to work first.
-//
-// To go back to testing the empty/generate flow from scratch, change this
-// back to: let trips = [];
 let trips = [
     {
         trip_id: 1,
