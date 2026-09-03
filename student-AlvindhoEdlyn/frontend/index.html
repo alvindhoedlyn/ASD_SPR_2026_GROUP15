@@ -21,15 +21,10 @@
   <main>
     <h1 class="title">Itinerary Planner</h1>
 
-    <!-- plan-frame holds four mutually-exclusive states, toggled by script.js:
-       1. emptyTripState   — Trip table empty (default landing state)
-       2. dayRow           — a trip is loaded, showing its day cards
-       3. noJourneyState   — "Generate New Trip" clicked but Journey table is empty
-       4. generateFormState — "Generate New Trip" clicked and journeys exist -->
     <div class="plan-frame" id="planFrame">
 
       <div class="frame-state" id="emptyTripState">
-        <p class="empty-line">No Trips Yet?</p>
+        <p class="empty-line">No Trips Yet? </p>
         <p class="empty-line">Make one with your JourneyBuddy!</p>
       </div>
 
@@ -81,7 +76,6 @@
     </div>
   </main>
 
-  <!-- Day detail modal -->
   <div class="overlay" id="dayOverlay">
     <div class="day-modal">
       <button class="close-x" id="closeDayModal" aria-label="Close">&times;</button>
@@ -94,7 +88,6 @@
     </div>
   </div>
 
-  <!-- Chat panel -->
   <aside class="chat-panel" id="chatPanel" aria-hidden="true">
     <div class="chat-header">
       <h2>Ask Your Buddy!</h2>
