@@ -12,7 +12,7 @@ services:
     depends_on:
       - student-AlvindhoEdlyn
       - student-KeyuanGan
-      - student-RenzoRobin
+      - student-RenzoRobin-backend
       - student-TrongDao
       - student-YajunNing
   student-AlvindhoEdlyn:
@@ -45,21 +45,53 @@ services:
     depends_on:
       - ai-mode
 
-  student-RenzoRobin:
-    build: ./student-RenzoRobin
-    image: journeybuddy-student-renzorobin
-    container_name: student-RenzoRobin-app
+  student-RenzoRobin-frontend:
+    build:
+      context: ./student-RenzoRobin/frontend
+    image: journeybuddy-renzorobin-frontend
+    container_name: student-RenzoRobin-frontend
     ports:
-      - "5003:5000"
-    volumes:
-      - renzorobin-data:/app/instance
-    environment:
-      - OLLAMA_BASE_URL=http://ai-mode:11434
+      - "3003:80"
     networks:
       - journeybuddy-net
     depends_on:
-      - ai-mode
+      - student-RenzoRobin-backend
+    restart: unless-stopped
 
+  student-RenzoRobin-backend:
+    build:
+      context: ./student-RenzoRobin/backend
+    image: journeybuddy-renzorobin-backend
+    container_name: student-RenzoRobin-backend
+    ports:
+      - "5003:5003"
+    environment:
+      PORT: "5003"
+      DATABASE_API_URL: http://student-RenzoRobin-database:6003
+      OLLAMA_BASE_URL: http://ai-mode:11434
+      OLLAMA_MODEL: qwen2.5:0.5b
+    networks:
+      - journeybuddy-net
+    depends_on:
+      - student-RenzoRobin-database
+      - ai-mode
+    restart: unless-stopped
+
+  student-RenzoRobin-database:
+    build:
+      context: ./student-RenzoRobin/database
+    image: journeybuddy-renzorobin-database
+    container_name: student-RenzoRobin-database
+    ports:
+      - "6003:6003"
+    environment:
+      PORT: "6003"
+      DATABASE_PATH: /app/data/accommodation.db
+    volumes:
+      - renzorobin-data:/app/data
+    networks:
+      - journeybuddy-net
+    restart: unless-stopped
   student-TrongDao:
     build:
       context: ./student-TrongDao

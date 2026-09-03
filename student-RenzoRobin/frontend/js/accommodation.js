@@ -1,5 +1,7 @@
 // ===================== CONFIG =====================
 
+const API_BASE = "http://localhost:5003";
+
 function getUserId() {
     const username = localStorage.getItem("jb_username");
     if (!username) return 1;
@@ -17,13 +19,17 @@ let editingListingId = null;
 
 // ===================== API HELPERS =====================
 
+function apiUrl(path) {
+    return path.startsWith("http") ? path : `${API_BASE}${path}`;
+}
+
 async function apiGet(url) {
-    const res = await fetch(url);
+    const res = await fetch(apiUrl(url));
     if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`);
     return res.json();
 }
 async function apiSend(url, method, body) {
-    const res = await fetch(url, {
+    const res = await fetch(apiUrl(url), {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
