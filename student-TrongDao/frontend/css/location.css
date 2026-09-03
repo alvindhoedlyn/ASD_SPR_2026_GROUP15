@@ -80,6 +80,20 @@ section > h2 {
   font-weight: 500;
 }
 
+.results-section {
+  text-align: center;
+}
+
+.results-section article {
+  text-align: left;
+}
+
+.results-section #recommendation-results > p,
+.results-section #saved-places-results > p {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
 form {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

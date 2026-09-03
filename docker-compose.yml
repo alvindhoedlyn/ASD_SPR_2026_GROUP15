@@ -31,6 +31,7 @@ jobs:
         working-directory: student-RenzoRobin/database
         run: pip install --no-cache-dir -r requirements.txt
 
+<<<<<<< HEAD
       - name: Run pre-commit pytest validation
         working-directory: student-RenzoRobin
         run: pytest tests/ -v
@@ -42,6 +43,59 @@ jobs:
             student-RenzoRobin-frontend \
             student-RenzoRobin-backend \
             student-RenzoRobin-database
+=======
+  student-YajunNing:
+    build: ./student-YajunNing/frontend
+    image: journeybuddy-student-yajunning-frontend
+    container_name: student-YajunNing-frontend
+    ports:
+      - "5005:80"
+    networks:
+      - yajunning-net
+    depends_on:
+      - yajunning-backend-service
+
+  yajunning-backend-service:
+    build: ./student-YajunNing/backend
+    image: journeybuddy-student-yajunning-backend
+    container_name: student-YajunNing-backend
+    environment:
+      DATABASE_SERVICE_URL: http://yajunning-database-service:5001
+      AUTH_SERVICE_URL: http://shared-frontend
+      OLLAMA_BASE_URL: http://ai-mode:11434/v1
+      OLLAMA_MODEL: qwen2.5:0.5b
+    networks:
+      - journeybuddy-net
+      - yajunning-net
+    depends_on:
+      - ai-mode
+      - yajunning-database-service
+
+  yajunning-database-service:
+    build: ./student-YajunNing/database
+    image: journeybuddy-student-yajunning-database
+    container_name: student-YajunNing-database
+    volumes:
+      - yajunning-data:/app/data
+    networks:
+      - yajunning-net
+
+  ai-mode:
+    image: ollama/ollama:latest
+    container_name: ai-mode
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - journeybuddy-net
+
+networks:
+  journeybuddy-net:
+    driver: bridge
+  yajunning-net:
+    driver: bridge
+>>>>>>> 627ad78a1ed9d501e6feb2ef6ab9ca565205af87
 
       - name: Confirm images were built
         run: docker images | grep journeybuddy-renzorobin
