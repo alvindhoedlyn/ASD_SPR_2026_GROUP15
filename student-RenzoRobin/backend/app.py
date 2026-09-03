@@ -25,23 +25,26 @@ client = OpenAI(base_url=f"{OLLAMA_URL}/v1", api_key="ollama")
 
 def get_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    # timeout: wait up to 10s for a lock to clear instead of failing instantly
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")  # readers don't block writers
     return conn
 
 
 def init_db():
     conn = get_db()
-    with open(SCHEMA_PATH) as f:
-        conn.executescript(f.read())
-    conn.commit()
+    try:
+        with open(SCHEMA_PATH) as f:
+            conn.executescript(f.read())
+        conn.commit()
 
-    count = conn.execute("SELECT COUNT(*) AS c FROM accommodations").fetchone()["c"]
-    if count == 0:
-        seed_data(conn)
-
-    conn.close()
+        count = conn.execute("SELECT COUNT(*) AS c FROM accommodations").fetchone()["c"]
+        if count == 0:
+            seed_data(conn)
+    finally:
+        conn.close()
 
 def seed_data(conn):
     accommodations = [
@@ -111,10 +114,12 @@ def seed_data(conn):
 @app.route("/areas", methods=["GET"])
 def list_areas():
     conn = get_db()
-    rows = conn.execute(
-        "SELECT DISTINCT city_area FROM accommodations ORDER BY city_area"
-    ).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT city_area FROM accommodations ORDER BY city_area"
+        ).fetchall()
+    finally:
+        conn.close()
     return jsonify([r["city_area"] for r in rows])
 
 def accommodation_to_dict(row):
@@ -148,17 +153,19 @@ def health():
 def create_accommodation():
     data = request.get_json()
     conn = get_db()
-    cur = conn.execute(
-        "INSERT INTO accommodations (name, city_area, description, facilities, images, avg_rating, review_count) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (
-            data.get("name"), data.get("city_area"), data.get("description"),
-            json.dumps(data.get("facilities", [])), json.dumps(data.get("images", [])),
-            data.get("avg_rating", 0), data.get("review_count", 0),
+    try:
+        cur = conn.execute(
+            "INSERT INTO accommodations (name, city_area, description, facilities, images, avg_rating, review_count) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                data.get("name"), data.get("city_area"), data.get("description"),
+                json.dumps(data.get("facilities", [])), json.dumps(data.get("images", [])),
+                data.get("avg_rating", 0), data.get("review_count", 0),
+            )
         )
-    )
-    conn.commit()
-    new_id = cur.lastrowid
-    conn.close()
+        conn.commit()
+        new_id = cur.lastrowid
+    finally:
+        conn.close()
     return jsonify({"accommodation_id": new_id}), 201
 
 
@@ -168,14 +175,16 @@ def list_accommodations():
     facility = request.args.get("facility")
 
     conn = get_db()
-    query = "SELECT * FROM accommodations"
-    params = []
-    if city:
-        query += " WHERE city_area LIKE ?"
-        params.append(f"%{city}%")
+    try:
+        query = "SELECT * FROM accommodations"
+        params = []
+        if city:
+            query += " WHERE city_area LIKE ?"
+            params.append(f"%{city}%")
 
-    rows = conn.execute(query, params).fetchall()
-    conn.close()
+        rows = conn.execute(query, params).fetchall()
+    finally:
+        conn.close()
 
     results = [accommodation_to_dict(r) for r in rows]
     if facility:
@@ -186,8 +195,10 @@ def list_accommodations():
 @app.route("/accommodations/<int:accommodation_id>", methods=["GET"])
 def get_accommodation(accommodation_id):
     conn = get_db()
-    row = conn.execute("SELECT * FROM accommodations WHERE accommodation_id = ?", (accommodation_id,)).fetchone()
-    conn.close()
+    try:
+        row = conn.execute("SELECT * FROM accommodations WHERE accommodation_id = ?", (accommodation_id,)).fetchone()
+    finally:
+        conn.close()
     if row is None:
         return jsonify({"error": "not found"}), 404
     return jsonify(accommodation_to_dict(row))
@@ -197,27 +208,35 @@ def get_accommodation(accommodation_id):
 def update_accommodation(accommodation_id):
     data = request.get_json()
     conn = get_db()
-    conn.execute(
-        """UPDATE accommodations
-           SET name = ?, city_area = ?, description = ?, facilities = ?, images = ?, avg_rating = ?, review_count = ?
-           WHERE accommodation_id = ?""",
-        (
-            data.get("name"), data.get("city_area"), data.get("description"),
-            json.dumps(data.get("facilities", [])), json.dumps(data.get("images", [])),
-            data.get("avg_rating", 0), data.get("review_count", 0), accommodation_id,
+    try:
+        conn.execute(
+            """UPDATE accommodations
+               SET name = ?, city_area = ?, description = ?, facilities = ?, images = ?, avg_rating = ?, review_count = ?
+               WHERE accommodation_id = ?""",
+            (
+                data.get("name"), data.get("city_area"), data.get("description"),
+                json.dumps(data.get("facilities", [])), json.dumps(data.get("images", [])),
+                data.get("avg_rating", 0), data.get("review_count", 0), accommodation_id,
+            )
         )
-    )
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"updated": accommodation_id})
 
 
 @app.route("/accommodations/<int:accommodation_id>", methods=["DELETE"])
 def delete_accommodation(accommodation_id):
     conn = get_db()
-    conn.execute("DELETE FROM accommodations WHERE accommodation_id = ?", (accommodation_id,))
-    conn.commit()
-    conn.close()
+    try:
+        # Cascade manually: schema has no ON DELETE CASCADE, and FKs are enforced.
+        # Order matters — children of children first.
+        conn.execute("DELETE FROM list_accommodations WHERE accommodation_id = ?", (accommodation_id,))
+        conn.execute("DELETE FROM room_types WHERE accommodation_id = ?", (accommodation_id,))
+        conn.execute("DELETE FROM accommodations WHERE accommodation_id = ?", (accommodation_id,))
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"deleted": accommodation_id})
 
 
@@ -227,32 +246,38 @@ def delete_accommodation(accommodation_id):
 def create_room(accommodation_id):
     data = request.get_json()
     conn = get_db()
-    cur = conn.execute(
-        "INSERT INTO room_types (accommodation_id, room_name, price_per_night, available_rooms, capacity, images) VALUES (?, ?, ?, ?, ?, ?)",
-        (
-            accommodation_id, data.get("room_name"), data.get("price_per_night"),
-            data.get("available_rooms", 1), data.get("capacity", 2), json.dumps(data.get("images", [])),
+    try:
+        cur = conn.execute(
+            "INSERT INTO room_types (accommodation_id, room_name, price_per_night, available_rooms, capacity, images) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                accommodation_id, data.get("room_name"), data.get("price_per_night"),
+                data.get("available_rooms", 1), data.get("capacity", 2), json.dumps(data.get("images", [])),
+            )
         )
-    )
-    conn.commit()
-    new_id = cur.lastrowid
-    conn.close()
+        conn.commit()
+        new_id = cur.lastrowid
+    finally:
+        conn.close()
     return jsonify({"room_id": new_id}), 201
 
 
 @app.route("/accommodations/<int:accommodation_id>/rooms", methods=["GET"])
 def list_rooms(accommodation_id):
     conn = get_db()
-    rows = conn.execute("SELECT * FROM room_types WHERE accommodation_id = ?", (accommodation_id,)).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute("SELECT * FROM room_types WHERE accommodation_id = ?", (accommodation_id,)).fetchall()
+    finally:
+        conn.close()
     return jsonify([room_to_dict(r) for r in rows])
 
 
 @app.route("/rooms/<int:room_id>", methods=["GET"])
 def get_room(room_id):
     conn = get_db()
-    row = conn.execute("SELECT * FROM room_types WHERE room_id = ?", (room_id,)).fetchone()
-    conn.close()
+    try:
+        row = conn.execute("SELECT * FROM room_types WHERE room_id = ?", (room_id,)).fetchone()
+    finally:
+        conn.close()
     if row is None:
         return jsonify({"error": "not found"}), 404
     return jsonify(room_to_dict(row))
@@ -262,24 +287,30 @@ def get_room(room_id):
 def update_room(room_id):
     data = request.get_json()
     conn = get_db()
-    conn.execute(
-        "UPDATE room_types SET room_name = ?, price_per_night = ?, available_rooms = ?, capacity = ?, images = ? WHERE room_id = ?",
-        (
-            data.get("room_name"), data.get("price_per_night"), data.get("available_rooms"),
-            data.get("capacity"), json.dumps(data.get("images", [])), room_id,
+    try:
+        conn.execute(
+            "UPDATE room_types SET room_name = ?, price_per_night = ?, available_rooms = ?, capacity = ?, images = ? WHERE room_id = ?",
+            (
+                data.get("room_name"), data.get("price_per_night"), data.get("available_rooms"),
+                data.get("capacity"), json.dumps(data.get("images", [])), room_id,
+            )
         )
-    )
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"updated": room_id})
 
 
 @app.route("/rooms/<int:room_id>", methods=["DELETE"])
 def delete_room(room_id):
     conn = get_db()
-    conn.execute("DELETE FROM room_types WHERE room_id = ?", (room_id,))
-    conn.commit()
-    conn.close()
+    try:
+        # A room can be referenced by list_accommodations.room_id
+        conn.execute("UPDATE list_accommodations SET room_id = NULL WHERE room_id = ?", (room_id,))
+        conn.execute("DELETE FROM room_types WHERE room_id = ?", (room_id,))
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"deleted": room_id})
 
 
@@ -289,24 +320,28 @@ def delete_room(room_id):
 def create_priority():
     data = request.get_json()
     conn = get_db()
-    cur = conn.execute(
-        "INSERT INTO priorities (user_id, price_weight, location_weight, facility_weight, review_weight) VALUES (?, ?, ?, ?, ?)",
-        (
-            data.get("user_id"), data.get("price_weight", 50), data.get("location_weight", 50),
-            data.get("facility_weight", 50), data.get("review_weight", 50),
+    try:
+        cur = conn.execute(
+            "INSERT INTO priorities (user_id, price_weight, location_weight, facility_weight, review_weight) VALUES (?, ?, ?, ?, ?)",
+            (
+                data.get("user_id"), data.get("price_weight", 50), data.get("location_weight", 50),
+                data.get("facility_weight", 50), data.get("review_weight", 50),
+            )
         )
-    )
-    conn.commit()
-    new_id = cur.lastrowid
-    conn.close()
+        conn.commit()
+        new_id = cur.lastrowid
+    finally:
+        conn.close()
     return jsonify({"priority_id": new_id}), 201
 
 
 @app.route("/priorities/<int:user_id>", methods=["GET"])
 def get_priority(user_id):
     conn = get_db()
-    row = conn.execute("SELECT * FROM priorities WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,)).fetchone()
-    conn.close()
+    try:
+        row = conn.execute("SELECT * FROM priorities WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,)).fetchone()
+    finally:
+        conn.close()
     if row is None:
         return jsonify({
             "user_id": user_id, "price_weight": 50, "location_weight": 50,
@@ -319,34 +354,38 @@ def get_priority(user_id):
 def update_priority(user_id):
     data = request.get_json()
     conn = get_db()
-    existing = conn.execute("SELECT * FROM priorities WHERE user_id = ?", (user_id,)).fetchone()
+    try:
+        existing = conn.execute("SELECT * FROM priorities WHERE user_id = ?", (user_id,)).fetchone()
 
-    if existing:
-        conn.execute(
-            "UPDATE priorities SET price_weight = ?, location_weight = ?, facility_weight = ?, review_weight = ?, updated_at = ? WHERE user_id = ?",
-            (
-                data.get("price_weight", 50), data.get("location_weight", 50),
-                data.get("facility_weight", 50), data.get("review_weight", 50),
-                datetime.datetime.utcnow().isoformat(), user_id,
+        if existing:
+            conn.execute(
+                "UPDATE priorities SET price_weight = ?, location_weight = ?, facility_weight = ?, review_weight = ?, updated_at = ? WHERE user_id = ?",
+                (
+                    data.get("price_weight", 50), data.get("location_weight", 50),
+                    data.get("facility_weight", 50), data.get("review_weight", 50),
+                    datetime.datetime.utcnow().isoformat(), user_id,
+                )
             )
-        )
-    else:
-        conn.execute(
-            "INSERT INTO priorities (user_id, price_weight, location_weight, facility_weight, review_weight) VALUES (?, ?, ?, ?, ?)",
-            (user_id, data.get("price_weight", 50), data.get("location_weight", 50), data.get("facility_weight", 50), data.get("review_weight", 50))
-        )
+        else:
+            conn.execute(
+                "INSERT INTO priorities (user_id, price_weight, location_weight, facility_weight, review_weight) VALUES (?, ?, ?, ?, ?)",
+                (user_id, data.get("price_weight", 50), data.get("location_weight", 50), data.get("facility_weight", 50), data.get("review_weight", 50))
+            )
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"updated_user_id": user_id})
 
 
 @app.route("/priorities/<int:user_id>", methods=["DELETE"])
 def delete_priority(user_id):
     conn = get_db()
-    conn.execute("DELETE FROM priorities WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM priorities WHERE user_id = ?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"deleted_user_id": user_id})
 
 
@@ -356,21 +395,25 @@ def delete_priority(user_id):
 def create_list():
     data = request.get_json()
     conn = get_db()
-    cur = conn.execute(
-        "INSERT INTO lists (user_id, list_name) VALUES (?, ?)",
-        (data.get("user_id"), data.get("list_name", "My list"))
-    )
-    conn.commit()
-    new_id = cur.lastrowid
-    conn.close()
+    try:
+        cur = conn.execute(
+            "INSERT INTO lists (user_id, list_name) VALUES (?, ?)",
+            (data.get("user_id"), data.get("list_name", "My list"))
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+    finally:
+        conn.close()
     return jsonify({"list_id": new_id}), 201
 
 
 @app.route("/lists/<int:user_id>", methods=["GET"])
 def get_user_lists(user_id):
     conn = get_db()
-    rows = conn.execute("SELECT * FROM lists WHERE user_id = ?", (user_id,)).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute("SELECT * FROM lists WHERE user_id = ?", (user_id,)).fetchall()
+    finally:
+        conn.close()
     return jsonify([dict(r) for r in rows])
 
 
@@ -378,19 +421,23 @@ def get_user_lists(user_id):
 def rename_list(list_id):
     data = request.get_json()
     conn = get_db()
-    conn.execute("UPDATE lists SET list_name = ? WHERE list_id = ?", (data.get("list_name"), list_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("UPDATE lists SET list_name = ? WHERE list_id = ?", (data.get("list_name"), list_id))
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"updated": list_id})
 
 
 @app.route("/lists/<int:list_id>", methods=["DELETE"])
 def delete_list(list_id):
     conn = get_db()
-    conn.execute("DELETE FROM list_accommodations WHERE list_id = ?", (list_id,))
-    conn.execute("DELETE FROM lists WHERE list_id = ?", (list_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM list_accommodations WHERE list_id = ?", (list_id,))
+        conn.execute("DELETE FROM lists WHERE list_id = ?", (list_id,))
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"deleted": list_id})
 
 
@@ -400,13 +447,15 @@ def delete_list(list_id):
 def add_to_list(list_id):
     data = request.get_json()
     conn = get_db()
-    cur = conn.execute(
-        "INSERT INTO list_accommodations (list_id, accommodation_id, room_id, status) VALUES (?, ?, ?, ?)",
-        (list_id, data.get("accommodation_id"), data.get("room_id"), data.get("status", "Option"))
-    )
-    conn.commit()
-    new_id = cur.lastrowid
-    conn.close()
+    try:
+        cur = conn.execute(
+            "INSERT INTO list_accommodations (list_id, accommodation_id, room_id, status) VALUES (?, ?, ?, ?)",
+            (list_id, data.get("accommodation_id"), data.get("room_id"), data.get("status", "Option"))
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+    finally:
+        conn.close()
     return jsonify({"list_accom_id": new_id}), 201
 
 
@@ -415,20 +464,22 @@ def get_list_accommodations(list_id):
     status = request.args.get("status")
 
     conn = get_db()
-    query = """
-        SELECT la.list_accom_id, la.status, la.added_at, la.room_id,
-               a.accommodation_id, a.name, a.city_area, a.avg_rating
-        FROM list_accommodations la
-        JOIN accommodations a ON a.accommodation_id = la.accommodation_id
-        WHERE la.list_id = ?
-    """
-    params = [list_id]
-    if status:
-        query += " AND la.status = ?"
-        params.append(status)
+    try:
+        query = """
+            SELECT la.list_accom_id, la.status, la.added_at, la.room_id,
+                   a.accommodation_id, a.name, a.city_area, a.avg_rating
+            FROM list_accommodations la
+            JOIN accommodations a ON a.accommodation_id = la.accommodation_id
+            WHERE la.list_id = ?
+        """
+        params = [list_id]
+        if status:
+            query += " AND la.status = ?"
+            params.append(status)
 
-    rows = conn.execute(query, params).fetchall()
-    conn.close()
+        rows = conn.execute(query, params).fetchall()
+    finally:
+        conn.close()
     return jsonify([dict(r) for r in rows])
 
 
@@ -436,21 +487,25 @@ def get_list_accommodations(list_id):
 def update_list_accommodation(list_accom_id):
     data = request.get_json()
     conn = get_db()
-    conn.execute(
-        "UPDATE list_accommodations SET status = ?, room_id = ? WHERE list_accom_id = ?",
-        (data.get("status"), data.get("room_id"), list_accom_id)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute(
+            "UPDATE list_accommodations SET status = ?, room_id = ? WHERE list_accom_id = ?",
+            (data.get("status"), data.get("room_id"), list_accom_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"updated": list_accom_id})
 
 
 @app.route("/list-accommodations/<int:list_accom_id>", methods=["DELETE"])
 def remove_from_list(list_accom_id):
     conn = get_db()
-    conn.execute("DELETE FROM list_accommodations WHERE list_accom_id = ?", (list_accom_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM list_accommodations WHERE list_accom_id = ?", (list_accom_id,))
+        conn.commit()
+    finally:
+        conn.close()
     return jsonify({"deleted": list_accom_id})
 
 
@@ -512,15 +567,17 @@ def generate_recommendations():
     desired_facilities = data.get("desired_facilities", [])
 
     conn = get_db()
-    weights_row = conn.execute(
-        "SELECT * FROM priorities WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,)
-    ).fetchone()
-    weights = dict(weights_row) if weights_row else {
-        "price_weight": 50, "location_weight": 50, "facility_weight": 50, "review_weight": 50
-    }
+    try:
+        weights_row = conn.execute(
+            "SELECT * FROM priorities WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,)
+        ).fetchone()
+        weights = dict(weights_row) if weights_row else {
+            "price_weight": 50, "location_weight": 50, "facility_weight": 50, "review_weight": 50
+        }
 
-    all_accoms = fetch_accommodations_with_price(conn)
-    conn.close()
+        all_accoms = fetch_accommodations_with_price(conn)
+    finally:
+        conn.close()
 
     # Only show listings in the area the user picked
     if target_city:
@@ -548,8 +605,10 @@ def generate_recommendations():
 @app.route("/accommodations/<int:accommodation_id>/similar", methods=["GET"])
 def similarity_match(accommodation_id):
     conn = get_db()
-    all_accoms = fetch_accommodations_with_price(conn)
-    conn.close()
+    try:
+        all_accoms = fetch_accommodations_with_price(conn)
+    finally:
+        conn.close()
 
     target = next((a for a in all_accoms if a["accommodation_id"] == accommodation_id), None)
     if target is None:
