@@ -42,17 +42,14 @@ header {
   align-items: center;
   min-height: 42px;
   padding: 8px 14px;
-  border: 0;
   color: var(--teal-deep);
-  background: transparent;
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
 }
 
 .back-link:hover {
-  color: var(--ink);
-  background: transparent;
+  color:#26241f
 }
 
 header h1 {
