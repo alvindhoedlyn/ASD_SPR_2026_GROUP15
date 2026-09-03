@@ -142,19 +142,41 @@ services:
       - journeybuddy-net
 
   student-YajunNing:
-    build: ./student-YajunNing
-    image: journeybuddy-student-yajunning
-    container_name: student-YajunNing-app
+    build: ./student-YajunNing/frontend
+    image: journeybuddy-student-yajunning-frontend
+    container_name: student-YajunNing-frontend
     ports:
-      - "5005:5000"
-    volumes:
-      - yajunning-data:/app/instance
+      - "5005:80"
+    networks:
+      - yajunning-net
+    depends_on:
+      - yajunning-backend-service
+
+  yajunning-backend-service:
+    build: ./student-YajunNing/backend
+    image: journeybuddy-student-yajunning-backend
+    container_name: student-YajunNing-backend
     environment:
-      - OLLAMA_BASE_URL=http://ai-mode:11434
+      DATABASE_SERVICE_URL: http://yajunning-database-service:5001
+      AUTH_SERVICE_URL: http://shared-frontend
+      OLLAMA_BASE_URL: http://ai-mode:11434/v1
+      OLLAMA_MODEL: qwen2.5:0.5b
     networks:
       - journeybuddy-net
+      - yajunning-net
     depends_on:
       - ai-mode
+      - yajunning-database-service
+
+  yajunning-database-service:
+    build: ./student-YajunNing/database
+    image: journeybuddy-student-yajunning-database
+    container_name: student-YajunNing-database
+    volumes:
+      - yajunning-data:/app/data
+    networks:
+      - yajunning-net
+
   ai-mode:
     image: ollama/ollama:latest
     container_name: ai-mode
@@ -167,6 +189,8 @@ services:
 
 networks:
   journeybuddy-net:
+    driver: bridge
+  yajunning-net:
     driver: bridge
 
 volumes:

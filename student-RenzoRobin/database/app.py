@@ -4,7 +4,6 @@ import sqlite3
 import datetime
 from flask import Flask, request, jsonify
 
-
 app = Flask(__name__)
 
 DB_PATH = os.environ.get("DATABASE_PATH", "/app/database/data/accommodation.db")
