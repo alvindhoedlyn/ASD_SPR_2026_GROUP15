@@ -149,15 +149,6 @@ const regenerateDayBtn = document.getElementById("regenerateDayBtn");
 const deleteDayBtn = document.getElementById("deleteDayBtn");
 
 
-// =====================================================================
-// PLAN-FRAME STATE MACHINE
-// Exactly one of these four is visible at a time:
-//   emptyTripState   — Page 1: Trip table empty
-//   dayRow           — a trip is loaded, showing its day cards
-//   noJourneyState   — Page 2: "Generate New Trip" clicked, Journey table empty
-//   generateFormState — Page 3: "Generate New Trip" clicked, journeys exist
-// =====================================================================
-
 function showFrameState(activeId) {
     [emptyTripState, dayRow, noJourneyState, generateFormState].forEach(el => {
         el.hidden = (el.id !== activeId);
@@ -217,11 +208,6 @@ function renderDays(trip) {
         dayRow.appendChild(card);
     });
 }
-
-
-// =====================================================================
-// GENERATE NEW TRIP FLOW (Pages 2 & 3)
-// =====================================================================
 
 function populateJourneySelect() {
     journeySelect.innerHTML = journeys

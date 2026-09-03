@@ -38,16 +38,16 @@ cursor.execute("PRAGMA foreign_keys = ON")
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS trip (
-    trip_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    trip_ID INTEGER PRIMARY KEY,
     user_ID INTEGER NOT NULL,
+    journey_ID INTEGER NOT NULL,
     duration INTEGER NOT NULL,
-    FOREIGN KEY (user_ID) REFERENCES USER(user_ID)
 )
 """)
 
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS day (
-    day_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS day(
+    day_ID INTEGER PRIMARY KEY,
     trip_ID INTEGER NOT NULL,
     weather TEXT,
     itinerary TEXT,
@@ -56,17 +56,6 @@ CREATE TABLE IF NOT EXISTS day (
 )
 """)
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS loc_list (
-    day_ID INTEGER NOT NULL,
-    location_ID INTEGER NOT NULL,
-    PRIMARY KEY (day_ID, location_ID),
-    FOREIGN KEY (day_ID) REFERENCES DAY(day_ID),
-    FOREIGN KEY (location_ID) REFERENCES LOCATION(location_ID)
-)
-""")
-
-cursor.execute("DELETE FROM loc_list")
 cursor.execute("DELETE FROM day")
 cursor.execute("DELETE FROM trip")
 

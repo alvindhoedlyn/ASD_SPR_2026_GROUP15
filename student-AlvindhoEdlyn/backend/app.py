@@ -11,7 +11,7 @@ load_dotenv()
 
 DATABASE_NAME = "plan.db"
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ai-mode:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
@@ -19,9 +19,10 @@ app = Flask(
     __name__,
     template_folder="../frontend",
     static_folder="../frontend",
-    static_url_path="/static"
+    static_url_path=""
 )
-CORS(app)
+
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
@@ -41,27 +42,6 @@ def load_prompt(filename):
 @app.route("/")
 def home():
     return render_template("index.html")
-
-@app.route("/trip/<int:trip_id>")
-def view_trip(trip_it):
-    conn = get_db_connection()
-    days = conn.execute(
-        "SELECT student_id, student_name, subject_code FROM day WHERE trip_id = trip_it"
-    ).fetchall()
-    conn.close()
-
-    html = "<ul>"
-    for day in days:
-        html += (
-            f"<li>"
-            f"{day['student_id']} - "
-            f"{day['student_name']} - "
-            f"{day['subject_code']}"
-            f"</li>"
-        )
-    html += "</ul>"
-
-    return html
 
 @app.route("/ask-with-context", methods=["POST"])
 def ask_with_context():
@@ -97,4 +77,4 @@ def ask_with_context():
         )
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001)
+    app.run(host="0.0.0.0", port=5000)
