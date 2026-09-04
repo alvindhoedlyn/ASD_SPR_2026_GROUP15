@@ -1,4 +1,4 @@
-const JB_HOME = "http://localhost:8080";
+const JB_HOME = "http://localhost:5000";
 const TOKEN_KEY = "jb_token";
 const USER_KEY = "jb_username";
 const ROLE_KEY = "jb_role";
@@ -133,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             submitBtn.disabled = true;
             try {
-                const res = await fetch("/api/login", {
+                const res = await fetch(`${JB_HOME}/api/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ username, password })

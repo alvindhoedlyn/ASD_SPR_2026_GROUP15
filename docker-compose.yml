@@ -1,20 +1,51 @@
 services:
   shared-frontend:
-    build: ./shared
-    image: journeybuddy-shared
+    build:
+      context: ./shared/frontend
+    image: journeybuddy-shared-frontend
     container_name: shared-frontend
-    volumes:
-      - shared-data:/app/instance
     ports:
-      - "8080:80"
+      - "3000:80"
     networks:
       - journeybuddy-net
     depends_on:
+      - shared-backend
       - student-AlvindhoEdlyn
       - student-KeyuanGan
       - student-RenzoRobin-backend
       - student-TrongDao
       - student-YajunNing
+
+  shared-backend:
+    build:
+      context: ./shared/backend
+    image: journeybuddy-shared-backend
+    container_name: shared-backend
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: "5000"
+      DATABASE_API_URL: http://shared-database:6000
+    networks:
+      - journeybuddy-net
+    depends_on:
+      - shared-database
+
+  shared-database:
+    build:
+      context: ./shared/database
+    image: journeybuddy-shared-database
+    container_name: shared-database
+    ports:
+      - "6000:6000"
+    environment:
+      PORT: "6000"
+      DATABASE_PATH: /app/data/app.db
+    volumes:
+      - shared-data:/app/data
+    networks:
+      - journeybuddy-net
+
   student-AlvindhoEdlyn:
     build: ./student-AlvindhoEdlyn
     image: journeybuddy-student-alvindhoedlyn
@@ -158,7 +189,7 @@ services:
     container_name: student-YajunNing-backend
     environment:
       DATABASE_SERVICE_URL: http://yajunning-database-service:5001
-      AUTH_SERVICE_URL: http://shared-frontend
+      AUTH_SERVICE_URL: http://shared-backend:5000
       OLLAMA_BASE_URL: http://ai-mode:11434/v1
       OLLAMA_MODEL: qwen2.5:0.5b
     networks:
