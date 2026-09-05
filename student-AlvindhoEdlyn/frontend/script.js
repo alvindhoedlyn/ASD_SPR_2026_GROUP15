@@ -1,12 +1,4 @@
-// =====================================================================
-// SAMPLE DATA — shaped like what the backend will eventually return.
-// Swap the functions marked "MOCK" for real fetch() calls once the
-// Flask routes are wired up; everything else (state machine, rendering)
-// stays the same.
-// =====================================================================
-
-// A journey = a saved set of locations (from the Locations page).
-// Set this to [] to preview the "No Journey Found" state (Page 2).
+// Static populated dataset
 let journeys = [
     { journey_id: 1, label: "Sydney Weekend", locations: ["Bondi Beach", "Opera House", "Blue Mountains", "Harbour Bridge"] },
     { journey_id: 2, label: "Melbourne Foodie Trip", locations: ["Queen Victoria Market", "St Kilda", "Yarra Valley"] },
@@ -20,7 +12,6 @@ let journeys = [
     { journey_id: 10, label: " Ningaloo Reef Explorer", locations: ["Exmouth", "Coral Bay", "Cape Range National Park", "Turquoise Bay"] }
 ];
 
-// A pool of sample day content, cycled through by the mock generator below.
 const SAMPLE_DAY_POOL = [
     {
         summary: "Beach & sunset", location: "Bondi",
@@ -56,68 +47,30 @@ const SAMPLE_DAY_POOL = [
     },
 ];
 
-let trips = [
-    {
-        trip_id: 1,
-        journey_id: 1,
-        duration: 4,
-        days: SAMPLE_DAY_POOL.map((sample, i) => ({ day_number: i + 1, ...sample })),
-    },
-    {
-        trip_id: 2,
-        journey_id: 2,
-        duration: 2,
-        days: [
-            {
-                summary: "Market crawl", location: "Melbourne CBD", day_number: 1,
-                activities: [
-                    { text: "Queen Vic Market", icon: "🧺" },
-                    { text: "Laneway coffee", icon: "☕" },
-                    { text: "Rooftop bar", icon: "🍹" }
-                ]
-            },
-            {
-                summary: "Wine day", location: "Yarra Valley", day_number: 2,
-                activities: [
-                    { text: "Winery tour", icon: "🍇" },
-                    { text: "Cheese tasting", icon: "🧀" },
-                    { text: "Sunset drive back", icon: "🚗" }
-                ]
-            },
-        ],
-    },
-];
-let nextTripId = 3; // continue after the two test trips above
-
-// Index into `trips` for the trip currently on screen. Starts on the latest
-// test trip, matching the "default = latest trip" spec.
-let currentTripIndex = trips.length - 1;
-let activeDay = null; // the day currently open in the day-detail modal
-
+let trips = [];
+let nextTripId = 1;
+let currentTripIndex = 0;
+let activeDay = null;
 
 // =====================================================================
-// MOCK GENERATORS — replace these two with real API calls.
+// API INTEGRATION FUNCTIONS
 // =====================================================================
 
-function mockGenerateDay(dayNumber, journeyId) {
-    // Replace with the real call, e.g.:
-    // const res = await fetch(`/api/trips/${tripId}/days`, { method: "POST", ... });
-    const sample = SAMPLE_DAY_POOL[(dayNumber - 1) % SAMPLE_DAY_POOL.length];
-    return { day_number: dayNumber, ...sample };
+async function mockGenerateDay(tripId, dayNumber) {
+    const res = await fetch(`/api/trips/${tripId}/days/${dayNumber}`, { method: "PUT" });
+    if (!res.ok) throw new Error("Failed to regenerate day");
+    return await res.json();
 }
 
-function mockGenerateTrip(journeyId, duration) {
-    // Replace with the real call, e.g.:
-    // const res = await fetch("/api/trips", {
-    //   method: "POST",
-    //   headers: {"Content-Type": "application/json"},
-    //   body: JSON.stringify({ journey_id: journeyId, duration, preferences })
-    // });
-    // const trip = await res.json();
-    const days = Array.from({ length: duration }, (_, i) => mockGenerateDay(i + 1, journeyId));
-    return { trip_id: nextTripId++, journey_id: journeyId, duration, days };
+async function mockGenerateTrip(journeyId, duration, preferences = "") {
+    const res = await fetch("/api/trips/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ journeyId, duration, preferences })
+    });
+    if (!res.ok) throw new Error("Failed to generate trip");
+    return await res.json();
 }
-
 
 // =====================================================================
 // ELEMENT REFERENCES
@@ -148,10 +101,13 @@ const activityGrid = document.getElementById("activityGrid");
 const regenerateDayBtn = document.getElementById("regenerateDayBtn");
 const deleteDayBtn = document.getElementById("deleteDayBtn");
 
+// =====================================================================
+// RENDERING & STATE MACHINE
+// =====================================================================
 
 function showFrameState(activeId) {
     [emptyTripState, dayRow, noJourneyState, generateFormState].forEach(el => {
-        el.hidden = (el.id !== activeId);
+        if (el) el.hidden = (el.id !== activeId);
     });
 }
 
@@ -186,17 +142,17 @@ function renderCurrentTrip() {
 
 function renderDays(trip) {
     dayRow.innerHTML = "";
-    trip.days.forEach(day => {
+    (trip.days || []).forEach(day => {
         const card = document.createElement("div");
         card.className = "day-card";
         card.tabIndex = 0;
         card.setAttribute("role", "button");
         card.setAttribute("aria-label", `Open Day ${day.day_number} details`);
 
-        const activitiesHtml = day.activities.map(a => `<li>${a.text}</li>`).join("");
+        const activitiesHtml = (day.activities || []).map(a => `<li>${a.text}</li>`).join("");
         card.innerHTML = `
         <h2>DAY ${day.day_number}</h2>
-        <div class="summary">${day.summary}</div>
+        <div class="summary">${day.summary || ''}</div>
         <ul>${activitiesHtml}</ul>
       `;
 
@@ -215,6 +171,39 @@ function populateJourneySelect() {
         .join("");
 }
 
+// =====================================================================
+// INITIALIZATION
+// =====================================================================
+
+async function initApp() {
+    try {
+        // Try fetching journeys from database; fallback to hardcoded list if fetch fails
+        const jRes = await fetch("/api/journeys");
+        if (jRes.ok) {
+            const apiJourneys = await jRes.json();
+            if (apiJourneys.length > 0) journeys = apiJourneys;
+        }
+    } catch (err) {
+        console.warn("Could not fetch remote journeys, using fallback preset data.", err);
+    }
+
+    try {
+        const tRes = await fetch("/api/trips");
+        if (tRes.ok) {
+            trips = await tRes.json();
+            currentTripIndex = trips.length > 0 ? trips.length - 1 : 0;
+        }
+    } catch (err) {
+        console.error("Initialization failed:", err);
+    } finally {
+        renderCurrentTrip();
+    }
+}
+
+// =====================================================================
+// UI LISTENERS
+// =====================================================================
+
 generateNewTripBtn.addEventListener("click", () => {
     if (journeys.length === 0) {
         showFrameState("noJourneyState");
@@ -224,42 +213,58 @@ generateNewTripBtn.addEventListener("click", () => {
     }
 });
 
-generateConfirmBtn.addEventListener("click", () => {
+generateConfirmBtn.addEventListener("click", async () => {
     const duration = parseInt(dayCountInput.value, 10);
     const journeyId = parseInt(journeySelect.value, 10);
-    const preferences = preferencesInput.value.trim(); // include this in the real POST body
+    const preferences = preferencesInput.value.trim();
 
     if (!duration || duration < 1) {
         alert("Enter a valid number of days.");
         return;
     }
 
-    const newTrip = mockGenerateTrip(journeyId, duration, preferences);
-    trips.push(newTrip);
-    currentTripIndex = trips.length - 1; // newest trip becomes "current"
-    renderCurrentTrip();
+    try {
+        const newTrip = await mockGenerateTrip(journeyId, duration, preferences);
+        trips.push(newTrip);
+        currentTripIndex = trips.length - 1;
+        renderCurrentTrip();
+    } catch (err) {
+        alert(err.message);
+    }
 });
 
-
-// =====================================================================
-// MAIN ACTION BUTTONS
-// =====================================================================
-
-regenerateTripBtn.addEventListener("click", () => {
+regenerateTripBtn.addEventListener("click", async () => {
     if (trips.length === 0) return;
     const trip = trips[currentTripIndex];
-    // Replace with: fetch(`/api/trips/${trip.trip_id}/regenerate`, { method: "PUT" })
-    trip.days = trip.days.map((_, i) => mockGenerateDay(i + 1, trip.journey_id));
-    renderCurrentTrip();
+
+    try {
+        const res = await fetch(`/api/trips/${trip.trip_id}/regenerate`, { method: "PUT" });
+        if (!res.ok) throw new Error("Failed to regenerate trip");
+
+        const data = await res.json();
+        trip.days = data.days;
+        renderCurrentTrip();
+    } catch (err) {
+        alert(err.message);
+    }
 });
 
-deleteTripBtn.addEventListener("click", () => {
+deleteTripBtn.addEventListener("click", async () => {
     if (trips.length === 0) return;
     if (!confirm("Delete this trip? This can't be undone.")) return;
-    // Replace with: fetch(`/api/trips/${trips[currentTripIndex].trip_id}`, { method: "DELETE" })
-    trips.splice(currentTripIndex, 1);
-    currentTripIndex = Math.min(currentTripIndex, trips.length - 1);
-    renderCurrentTrip();
+
+    const currentTrip = trips[currentTripIndex];
+
+    try {
+        const response = await fetch(`/api/trips/${currentTrip.trip_id}`, { method: "DELETE" });
+        if (!response.ok) throw new Error("Failed to delete trip");
+
+        trips.splice(currentTripIndex, 1);
+        currentTripIndex = Math.max(0, Math.min(currentTripIndex, trips.length - 1));
+        renderCurrentTrip();
+    } catch (err) {
+        alert(err.message);
+    }
 });
 
 prevTripBtn.addEventListener("click", () => {
@@ -268,6 +273,7 @@ prevTripBtn.addEventListener("click", () => {
         renderCurrentTrip();
     }
 });
+
 nextTripBtn.addEventListener("click", () => {
     if (currentTripIndex < trips.length - 1) {
         currentTripIndex++;
@@ -275,18 +281,17 @@ nextTripBtn.addEventListener("click", () => {
     }
 });
 
-
 // =====================================================================
 // DAY DETAIL MODAL
 // =====================================================================
 
 function openDayModal(day) {
     activeDay = day;
-    dayModalTitle.textContent = `Day ${String(day.day_number).padStart(2, "0")} — ${day.location}`;
-    activityGrid.innerHTML = day.activities.map(a => `
+    dayModalTitle.textContent = `Day ${String(day.day_number).padStart(2, "0")} — ${day.location || 'Location'}`;
+    activityGrid.innerHTML = (day.activities || []).map(a => `
       <div class="activity-card">
         <figure>
-          <div class="activity-photo">${a.icon}</div>
+          <div class="activity-photo">${a.icon || '📍'}</div>
           <figcaption>${a.text}</figcaption>
         </figure>
       </div>
@@ -297,37 +302,53 @@ function openDayModal(day) {
 document.getElementById("closeDayModal").addEventListener("click", () => {
     dayOverlay.classList.remove("open");
 });
+
 dayOverlay.addEventListener("click", e => {
     if (e.target === dayOverlay) dayOverlay.classList.remove("open");
 });
 
-regenerateDayBtn.addEventListener("click", () => {
+regenerateDayBtn.addEventListener("click", async () => {
     if (!activeDay || trips.length === 0) return;
     const trip = trips[currentTripIndex];
-    // Replace with: fetch(`/api/trips/${trip.trip_id}/days/${activeDay.day_number}`, { method: "PUT" })
-    const idx = trip.days.findIndex(d => d.day_number === activeDay.day_number);
-    trip.days[idx] = mockGenerateDay(activeDay.day_number, trip.journey_id);
-    activeDay = trip.days[idx];
-    openDayModal(activeDay);
-    renderDays(trip);
+
+    try {
+        const updatedDay = await mockGenerateDay(trip.trip_id, activeDay.day_number);
+        const idx = trip.days.findIndex(d => d.day_number === activeDay.day_number);
+
+        trip.days[idx] = updatedDay;
+        activeDay = trip.days[idx];
+
+        openDayModal(activeDay);
+        renderDays(trip);
+    } catch (err) {
+        alert(err.message);
+    }
 });
 
-deleteDayBtn.addEventListener("click", () => {
+deleteDayBtn.addEventListener("click", async () => {
     if (!activeDay || trips.length === 0) return;
-    if (!confirm(`Delete Day ${activeDay.day_number}?`)) return;
     const trip = trips[currentTripIndex];
-    // Replace with: fetch(`/api/trips/${trip.trip_id}/days/${activeDay.day_number}`, { method: "DELETE" })
-    trip.days = trip.days
-        .filter(d => d.day_number !== activeDay.day_number)
-        .map((d, i) => ({ ...d, day_number: i + 1 })); // client-side renumber for display only
-    dayOverlay.classList.remove("open");
-    renderDays(trip);
-});
 
+    try {
+        const response = await fetch(`/api/trips/${trip.trip_id}/days/${activeDay.day_number}`, {
+            method: "DELETE"
+        });
+
+        if (!response.ok) throw new Error("Failed to delete day");
+
+        trip.days = trip.days
+            .filter(d => d.day_number !== activeDay.day_number)
+            .map((d, i) => ({ ...d, day_number: i + 1 }));
+
+        dayOverlay.classList.remove("open");
+        renderDays(trip);
+    } catch (err) {
+        alert(err.message);
+    }
+});
 
 // =====================================================================
-// CHAT PANEL — Buddy also answers general FAQ / packing / itinerary
-// questions per the workflow spec; behavior unchanged from before.
+// CHAT PANEL
 // =====================================================================
 
 const chatPanel = document.getElementById("chatPanel");
@@ -341,8 +362,8 @@ function toggleChat(open) {
     chatPanel.classList.toggle("open", open);
     chatPanel.setAttribute("aria-hidden", String(!open));
 }
-openChatBtn.addEventListener("click", () => toggleChat(true));
-closeChatBtn.addEventListener("click", () => toggleChat(false));
+if (openChatBtn) openChatBtn.addEventListener("click", () => toggleChat(true));
+if (closeChatBtn) closeChatBtn.addEventListener("click", () => toggleChat(false));
 
 function addBubble(role, text) {
     const div = document.createElement("div");
@@ -363,8 +384,9 @@ async function sendMessage() {
     try {
         const formData = new FormData();
         formData.append("question", text);
+        formData.append("itinerary", JSON.stringify(trips[currentTripIndex] || {}));
 
-        const res = await fetch("http://localhost:5001/ask-with-context", {
+        const res = await fetch("/ask-with-context", {
             method: "POST",
             body: formData
         });
@@ -376,12 +398,7 @@ async function sendMessage() {
     }
 }
 
-sendChatBtn.addEventListener("click", sendMessage);
-chatInput.addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
+if (sendChatBtn) sendChatBtn.addEventListener("click", sendMessage);
+if (chatInput) chatInput.addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
 
-
-// =====================================================================
-// INIT
-// =====================================================================
-
-renderCurrentTrip();
+initApp();
