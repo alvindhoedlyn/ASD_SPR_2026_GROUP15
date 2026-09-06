@@ -36,14 +36,25 @@ services:
     container_name: student-KeyuanGan-app
     ports:
       - "5002:5000"
-    volumes:
-      - keyuangan-data:/app/instance
     environment:
+      - DATABASE_SERVICE_URL=http://student-KeyuanGan-database:5001
       - OLLAMA_BASE_URL=http://ai-mode:11434
     networks:
       - journeybuddy-net
     depends_on:
+      - student-KeyuanGan-database
       - ai-mode
+
+  student-KeyuanGan-database:
+    build: ./student-KeyuanGan/database
+    image: journeybuddy-student-keyuangan-database
+    container_name: student-KeyuanGan-database
+    ports:
+      - "5702:5001"
+    volumes:
+      - keyuangan-data:/app/data
+    networks:
+      - journeybuddy-net
 
   student-RenzoRobin-frontend:
     build:
