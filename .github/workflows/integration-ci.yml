@@ -29,7 +29,7 @@ jobs:
       - name: Check all containers are running
         run: |
           docker compose ps
-          # Fail the build if any container exited instead of staying up
+
           if docker compose ps --filter "status=exited" | grep -q "Exit"; then
             echo "One or more containers exited unexpectedly"
             docker compose logs
@@ -37,12 +37,50 @@ jobs:
           fi
 
       - name: Check shared home page responds
-        run: curl -f http://localhost:8080/ || (docker compose logs shared-frontend && exit 1)
+        run: |
+          echo "Waiting for shared frontend on port 3000..."
+
+          for i in {1..12}; do
+            if curl -fsS http://localhost:3000/ > /dev/null; then
+              echo "Shared frontend is responding"
+              exit 0
+            fi
+
+            echo "Attempt $i/12 failed - retrying in 5 seconds..."
+            sleep 5
+          done
+
+          echo "Shared frontend failed to respond"
+          docker compose ps
+          docker compose logs shared-frontend
+          exit 1
 
       - name: Check each student service responds
         run: |
           for port in 5001 5002 5003 5004 5005; do
-            curl -f http://localhost:$port/health || (echo "Port $port failed health check" && exit 1)
+
+            echo "Checking service on port $port..."
+
+            success=false
+
+            for i in {1..12}; do
+              if curl -fsS "http://localhost:$port/health" > /dev/null; then
+                echo "Port $port is healthy"
+                success=true
+                break
+              fi
+
+              echo "Attempt $i/12 failed for port $port - retrying in 5 seconds..."
+              sleep 5
+            done
+
+            if [ "$success" != "true" ]; then
+              echo "Port $port failed health check"
+              docker compose ps
+              docker compose logs
+              exit 1
+            fi
+
           done
 
       - name: Tear down
