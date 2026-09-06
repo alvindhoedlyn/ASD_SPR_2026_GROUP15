@@ -38,10 +38,10 @@ jobs:
 
       - name: Check shared home page responds
         run: |
-          echo "Waiting for shared frontend on port 8080..."
+          echo "Waiting for shared frontend on port 3000..."
 
           for i in {1..12}; do
-            if curl -fsS http://localhost:8080/ > /dev/null; then
+            if curl -fsS http://localhost:3000/ > /dev/null; then
               echo "Shared frontend is responding"
               exit 0
             fi
