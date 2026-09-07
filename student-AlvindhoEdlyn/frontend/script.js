@@ -1,404 +1,422 @@
-// Static populated dataset
-let journeys = [
-    { journey_id: 1, label: "Sydney Weekend", locations: ["Bondi Beach", "Opera House", "Blue Mountains", "Harbour Bridge"] },
-    { journey_id: 2, label: "Melbourne Foodie Trip", locations: ["Queen Victoria Market", "St Kilda", "Yarra Valley"] },
-    { journey_id: 3, label: "Tropical North Queensland", locations: ["Great Barrier Reef", "Daintree Rainforest", "Cape Tribulation", "Kuranda"] },
-    { journey_id: 4, label: "Red Centre Adventure", locations: ["Uluru", "Kata Tjuta", "Kings Canyon", "Alice Springs"] },
-    { journey_id: 5, label: "Tasmanian Wilderness", locations: ["Cradle Mountain", "Freycinet National Park", "Mona Museum", "Port Arthur"] },
-    { journey_id: 6, label: "Perth & Rottnest Island", locations: ["Kings Park", "Cottesloe Beach", "Rottnest Island", "Fremantle Markets"] },
-    { journey_id: 7, label: "Barossa Wine & Culture", locations: ["Tanunda", "Barossa Valley Vineyards", "Adelaide Central Market", "Hahndorf"] },
-    { journey_id: 8, label: "Great Ocean Road", locations: ["Twelve Apostles", "Lorne", "Bells Beach", "Loch Ard Gorge"] },
-    { journey_id: 9, label: "Darwin & Top End", locations: ["Kakadu National Park", "Litchfield National Park", "Mindil Beach", "Katherine Gorge"] },
-    { journey_id: 10, label: " Ningaloo Reef Explorer", locations: ["Exmouth", "Coral Bay", "Cape Range National Park", "Turquoise Bay"] }
-];
+document.addEventListener("DOMContentLoaded", () => {
+  // State management
+  let trips = [];
+  let currentTripIndex = 0;
+  let activeDayNumber = null;
+  let availableJourneys = [];
 
-const SAMPLE_DAY_POOL = [
-    {
-        summary: "Beach & sunset", location: "Bondi",
-        activities: [
-            { text: "Watch the Sunset!", icon: "🌅" },
-            { text: "Take a Surf! High Waves", icon: "🏄" },
-            { text: "Don't forget sunscreen!", icon: "🧴" }
-        ]
-    },
-    {
-        summary: "City & culture", location: "Sydney CBD",
-        activities: [
-            { text: "Visit Loc A", icon: "🏛️" },
-            { text: "Visit Loc B", icon: "🖼️" },
-            { text: "Visit Loc C", icon: "🍜" }
-        ]
-    },
-    {
-        summary: "Nature day", location: "Blue Mountains",
-        activities: [
-            { text: "Visit Loc A", icon: "🥾" },
-            { text: "Visit Loc B", icon: "🌲" },
-            { text: "Visit Loc C", icon: "📸" }
-        ]
-    },
-    {
-        summary: "Relax & depart", location: "Harbour",
-        activities: [
-            { text: "Visit Loc A", icon: "☕" },
-            { text: "Visit Loc B", icon: "🛍️" },
-            { text: "Visit Loc C", icon: "✈️" }
-        ]
-    },
-];
+  // DOM Elements - Plan Frame
+  const emptyTripState = document.getElementById("emptyTripState");
+  const dayRow = document.getElementById("dayRow");
+  const noJourneyState = document.getElementById("noJourneyState");
+  const generateFormState = document.getElementById("generateFormState");
 
-let trips = [];
-let nextTripId = 1;
-let currentTripIndex = 0;
-let activeDay = null;
+  // DOM Elements - Form
+  const dayCountInput = document.getElementById("dayCountInput");
+  const journeySelect = document.getElementById("journeySelect");
+  const preferencesInput = document.getElementById("preferencesInput");
+  const generateConfirmBtn = document.getElementById("generateConfirmBtn");
 
-// =====================================================================
-// API INTEGRATION FUNCTIONS
-// =====================================================================
+  // DOM Elements - Global Action Buttons
+  const generateNewTripBtn = document.getElementById("generateNewTripBtn");
+  const regenerateTripBtn = document.getElementById("regenerateTripBtn");
+  const deleteTripBtn = document.getElementById("deleteTripBtn");
 
-async function mockGenerateDay(tripId, dayNumber) {
-    const res = await fetch(`/api/trips/${tripId}/days/${dayNumber}`, { method: "PUT" });
-    if (!res.ok) throw new Error("Failed to regenerate day");
-    return await res.json();
-}
+  // DOM Elements - Trip Navigation
+  const prevTripBtn = document.getElementById("prevTripBtn");
+  const nextTripBtn = document.getElementById("nextTripBtn");
+  const tripNavLabel = document.getElementById("tripNavLabel");
 
-async function mockGenerateTrip(journeyId, duration, preferences = "") {
-    const res = await fetch("/api/trips/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ journeyId, duration, preferences })
-    });
-    if (!res.ok) throw new Error("Failed to generate trip");
-    return await res.json();
-}
+  // DOM Elements - Day Modal
+  const dayOverlay = document.getElementById("dayOverlay");
+  const closeDayModal = document.getElementById("closeDayModal");
+  const dayModalTitle = document.getElementById("dayModalTitle");
+  const activityGrid = document.getElementById("activityGrid");
+  const regenerateDayBtn = document.getElementById("regenerateDayBtn");
+  const deleteDayBtn = document.getElementById("deleteDayBtn");
 
-// =====================================================================
-// ELEMENT REFERENCES
-// =====================================================================
+  // DOM Elements - Chat Panel
+  const openChatBtn = document.getElementById("openChatBtn");
+  const closeChatBtn = document.getElementById("closeChatBtn");
+  const chatPanel = document.getElementById("chatPanel");
+  const chatBody = document.getElementById("chatBody");
+  const chatInput = document.getElementById("chatInput");
+  const sendChatBtn = document.getElementById("sendChatBtn");
 
-const planFrame = document.getElementById("planFrame");
-const emptyTripState = document.getElementById("emptyTripState");
-const dayRow = document.getElementById("dayRow");
-const noJourneyState = document.getElementById("noJourneyState");
-const generateFormState = document.getElementById("generateFormState");
+  // Initial Load
+  init();
 
-const generateNewTripBtn = document.getElementById("generateNewTripBtn");
-const regenerateTripBtn = document.getElementById("regenerateTripBtn");
-const deleteTripBtn = document.getElementById("deleteTripBtn");
+  async function init() {
+    await fetchJourneys();
+    await fetchTrips();
+    setupEventListeners();
+  }
 
-const tripNavLabel = document.getElementById("tripNavLabel");
-const prevTripBtn = document.getElementById("prevTripBtn");
-const nextTripBtn = document.getElementById("nextTripBtn");
+  // -------------------------------------------------------------
+  // Data Fetching Operations
+  // -------------------------------------------------------------
 
-const journeySelect = document.getElementById("journeySelect");
-const dayCountInput = document.getElementById("dayCountInput");
-const preferencesInput = document.getElementById("preferencesInput");
-const generateConfirmBtn = document.getElementById("generateConfirmBtn");
+  async function fetchJourneys() {
+    try {
+      const res = await fetch("/api/journeys");
+      if (!res.ok) throw new Error("Failed to load journeys");
+      availableJourneys = await res.json();
 
-const dayOverlay = document.getElementById("dayOverlay");
-const dayModalTitle = document.getElementById("dayModalTitle");
-const activityGrid = document.getElementById("activityGrid");
-const regenerateDayBtn = document.getElementById("regenerateDayBtn");
-const deleteDayBtn = document.getElementById("deleteDayBtn");
-
-// =====================================================================
-// RENDERING & STATE MACHINE
-// =====================================================================
-
-function showFrameState(activeId) {
-    [emptyTripState, dayRow, noJourneyState, generateFormState].forEach(el => {
-        if (el) el.hidden = (el.id !== activeId);
-    });
-}
-
-function renderTripNav() {
-    if (trips.length === 0) {
-        tripNavLabel.textContent = "No trips";
-        prevTripBtn.disabled = true;
-        nextTripBtn.disabled = true;
-        return;
-    }
-    tripNavLabel.textContent = `TRIP ${currentTripIndex + 1}`;
-    prevTripBtn.disabled = currentTripIndex === 0;
-    nextTripBtn.disabled = currentTripIndex === trips.length - 1;
-}
-
-function renderCurrentTrip() {
-    if (trips.length === 0) {
-        showFrameState("emptyTripState");
-        regenerateTripBtn.disabled = true;
-        deleteTripBtn.disabled = true;
-        renderTripNav();
-        return;
-    }
-
-    const trip = trips[currentTripIndex];
-    renderDays(trip);
-    showFrameState("dayRow");
-    regenerateTripBtn.disabled = false;
-    deleteTripBtn.disabled = false;
-    renderTripNav();
-}
-
-function renderDays(trip) {
-    dayRow.innerHTML = "";
-    (trip.days || []).forEach(day => {
-        const card = document.createElement("div");
-        card.className = "day-card";
-        card.tabIndex = 0;
-        card.setAttribute("role", "button");
-        card.setAttribute("aria-label", `Open Day ${day.day_number} details`);
-
-        const activitiesHtml = (day.activities || []).map(a => `<li>${a.text}</li>`).join("");
-        card.innerHTML = `
-        <h2>DAY ${day.day_number}</h2>
-        <div class="summary">${day.summary || ''}</div>
-        <ul>${activitiesHtml}</ul>
-      `;
-
-        card.addEventListener("click", () => openDayModal(day));
-        card.addEventListener("keydown", e => {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDayModal(day); }
+      journeySelect.innerHTML = "";
+      if (availableJourneys.length === 0) {
+        journeySelect.innerHTML = "<option disabled>No journeys available</option>";
+      } else {
+        availableJourneys.forEach((j) => {
+          const opt = document.createElement("option");
+          opt.value = j.journey_id;
+          opt.textContent = `${j.label} (${j.locations.length} locations)`;
+          journeySelect.appendChild(opt);
         });
+      }
+    } catch (err) {
+      console.error("Error fetching journeys:", err);
+    }
+  }
 
-        dayRow.appendChild(card);
+  async function fetchTrips() {
+    try {
+      const res = await fetch("/api/trips");
+      if (!res.ok) throw new Error("Failed to load trips");
+      trips = await res.json();
+
+      if (trips.length > 0) {
+        currentTripIndex = trips.length - 1; // Default to most recent
+        renderCurrentTrip();
+      } else {
+        showFrameState(emptyTripState);
+        updateNavigationUI();
+      }
+    } catch (err) {
+      console.error("Error fetching trips:", err);
+      showFrameState(emptyTripState);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Rendering & State Helpers
+  // -------------------------------------------------------------
+
+  function showFrameState(activeElement) {
+    [emptyTripState, dayRow, noJourneyState, generateFormState].forEach((el) => {
+      el.hidden = el !== activeElement;
     });
-}
+  }
 
-function populateJourneySelect() {
-    journeySelect.innerHTML = journeys
-        .map(j => `<option value="${j.journey_id}">${j.label}</option>`)
-        .join("");
-}
-
-// =====================================================================
-// INITIALIZATION
-// =====================================================================
-
-async function initApp() {
-    try {
-        // Try fetching journeys from database; fallback to hardcoded list if fetch fails
-        const jRes = await fetch("/api/journeys");
-        if (jRes.ok) {
-            const apiJourneys = await jRes.json();
-            if (apiJourneys.length > 0) journeys = apiJourneys;
-        }
-    } catch (err) {
-        console.warn("Could not fetch remote journeys, using fallback preset data.", err);
+  function renderCurrentTrip() {
+    if (trips.length === 0) {
+      showFrameState(emptyTripState);
+      updateNavigationUI();
+      return;
     }
-
-    try {
-        const tRes = await fetch("/api/trips");
-        if (tRes.ok) {
-            trips = await tRes.json();
-            currentTripIndex = trips.length > 0 ? trips.length - 1 : 0;
-        }
-    } catch (err) {
-        console.error("Initialization failed:", err);
-    } finally {
-        renderCurrentTrip();
-    }
-}
-
-// =====================================================================
-// UI LISTENERS
-// =====================================================================
-
-generateNewTripBtn.addEventListener("click", () => {
-    if (journeys.length === 0) {
-        showFrameState("noJourneyState");
-    } else {
-        populateJourneySelect();
-        showFrameState("generateFormState");
-    }
-});
-
-generateConfirmBtn.addEventListener("click", async () => {
-    const duration = parseInt(dayCountInput.value, 10);
-    const journeyId = parseInt(journeySelect.value, 10);
-    const preferences = preferencesInput.value.trim();
-
-    if (!duration || duration < 1) {
-        alert("Enter a valid number of days.");
-        return;
-    }
-
-    try {
-        const newTrip = await mockGenerateTrip(journeyId, duration, preferences);
-        trips.push(newTrip);
-        currentTripIndex = trips.length - 1;
-        renderCurrentTrip();
-    } catch (err) {
-        alert(err.message);
-    }
-});
-
-regenerateTripBtn.addEventListener("click", async () => {
-    if (trips.length === 0) return;
-    const trip = trips[currentTripIndex];
-
-    try {
-        const res = await fetch(`/api/trips/${trip.trip_id}/regenerate`, { method: "PUT" });
-        if (!res.ok) throw new Error("Failed to regenerate trip");
-
-        const data = await res.json();
-        trip.days = data.days;
-        renderCurrentTrip();
-    } catch (err) {
-        alert(err.message);
-    }
-});
-
-deleteTripBtn.addEventListener("click", async () => {
-    if (trips.length === 0) return;
-    if (!confirm("Delete this trip? This can't be undone.")) return;
 
     const currentTrip = trips[currentTripIndex];
+    showFrameState(dayRow);
+    dayRow.innerHTML = "";
+
+    if (!currentTrip.days || currentTrip.days.length === 0) {
+      dayRow.innerHTML = "<p>This trip has no days remaining.</p>";
+    } else {
+      currentTrip.days.forEach((day) => {
+        const card = document.createElement("div");
+        card.className = "day-card";
+        card.innerHTML = `
+          <h3>Day ${String(day.day_number).padStart(2, "0")}</h3>
+          <p class="day-location">${day.location}</p>
+          <p class="day-summary">${day.summary}</p>
+        `;
+        card.addEventListener("click", () => openDayDetails(day));
+        dayRow.appendChild(card);
+      });
+    }
+
+    updateNavigationUI();
+  }
+
+  function updateNavigationUI() {
+    const hasTrips = trips.length > 0;
+    regenerateTripBtn.disabled = !hasTrips;
+    deleteTripBtn.disabled = !hasTrips;
+
+    if (!hasTrips) {
+      tripNavLabel.textContent = "No trips";
+      prevTripBtn.disabled = true;
+      nextTripBtn.disabled = true;
+      return;
+    }
+
+    tripNavLabel.textContent = `Trip ${currentTripIndex + 1} of ${trips.length}`;
+    prevTripBtn.disabled = currentTripIndex === 0;
+    nextTripBtn.disabled = currentTripIndex === trips.length - 1;
+  }
+
+  // -------------------------------------------------------------
+  // Action Handlers (API Calls)
+  // -------------------------------------------------------------
+
+  async function handleGenerateTrip() {
+    const journeyId = parseInt(journeySelect.value, 10);
+    const duration = parseInt(dayCountInput.value, 10);
+    const preferences = preferencesInput.value.trim();
+
+    if (!journeyId) {
+      if (availableJourneys.length === 0) {
+        showFrameState(noJourneyState);
+      } else {
+        alert("Please select a valid set of locations.");
+      }
+      return;
+    }
 
     try {
-        const response = await fetch(`/api/trips/${currentTrip.trip_id}`, { method: "DELETE" });
-        if (!response.ok) throw new Error("Failed to delete trip");
+      generateConfirmBtn.disabled = true;
+      generateConfirmBtn.textContent = "Generating...";
 
-        trips.splice(currentTripIndex, 1);
-        currentTripIndex = Math.max(0, Math.min(currentTripIndex, trips.length - 1));
-        renderCurrentTrip();
+      const res = await fetch("/api/trips/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          journeyId: journeyId,
+          duration: duration,
+          preferences: preferences,
+          userId: 1
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to generate trip");
+      }
+
+      await fetchTrips(); // Reload all trips and display latest
+      preferencesInput.value = "";
     } catch (err) {
-        alert(err.message);
+      alert(`Error: ${err.message}`);
+    } finally {
+      generateConfirmBtn.disabled = false;
+      generateConfirmBtn.textContent = "Generate!";
     }
-});
+  }
 
-prevTripBtn.addEventListener("click", () => {
-    if (currentTripIndex > 0) {
-        currentTripIndex--;
-        renderCurrentTrip();
-    }
-});
+  async function handleDeleteTrip() {
+    if (trips.length === 0) return;
+    const tripId = trips[currentTripIndex].trip_id;
 
-nextTripBtn.addEventListener("click", () => {
-    if (currentTripIndex < trips.length - 1) {
-        currentTripIndex++;
-        renderCurrentTrip();
-    }
-});
-
-// =====================================================================
-// DAY DETAIL MODAL
-// =====================================================================
-
-function openDayModal(day) {
-    activeDay = day;
-    dayModalTitle.textContent = `Day ${String(day.day_number).padStart(2, "0")} — ${day.location || 'Location'}`;
-    activityGrid.innerHTML = (day.activities || []).map(a => `
-      <div class="activity-card">
-        <figure>
-          <div class="activity-photo">${a.icon || '📍'}</div>
-          <figcaption>${a.text}</figcaption>
-        </figure>
-      </div>
-    `).join("");
-    dayOverlay.classList.add("open");
-}
-
-document.getElementById("closeDayModal").addEventListener("click", () => {
-    dayOverlay.classList.remove("open");
-});
-
-dayOverlay.addEventListener("click", e => {
-    if (e.target === dayOverlay) dayOverlay.classList.remove("open");
-});
-
-regenerateDayBtn.addEventListener("click", async () => {
-    if (!activeDay || trips.length === 0) return;
-    const trip = trips[currentTripIndex];
+    if (!confirm("Are you sure you want to delete this trip?")) return;
 
     try {
-        const updatedDay = await mockGenerateDay(trip.trip_id, activeDay.day_number);
-        const idx = trip.days.findIndex(d => d.day_number === activeDay.day_number);
+      const res = await fetch(`/api/trips/${tripId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete trip");
 
-        trip.days[idx] = updatedDay;
-        activeDay = trip.days[idx];
-
-        openDayModal(activeDay);
-        renderDays(trip);
+      await fetchTrips();
     } catch (err) {
-        alert(err.message);
+      alert(`Error: ${err.message}`);
     }
-});
+  }
 
-deleteDayBtn.addEventListener("click", async () => {
-    if (!activeDay || trips.length === 0) return;
-    const trip = trips[currentTripIndex];
+  async function handleRegenerateDay() {
+    if (trips.length === 0 || !activeDayNumber) return;
+    const tripId = trips[currentTripIndex].trip_id;
 
     try {
-        const response = await fetch(`/api/trips/${trip.trip_id}/days/${activeDay.day_number}`, {
-            method: "DELETE"
-        });
+      regenerateDayBtn.disabled = true;
+      regenerateDayBtn.textContent = "Updating...";
 
-        if (!response.ok) throw new Error("Failed to delete day");
+      const res = await fetch(`/api/trips/${tripId}/days/${activeDayNumber}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" }
+      });
 
-        trip.days = trip.days
-            .filter(d => d.day_number !== activeDay.day_number)
-            .map((d, i) => ({ ...d, day_number: i + 1 }));
+      if (!res.ok) throw new Error("Failed to regenerate day");
 
-        dayOverlay.classList.remove("open");
-        renderDays(trip);
+      const updatedDay = await res.json();
+
+      // Refresh current local trip data
+      const dayIdx = trips[currentTripIndex].days.findIndex(
+        (d) => d.day_number === activeDayNumber
+      );
+      if (dayIdx !== -1) {
+        trips[currentTripIndex].days[dayIdx] = updatedDay;
+      }
+
+      openDayDetails(updatedDay);
+      renderCurrentTrip();
     } catch (err) {
-        alert(err.message);
+      alert(`Error: ${err.message}`);
+    } finally {
+      regenerateDayBtn.disabled = false;
+      regenerateDayBtn.textContent = "Re-generate";
     }
-});
+  }
 
-// =====================================================================
-// CHAT PANEL
-// =====================================================================
+  async function handleDeleteDay() {
+    if (trips.length === 0 || !activeDayNumber) return;
+    const tripId = trips[currentTripIndex].trip_id;
 
-const chatPanel = document.getElementById("chatPanel");
-const openChatBtn = document.getElementById("openChatBtn");
-const closeChatBtn = document.getElementById("closeChatBtn");
-const chatBody = document.getElementById("chatBody");
-const chatInput = document.getElementById("chatInput");
-const sendChatBtn = document.getElementById("sendChatBtn");
+    if (!confirm(`Are you sure you want to delete Day ${activeDayNumber}?`)) return;
 
-function toggleChat(open) {
-    chatPanel.classList.toggle("open", open);
-    chatPanel.setAttribute("aria-hidden", String(!open));
-}
-if (openChatBtn) openChatBtn.addEventListener("click", () => toggleChat(true));
-if (closeChatBtn) closeChatBtn.addEventListener("click", () => toggleChat(false));
+    try {
+      deleteDayBtn.disabled = true;
 
-function addBubble(role, text) {
-    const div = document.createElement("div");
-    div.className = `bubble ${role}`;
-    div.textContent = text;
-    chatBody.appendChild(div);
-    chatBody.scrollTop = chatBody.scrollHeight;
-}
+      const res = await fetch(`/api/trips/${tripId}/days/${activeDayNumber}`, {
+        method: "DELETE"
+      });
 
-async function sendMessage() {
-    const text = chatInput.value.trim();
-    if (!text) return;
-    addBubble("user", text);
+      if (!res.ok) throw new Error("Failed to delete day");
+
+      closeDayModalUI();
+      await fetchTrips();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      deleteDayBtn.disabled = false;
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Day Details Modal
+  // -------------------------------------------------------------
+
+  function openDayDetails(day) {
+    activeDayNumber = day.day_number;
+    dayModalTitle.textContent = `Day ${String(day.day_number).padStart(2, "0")} — ${day.location}`;
+
+    activityGrid.innerHTML = "";
+    if (day.activities && day.activities.length > 0) {
+      day.activities.forEach((act) => {
+        const item = document.createElement("div");
+        item.className = "activity-item";
+        item.innerHTML = `<span class="icon">${act.icon || "📍"}</span> <span>${act.text}</span>`;
+        activityGrid.appendChild(item);
+      });
+    } else {
+      activityGrid.innerHTML = `<p>${day.summary || "No activities specified."}</p>`;
+    }
+
+    dayOverlay.style.display = "flex";
+  }
+
+  function closeDayModalUI() {
+    dayOverlay.style.display = "none";
+    activeDayNumber = null;
+  }
+
+  // -------------------------------------------------------------
+  // AI Assistant Chat Panel
+  // -------------------------------------------------------------
+
+  async function handleSendChat() {
+    const question = chatInput.value.trim();
+    if (!question) return;
+
+    // Append user bubble
+    appendChatBubble(question, "user");
     chatInput.value = "";
 
-    addBubble("assistant", "…thinking…");
-    const placeholder = chatBody.lastElementChild;
-    try {
-        const formData = new FormData();
-        formData.append("question", text);
-        formData.append("itinerary", JSON.stringify(trips[currentTripIndex] || {}));
-
-        const res = await fetch("/ask-with-context", {
-            method: "POST",
-            body: formData
-        });
-
-        const data = await res.text();
-        placeholder.innerHTML = data;
-    } catch (err) {
-        placeholder.textContent = "Sorry, something went wrong reaching Buddy.";
+    // Build itinerary context from current trip
+    let itineraryContext = "No active trip.";
+    if (trips.length > 0 && trips[currentTripIndex]) {
+      const trip = trips[currentTripIndex];
+      itineraryContext = JSON.stringify(trip.days || []);
     }
-}
 
-if (sendChatBtn) sendChatBtn.addEventListener("click", sendMessage);
-if (chatInput) chatInput.addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
+    // Append typing placeholder
+    const typingBubble = appendChatBubble("Thinking...", "assistant");
 
-initApp();
+    try {
+      const res = await fetch("/ask-with-context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: question,
+          itinerary: itineraryContext
+        })
+      });
+
+      if (!res.ok) throw new Error("AI Service error");
+
+      const responseHtml = await res.text();
+      typingBubble.innerHTML = responseHtml;
+    } catch (err) {
+      typingBubble.textContent = "Sorry, I had trouble processing that request.";
+    }
+
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }
+
+  function appendChatBubble(text, sender) {
+    const bubble = document.createElement("div");
+    bubble.className = `bubble ${sender}`;
+    bubble.textContent = text;
+    chatBody.appendChild(bubble);
+    chatBody.scrollTop = chatBody.scrollHeight;
+    return bubble;
+  }
+
+  // -------------------------------------------------------------
+  // Event Listeners Setup
+  // -------------------------------------------------------------
+
+  function setupEventListeners() {
+    // Generate Form Controls
+    generateNewTripBtn.addEventListener("click", () => {
+      if (availableJourneys.length === 0) {
+        showFrameState(noJourneyState);
+      } else {
+        showFrameState(generateFormState);
+      }
+    });
+
+    generateConfirmBtn.addEventListener("click", handleGenerateTrip);
+
+    // Global Trip Controls
+    deleteTripBtn.addEventListener("click", handleDeleteTrip);
+    regenerateTripBtn.addEventListener("click", () => {
+      // Directs user back to new trip generation pre-filled
+      showFrameState(generateFormState);
+    });
+
+    // Navigation Controls
+    prevTripBtn.addEventListener("click", () => {
+      if (currentTripIndex > 0) {
+        currentTripIndex--;
+        renderCurrentTrip();
+      }
+    });
+
+    nextTripBtn.addEventListener("click", () => {
+      if (currentTripIndex < trips.length - 1) {
+        currentTripIndex++;
+        renderCurrentTrip();
+      }
+    });
+
+    // Modal Controls
+    closeDayModal.addEventListener("click", closeDayModalUI);
+    dayOverlay.addEventListener("click", (e) => {
+      if (e.target === dayOverlay) closeDayModalUI();
+    });
+    regenerateDayBtn.addEventListener("click", handleRegenerateDay);
+    deleteDayBtn.addEventListener("click", handleDeleteDay);
+
+    // Chat Panel Controls
+    openChatBtn.addEventListener("click", () => {
+      chatPanel.setAttribute("aria-hidden", "false");
+      chatPanel.classList.add("open");
+    });
+
+    closeChatBtn.addEventListener("click", () => {
+      chatPanel.setAttribute("aria-hidden", "true");
+      chatPanel.classList.remove("open");
+    });
+
+    sendChatBtn.addEventListener("click", handleSendChat);
+    chatInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") handleSendChat();
+    });
+  }
+});

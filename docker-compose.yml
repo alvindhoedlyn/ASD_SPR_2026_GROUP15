@@ -51,15 +51,47 @@ services:
     image: journeybuddy-student-alvindhoedlyn
     container_name: student-AlvindhoEdlyn-app
     ports:
-      - "5001:5000"
+      - "5001:5001"
     volumes:
       - alvindhoedlyn-data:/app/instance
     environment:
+      - PORT=5001                  
+      - HOST=0.0.0.0
+      - DATABASE_SERVICE_URL=http://student-AlvindhoEdlyn-database:6001
       - OLLAMA_BASE_URL=http://ai-mode:11434/v1
+      - OLLAMA_MODEL=qwen2.5:0.5b
     networks:
       - journeybuddy-net
     depends_on:
       - ai-mode
+      - student-AlvindhoEdlyn-database
+
+  student-AlvindhoEdlyn-frontend:
+    build:
+      context: ./student-AlvindhoEdlyn/frontend
+    image: journeybuddy-student-alvindhoedlyn-frontend
+    container_name: student-AlvindhoEdlyn-frontend
+    ports:
+      - "3001:80"
+    networks:
+      - journeybuddy-net
+    depends_on:
+      - student-AlvindhoEdlyn
+    restart: unless-stopped
+
+  student-AlvindhoEdlyn-database:
+    build: ./student-AlvindhoEdlyn/database
+    image: journeybuddy-student-alvindhoedlyn-database
+    container_name: student-AlvindhoEdlyn-database
+    ports:
+      - "6001:6001"
+    volumes:
+      - alvindhoedlyn-data:/app/data
+    environment:
+      PORT: "6001"
+      DATABASE_PATH: /app/plan.db
+    networks:
+      - journeybuddy-net
 
   student-KeyuanGan:
     build: ./student-KeyuanGan

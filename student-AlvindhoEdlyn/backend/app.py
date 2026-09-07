@@ -3,15 +3,16 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from openai import OpenAI
 from pathlib import Path
-import sqlite3
 import json
 import os
+import requests
 
 load_dotenv()
 
 DATABASE_NAME = "plan.db"
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1")
+DB_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://student-AlvindhoEdlyn-database:6001")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ai-mode:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 
 app = Flask(
@@ -28,10 +29,6 @@ client = OpenAI(
     api_key="ollama"
 )
 
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def load_prompt(filename):
     path_inside_backend = Path(__file__).resolve().parent / "prompts" / filename
@@ -86,54 +83,43 @@ def ask_with_context():
 
 @app.route("/api/journeys", methods=["GET"])
 def get_journeys():
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("SELECT * FROM journey")
-        rows = cursor.fetchall()
-        journeys = []
-        for r in rows:
-            journeys.append({
-                "journey_id": r["journey_ID"],
-                "label": r["label"],
-                "locations": json.loads(r["locations"])
-            })
-        conn.close()
-        return jsonify(journeys), 200
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 500
+        # Proxy request directly to the database service
+        response = requests.get(f"{DB_SERVICE_URL}/api/journeys", timeout=5)
+        return jsonify(response.json()), response.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
 
 @app.route("/api/trips", methods=["GET"])
 def get_trips():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
     try:
-        cursor.execute("SELECT * FROM trip ORDER BY trip_ID ASC")
-        db_trips = cursor.fetchall()
+        # Fetch raw trips data from database service
+        response = requests.get(f"{DB_SERVICE_URL}/api/trips", timeout=5)
+        if response.status_code != 200:
+            return jsonify(response.json()), response.status_code
 
+        db_trips = response.json()
         trips_list = []
+
         for t in db_trips:
             trip_id = t["trip_ID"]
 
-            cursor.execute(
-                """
-                SELECT t.trip_ID, j.locations 
-                FROM trip t
-                JOIN journey j ON t.journey_ID = j.journey_ID
-                WHERE t.trip_ID = ?
-                """,
-                (trip_id,),
+            # Fetch details for specific trip join
+            trip_detail_resp = requests.get(
+                f"{DB_SERVICE_URL}/api/trips/{trip_id}/details", 
+                timeout=5
             )
-            journey_data = cursor.fetchone()
-            locations = json.loads(journey_data["locations"]) if journey_data else ["Location"]
+            
+            locations = ["Location"]
+            if trip_detail_resp.status_code == 200:
+                locations = trip_detail_resp.json().get("locations", locations)
 
-            cursor.execute(
-                "SELECT * FROM day WHERE trip_ID = ? ORDER BY day_ID ASC",
-                (trip_id,),
+            # Fetch days for specific trip
+            days_resp = requests.get(
+                f"{DB_SERVICE_URL}/api/trips/{trip_id}/days", 
+                timeout=5
             )
-            db_days = cursor.fetchall()
+            db_days = days_resp.json() if days_resp.status_code == 200 else []
 
             days_list = []
             for idx, d in enumerate(db_days):
@@ -155,11 +141,11 @@ def get_trips():
                 "days": days_list
             })
 
-        conn.close()
         return jsonify(trips_list), 200
 
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
     except Exception as e:
-        conn.close()
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/trips/generate", methods=["POST"])
@@ -174,123 +160,111 @@ def generate_trip():
         return jsonify({"error": "Valid journeyId and duration required."}), 400
 
     duration = int(duration)
-    conn = get_db_connection()
-    cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT * FROM journey WHERE journey_ID = ?", (journey_id,))
-        journey = cursor.fetchone()
-
-        if not journey:
-            conn.close()
+        # Fetch journey details from DB service to get locations and label
+        journey_resp = requests.get(f"{DB_SERVICE_URL}/api/journeys/{journey_id}", timeout=5)
+        if journey_resp.status_code == 404:
             return jsonify({"error": "Journey not found"}), 404
+        elif journey_resp.status_code != 200:
+            return jsonify({"error": "Failed to retrieve journey data"}), 500
 
-        locations = json.loads(journey["locations"])
+        journey = journey_resp.json()
+        locations = journey["locations"]
 
-        cursor.execute(
-            "INSERT INTO trip (user_ID, journey_ID, duration) VALUES (?, ?, ?)",
-            (user_id, journey_id, duration),
-        )
-        new_trip_id = cursor.lastrowid
-
-        created_days = []
+        # Build day items
+        days_data = []
         for i in range(duration):
             location = locations[i % len(locations)]
             weather = "Sunny"
             itinerary = f"{location} Visit"
             act_text = f"Exploring {location} (Pref: {preferences or 'General'})"
 
-            cursor.execute(
-                """
-                INSERT INTO day (trip_ID, weather, itinerary, activity)
-                VALUES (?, ?, ?, ?)
-                """,
-                (new_trip_id, weather, itinerary, act_text),
-            )
-
-            created_days.append({
+            days_data.append({
                 "day_number": i + 1,
-                "summary": itinerary,
                 "location": location,
+                "weather": weather,
+                "itinerary": itinerary,
+                "activity": act_text
+            })
+
+        # Send creation payload to database service
+        db_payload = {
+            "user_id": user_id,
+            "journey_id": journey_id,
+            "duration": duration,
+            "days": days_data
+        }
+
+        create_resp = requests.post(f"{DB_SERVICE_URL}/api/trips", json=db_payload, timeout=5)
+        if create_resp.status_code != 201:
+            return jsonify(create_resp.json()), create_resp.status_code
+
+        created_trip = create_resp.json()
+
+        # Format output structure expected by frontend
+        formatted_days = []
+        for d in created_trip["days"]:
+            formatted_days.append({
+                "day_number": d["day_number"],
+                "summary": d["itinerary"],
+                "location": d["location"],
                 "activities": [
-                    {"text": act_text, "icon": "📍"},
-                    {"text": f"Weather: {weather}", "icon": "☀️"},
+                    {"text": d["activity"], "icon": "📍"},
+                    {"text": f"Weather: {d['weather']}", "icon": "☀️"},
                     {"text": "Local Exploration", "icon": "📷"}
                 ]
             })
 
-        conn.commit()
-        conn.close()
-
         return jsonify({
-            "trip_id": new_trip_id,
+            "trip_id": created_trip["trip_id"],
             "user_id": user_id,
             "journey_id": journey_id,
             "duration": duration,
             "label": journey["label"],
-            "days": created_days,
+            "days": formatted_days,
         }), 201
 
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
     except Exception as e:
-        conn.rollback()
-        conn.close()
         return jsonify({"error": str(e)}), 500
-
-@app.route("/api/trips/<int:trip_id>/days/<int:day_number>", methods=["PUT"])
+    
+ @app.route("/api/trips/<int:trip_id>/days/<int:day_number>", methods=["PUT"])
 def regenerate_day(trip_id, day_number):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
     try:
-        cursor.execute(
-            """
-            SELECT t.trip_ID, j.locations 
-            FROM trip t
-            JOIN journey j ON t.journey_ID = j.journey_ID
-            WHERE t.trip_ID = ?
-            """,
-            (trip_id,),
-        )
-        trip_data = cursor.fetchone()
-
-        if not trip_data:
-            conn.close()
+        # 1. Fetch trip details to determine location sequence
+        detail_resp = requests.get(f"{DB_SERVICE_URL}/api/trips/{trip_id}/details", timeout=5)
+        if detail_resp.status_code == 404:
             return jsonify({"error": "Trip not found"}), 404
+        elif detail_resp.status_code != 200:
+            return jsonify({"error": "Failed to retrieve trip details"}), 500
 
-        cursor.execute(
-            """
-            SELECT day_ID FROM day 
-            WHERE trip_ID = ? 
-            ORDER BY day_ID ASC 
-            LIMIT 1 OFFSET ?
-            """,
-            (trip_id, day_number - 1),
-        )
-        target_day = cursor.fetchone()
-
-        if not target_day:
-            conn.close()
-            return jsonify({"error": "Day not found"}), 404
-
-        locations = json.loads(trip_data["locations"])
+        locations = detail_resp.json().get("locations", ["Location"])
         location = locations[(day_number - 1) % len(locations)]
 
         new_weather = "Clear"
         new_itinerary = f"{location} Guided Tour"
         new_activity = f"Exploration & Activities around {location}"
 
-        cursor.execute(
-            """
-            UPDATE day 
-            SET weather = ?, itinerary = ?, activity = ?
-            WHERE day_ID = ?
-            """,
-            (new_weather, new_itinerary, new_activity, target_day["day_ID"]),
+        # 2. Send update payload to the database microservice
+        update_payload = {
+            "day_number": day_number,
+            "weather": new_weather,
+            "itinerary": new_itinerary,
+            "activity": new_activity
+        }
+
+        update_resp = requests.put(
+            f"{DB_SERVICE_URL}/api/trips/{trip_id}/days/{day_number}",
+            json=update_payload,
+            timeout=5
         )
 
-        conn.commit()
-        conn.close()
+        if update_resp.status_code != 200:
+            return jsonify(update_resp.json()), update_resp.status_code
 
+        # 3. Format response for the frontend UI
         return jsonify({
             "day_number": day_number,
             "summary": new_itinerary,
@@ -302,127 +276,36 @@ def regenerate_day(trip_id, day_number):
             ]
         }), 200
 
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
     except Exception as e:
-        conn.rollback()
-        conn.close()
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/trips/<int:trip_id>/regenerate", methods=["PUT"])
-def regenerate_trip(trip_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute(
-            """
-            SELECT t.trip_ID, t.duration, j.locations 
-            FROM trip t
-            JOIN journey j ON t.journey_ID = j.journey_ID
-            WHERE t.trip_ID = ?
-            """,
-            (trip_id,),
-        )
-        trip_data = cursor.fetchone()
-
-        if not trip_data:
-            conn.close()
-            return jsonify({"error": "Trip not found"}), 404
-
-        duration = trip_data["duration"]
-        locations = json.loads(trip_data["locations"])
-
-        cursor.execute("DELETE FROM day WHERE trip_ID = ?", (trip_id,))
-
-        new_days = []
-        for i in range(duration):
-            day_num = i + 1
-            location = locations[i % len(locations)]
-            weather = "Sunny"
-            itinerary = f"{location} Highlights"
-            activity = f"Fresh exploration of {location}"
-
-            cursor.execute(
-                """
-                INSERT INTO day (trip_ID, weather, itinerary, activity)
-                VALUES (?, ?, ?, ?)
-                """,
-                (trip_id, weather, itinerary, activity),
-            )
-
-            new_days.append({
-                "day_number": day_num,
-                "summary": itinerary,
-                "location": location,
-                "activities": [
-                    {"text": activity, "icon": "📍"},
-                    {"text": f"Weather: {weather}", "icon": "☀️"},
-                    {"text": "Local Exploration", "icon": "📷"},
-                ],
-            })
-
-        conn.commit()
-        conn.close()
-
-        return jsonify({"days": new_days}), 200
-
-    except Exception as e:
-        conn.rollback()
-        conn.close()
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/trips/<int:trip_id>/days/<int:day_number>", methods=["DELETE"])
 def delete_day(trip_id, day_number):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
     try:
-        cursor.execute(
-            """
-            SELECT day_ID FROM day 
-            WHERE trip_ID = ? 
-            ORDER BY day_ID ASC 
-            LIMIT 1 OFFSET ?
-            """,
-            (trip_id, day_number - 1),
+        # Proxy DELETE request directly to database service
+        resp = requests.delete(
+            f"{DB_SERVICE_URL}/api/trips/{trip_id}/days/{day_number}",
+            timeout=5
         )
-        target_day = cursor.fetchone()
+        return jsonify(resp.json()), resp.status_code
 
-        if not target_day:
-            conn.close()
-            return jsonify({"error": "Day not found"}), 404
-
-        cursor.execute("DELETE FROM day WHERE day_ID = ?", (target_day["day_ID"],))
-        cursor.execute("UPDATE trip SET duration = duration - 1 WHERE trip_ID = ?", (trip_id,))
-
-        conn.commit()
-        conn.close()
-        return jsonify({"message": "Day deleted successfully"}), 200
-
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
     except Exception as e:
-        conn.rollback()
-        conn.close()
         return jsonify({"error": str(e)}), 500
-
+    
 @app.route("/api/trips/<int:trip_id>", methods=["DELETE"])
 def delete_trip(trip_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
     try:
-        cursor.execute("DELETE FROM day WHERE trip_ID = ?", (trip_id,))
-        cursor.execute("DELETE FROM trip WHERE trip_ID = ?", (trip_id,))
+        # Proxy DELETE request directly to database microservice
+        resp = requests.delete(f"{DB_SERVICE_URL}/api/trips/{trip_id}", timeout=5)
+        return jsonify(resp.json()), resp.status_code
 
-        if cursor.rowcount == 0:
-            conn.close()
-            return jsonify({"error": "Trip not found"}), 404
-
-        conn.commit()
-        conn.close()
-        return jsonify({"message": "Trip deleted successfully"}), 200
-
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
     except Exception as e:
-        conn.rollback()
-        conn.close()
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":

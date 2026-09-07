@@ -11,5 +11,5 @@ CREATE TABLE IF NOT EXISTS day(
     weather TEXT,
     itinerary TEXT,
     activity TEXT,
-    FOREIGN KEY (trip_ID) REFERENCES trip(trip_ID)
+    FOREIGN KEY (trip_ID) REFERENCES trip(trip_ID) ON DELETE CASCADE
 );
