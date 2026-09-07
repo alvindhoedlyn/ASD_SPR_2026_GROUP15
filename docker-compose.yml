@@ -49,7 +49,7 @@ services:
   student-AlvindhoEdlyn:
     build: ./student-AlvindhoEdlyn
     image: journeybuddy-student-alvindhoedlyn
-    container_name: student-AlvindhoEdlyn-app
+    container_name: student-AlvindhoEdlyn
     ports:
       - "5001:5001"
     volumes:

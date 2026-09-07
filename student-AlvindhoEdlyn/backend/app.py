@@ -230,7 +230,7 @@ def generate_trip():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
- @app.route("/api/trips/<int:trip_id>/days/<int:day_number>", methods=["PUT"])
+@app.route("/api/trips/<int:trip_id>/days/<int:day_number>", methods=["PUT"])
 def regenerate_day(trip_id, day_number):
     try:
         # 1. Fetch trip details to determine location sequence

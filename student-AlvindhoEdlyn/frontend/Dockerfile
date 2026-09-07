@@ -8,7 +8,6 @@ RUN rm -rf ./*
 # Copy custom NGINX configuration (if you created nginx.conf)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy frontend assets directly from the build context
 COPY css/ ./css/
 COPY index.html .
 COPY script.js .
