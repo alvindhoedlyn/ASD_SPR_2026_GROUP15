@@ -49,6 +49,11 @@ jobs:
             student-RenzoRobin/backend/app.py
           python -m py_compile \
             student-RenzoRobin/database/app.py
+            
+      - name: Run backend and database tests
+        run: |
+          pip install pytest
+          pytest student-RenzoRobin/tests/ -v
 
   docker-build:
     name: Build Accommodation Recommender Containers
