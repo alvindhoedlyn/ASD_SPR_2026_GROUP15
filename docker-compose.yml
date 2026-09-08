@@ -220,7 +220,7 @@ services:
     image: journeybuddy-student-yajunning-frontend
     container_name: student-YajunNing-frontend
     ports:
-      - "5005:80"
+      - "3005:80"
     networks:
       - yajunning-net
     depends_on:
@@ -230,8 +230,11 @@ services:
     build: ./student-YajunNing/backend
     image: journeybuddy-student-yajunning-backend
     container_name: student-YajunNing-backend
+    ports:
+      - "5005:5005"
     environment:
-      DATABASE_SERVICE_URL: http://yajunning-database-service:5001
+      PORT: "5005"
+      DATABASE_SERVICE_URL: http://yajunning-database-service:6005
       AUTH_SERVICE_URL: http://shared-backend:5000
       OLLAMA_BASE_URL: http://ai-mode:11434/v1
       OLLAMA_MODEL: qwen2.5:0.5b
@@ -246,6 +249,11 @@ services:
     build: ./student-YajunNing/database
     image: journeybuddy-student-yajunning-database
     container_name: student-YajunNing-database
+    ports:
+      - "6005:6005"
+    environment:
+      PORT: "6005"
+      DATABASE_PATH: /app/data/flights.db
     volumes:
       - yajunning-data:/app/data
     networks:

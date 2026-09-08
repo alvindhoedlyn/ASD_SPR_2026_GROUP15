@@ -13,10 +13,11 @@ services:
     build: ./backend
     container_name: yajunning-flight-backend
     ports:
-      - "5605:5000"
+      - "5605:5005"
     environment:
-      DATABASE_SERVICE_URL: http://yajunning-database-service:5001
-      AUTH_SERVICE_URL: http://host.docker.internal:8080
+      PORT: "5005"
+      DATABASE_SERVICE_URL: http://yajunning-database-service:6005
+      AUTH_SERVICE_URL: http://host.docker.internal:5000
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: qwen2.5:0.5b
     extra_hosts:
@@ -30,7 +31,10 @@ services:
     build: ./database
     container_name: yajunning-flight-database
     ports:
-      - "5705:5001"
+      - "5705:6005"
+    environment:
+      PORT: "6005"
+      DATABASE_PATH: /app/data/flights.db
     volumes:
       - flight-data:/app/data
     networks:

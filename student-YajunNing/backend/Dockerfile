@@ -13,6 +13,6 @@ COPY llm_client.py .
 COPY prompt_loader.py .
 COPY prompts ./prompts
 
-EXPOSE 5000
+EXPOSE 5005
 
 CMD ["python", "app.py"]

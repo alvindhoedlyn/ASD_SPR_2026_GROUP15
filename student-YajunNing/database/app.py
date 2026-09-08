@@ -13,6 +13,7 @@ from init_db import initialize_database
 app = Flask(__name__)
 DEFAULT_DATABASE_PATH = Path(__file__).resolve().parent / "data" / "flights.db"
 DATABASE_PATH = os.getenv("DATABASE_PATH", str(DEFAULT_DATABASE_PATH))
+PORT = int(os.getenv("PORT", "6005"))
 FLIGHT_FIELDS = (
     "airline",
     "flight_number",
@@ -348,4 +349,4 @@ def delete_saved_flight(saved_flight_id):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001)
+    app.run(host="0.0.0.0", port=PORT)

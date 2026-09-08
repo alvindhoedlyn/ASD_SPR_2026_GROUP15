@@ -34,12 +34,13 @@ prices, and stop counts; unsafe model text is replaced with a deterministic expl
 The Student 5 feature can now run as three containers using the Compose file in this folder:
 
 - `frontend-service` - Nginx static frontend on port `5505`; proxies `/api/*` to the backend.
-- `backend-service` - Flask recommendation API on port `5605`.
-- `database-service` - Flask database service shell on port `5705`.
+- `backend-service` - Flask recommendation API on host port `5605` (container port `5005`).
+- `database-service` - Flask database service on host port `5705` (container port `6005`).
 
 Those `55xx/56xx/57xx` ports are only for isolated Student 5 development. In the integrated
-group application, users log in through the shared service on `http://localhost:8080` and open
-the Flight Recommender on `http://localhost:5005` from the JourneyBuddy homepage.
+group application, users log in through the shared frontend on `http://localhost:3000` and open
+the Flight Recommender frontend on `http://localhost:3005` from the JourneyBuddy homepage.
+The integrated Flight backend and database use ports `5005` and `6005` respectively.
 
 The homepage passes the shared session token to the Flight frontend once. The Flight frontend
 then sends the token to its backend in the `X-Session-Token` header. Before serving saved-flight
@@ -50,7 +51,7 @@ shortlist by supplying a different username.
 The root `student-YajunNing/Dockerfile` is temporarily retained so the group's existing shared
 Compose history remains understandable, but the group root Compose now builds the dedicated
 frontend, backend, and database Dockerfiles. The shared JourneyBuddy homepage links to the
-Flight frontend at `http://localhost:5005`.
+Flight frontend at `http://localhost:3005`.
 
 The database service owns the read-only flight catalogue and the user-owned `saved_flights`
 records. Users cannot add, edit, or delete airline catalogue prices. The frontend provides CRUD
