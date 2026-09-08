@@ -33,9 +33,15 @@ def db_request(method, path, **kwargs):
     url = f"{DATABASE_API_URL}{path}"
     try:
         resp = requests.request(method, url, timeout=10, **kwargs)
-        return resp.json(), resp.status_code
-    except requests.exceptions.RequestException as exc:
+    except requests.exceptions.ConnectionError as exc:
         return {"error": "database service unavailable", "detail": str(exc)}, 502
+    except requests.exceptions.Timeout as exc:
+        return {"error": "database service unavailable", "detail": str(exc)}, 502
+
+    try:
+        return resp.json(), resp.status_code
+    except ValueError:
+        return {"error": "database returned invalid response", "detail": resp.text[:200]}, 502
 
 
 def db_get(path, params=None):

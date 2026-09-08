@@ -321,6 +321,28 @@ def get_room(room_id):
 
 
 
+@app.route("/lists/<int:list_id>/accommodations", methods=["POST"])
+def add_to_list(list_id):
+    data = request.get_json(silent=True) or {}
+    accommodation_id = data.get("accommodation_id")
+    if accommodation_id is None:
+        return jsonify({"error": "accommodation_id is required"}), 400
+
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO list_accommodations (list_id, accommodation_id, room_id, status) VALUES (?, ?, ?, ?)",
+            (list_id, accommodation_id, data.get("room_id"), data.get("status", "Option"))
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+    except sqlite3.IntegrityError as e:
+        conn.rollback()
+        return jsonify({"error": "invalid accommodation_id, room_id, or list_id", "detail": str(e)}), 400
+    finally:
+        conn.close()
+    return jsonify({"list_accom_id": new_id}), 201
+
 @app.route("/rooms/<int:room_id>", methods=["PUT"])
 def update_room(room_id):
     data = request.get_json(silent=True) or {}
@@ -361,7 +383,6 @@ def update_room(room_id):
         
     return jsonify({"updated": room_id}), 200
 
-
 @app.route("/rooms/<int:room_id>", methods=["DELETE"])
 def delete_room(room_id):
     conn = get_db()
@@ -377,11 +398,15 @@ def delete_room(room_id):
     return jsonify({"deleted": room_id})
 
 
+
 # ===================== PRIORITIES CRUD =====================
 
 @app.route("/priorities", methods=["POST"])
 def create_priority():
     data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "user_id is required"}), 400
     conn = get_db()
     try:
         cur = conn.execute(
@@ -474,11 +499,14 @@ def delete_priority(user_id):
 @app.route("/lists", methods=["POST"])
 def create_list():
     data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "user_id is required"}), 400
     conn = get_db()
     try:
         cur = conn.execute(
             "INSERT INTO lists (user_id, list_name) VALUES (?, ?)",
-            (data.get("user_id"), data.get("list_name", "My list"))
+            (user_id, data.get("list_name", "My list"))
         )
         conn.commit()
         new_id = cur.lastrowid
@@ -513,6 +541,8 @@ def rename_list(list_id):
     return jsonify({"updated": list_id})
 
 
+
+
 @app.route("/lists/<int:list_id>", methods=["DELETE"])
 def delete_list(list_id):
     conn = get_db()
@@ -530,20 +560,6 @@ def delete_list(list_id):
 
 # ===================== LIST ACCOMMODATIONS CRUD =====================
 
-@app.route("/lists/<int:list_id>/accommodations", methods=["POST"])
-def add_to_list(list_id):
-    data = request.get_json(silent=True) or {}
-    conn = get_db()
-    try:
-        cur = conn.execute(
-            "INSERT INTO list_accommodations (list_id, accommodation_id, room_id, status) VALUES (?, ?, ?, ?)",
-            (list_id, data.get("accommodation_id"), data.get("room_id"), data.get("status", "Option"))
-        )
-        conn.commit()
-        new_id = cur.lastrowid
-    finally:
-        conn.close()
-    return jsonify({"list_accom_id": new_id}), 201
 
 
 @app.route("/lists/<int:list_id>/accommodations", methods=["GET"])
