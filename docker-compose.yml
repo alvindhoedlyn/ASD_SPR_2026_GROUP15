@@ -11,7 +11,8 @@ services:
     depends_on:
       - shared-backend
       - student-AlvindhoEdlyn
-      - student-KeyuanGan
+      - student-KeyuanGan-frontend
+
       - student-RenzoRobin-backend
       - student-TrongDao
       - student-YajunNing
@@ -93,10 +94,22 @@ services:
     networks:
       - journeybuddy-net
 
-  student-KeyuanGan:
-    build: ./student-KeyuanGan
-    image: journeybuddy-student-keyuangan
-    container_name: student-KeyuanGan-app
+  student-KeyuanGan-frontend:
+    build:
+      context: ./student-KeyuanGan/frontend
+    image: journeybuddy-student-keyuangan-frontend
+    container_name: student-KeyuanGan-frontend
+    ports:
+      - "3002:80"
+    networks:
+      - journeybuddy-net
+    depends_on:
+      - student-KeyuanGan-backend
+  student-KeyuanGan-backend:
+    build:
+      context: ./student-KeyuanGan
+    image: journeybuddy-student-keyuangan-backend
+    container_name: student-KeyuanGan-backend
     ports:
       - "5002:5000"
     environment:
@@ -107,9 +120,9 @@ services:
     depends_on:
       - student-KeyuanGan-database
       - ai-mode
-
   student-KeyuanGan-database:
-    build: ./student-KeyuanGan/database
+    build:
+      context: ./student-KeyuanGan/database
     image: journeybuddy-student-keyuangan-database
     container_name: student-KeyuanGan-database
     ports:
@@ -118,6 +131,7 @@ services:
       - keyuangan-data:/app/data
     networks:
       - journeybuddy-net
+
 
   student-RenzoRobin-frontend:
     build:
