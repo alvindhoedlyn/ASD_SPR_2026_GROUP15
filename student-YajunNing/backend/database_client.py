@@ -5,7 +5,7 @@ import os
 import requests
 
 
-DATABASE_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://database-service:5001")
+DATABASE_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://yajunning-database-service:6005")
 
 
 def database_request(method, path, **kwargs):

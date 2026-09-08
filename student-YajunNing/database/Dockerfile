@@ -11,6 +11,6 @@ COPY schema.sql .
 
 RUN mkdir -p /app/data
 
-EXPOSE 5001
+EXPOSE 6005
 
 CMD ["python", "app.py"]
