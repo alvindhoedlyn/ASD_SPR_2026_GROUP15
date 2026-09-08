@@ -2,26 +2,25 @@ import os
 from datetime import date
 
 import requests
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, request
 
 from agentic_loop import run_flight_agent
 from database_client import database_request
 from flights import build_grounded_fallback
 from llm_client import generate_ai_explanation
 
-app = Flask(
-    __name__,
-    template_folder="../frontend",
-    static_folder="../frontend",
-    static_url_path="/static"
-)
+app = Flask(__name__)
 
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://shared-frontend")
 PORT = int(os.getenv("PORT", "5005"))
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return jsonify({
+        "service": "Flight Recommender Backend",
+        "status": "running",
+        "health_endpoint": "/health",
+    })
 
 @app.route("/health")
 def health():
