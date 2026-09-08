@@ -47,12 +47,6 @@ def load_prompt(filename):
 def home():
     return render_template("index.html")
 
-
-@app.route("/health")
-def health():
-    """Health endpoint used by the integrated Docker Compose CI check."""
-    return {"status": "ok", "student": "1"}
-
 @app.route("/ask-with-context", methods=["POST"])
 def ask_with_context():
     if request.is_json:
