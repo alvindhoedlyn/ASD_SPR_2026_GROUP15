@@ -39,7 +39,11 @@ def client():
         yield test_client
 
     os.close(db_fd)
-    os.unlink(db_path)
+    for suffix in ("", "-wal", "-shm"):
+        try:
+            os.unlink(db_path + suffix)
+        except FileNotFoundError:
+            pass
 
 
 def create_accommodation(client, **overrides):

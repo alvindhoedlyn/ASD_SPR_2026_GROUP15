@@ -149,28 +149,12 @@ class TestProxyRoutes:
         assert resp.status_code == 201
         assert mock_request.call_args.kwargs["json"] == payload
 
-    def test_not_found_from_database_is_masked_as_502(self, client, backend):
-        """
-        KNOWN BUG: db_request() calls resp.raise_for_status(), which raises
-        requests.exceptions.HTTPError for any 4xx/5xx response. HTTPError is a
-        subclass of RequestException, so it's caught by the same except block
-        used for connection failures — collapsing a legitimate 404 "not found"
-        from the database service into a generic 502 "database service
-        unavailable". Callers (and the frontend) can no longer distinguish
-        "this accommodation doesn't exist" from "the database is down".
-
-        This test documents the CURRENT behaviour so it doesn't regress
-        silently. Recommended fix: only catch requests.exceptions.RequestException
-        raised by the request/connection itself (e.g. ConnectionError, Timeout),
-        and let the real status code/body pass through when the DB responded
-        normally with a 4xx.
-        """
+    def test_not_found_from_database_passes_through_as_404(self, client, backend):
         with patch.object(backend.requests, "request", return_value=make_response(
             {"error": "not found"}, 404
         )):
             resp = client.get("/accommodations/99999")
-        assert resp.status_code == 502  # should be 404 once the bug above is fixed
-        assert resp.get_json()["error"] == "database service unavailable"
+        assert resp.status_code == 404
 
 
 # ===================== RECOMMENDATIONS =====================

@@ -2,7 +2,7 @@ import json
 import os
 import sqlite3
 from datetime import datetime, timezone
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 
 app = Flask(__name__)
 
@@ -21,27 +21,37 @@ def not_found(e):
 
 # ===================== DATABASE =====================
 
+
 def get_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    return conn
+    if "db" not in g:
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        g.db = sqlite3.connect(DB_PATH, timeout=10)
+        g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys = ON")
+        g.db.execute("PRAGMA journal_mode = WAL")
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(exception=None):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
 
 
 def init_db():
-    conn = get_db()
-    try:
-        with open(SCHEMA_PATH) as f:
-            conn.executescript(f.read())
-        conn.commit()
+    with app.app_context():
+        conn = get_db()
+        try:
+            with open(SCHEMA_PATH) as f:
+                conn.executescript(f.read())
+            conn.commit()
 
-        count = conn.execute("SELECT COUNT(*) AS c FROM accommodations").fetchone()["c"]
-        if count == 0:
-            seed_data(conn)
-    finally:
-        conn.close()
+            count = conn.execute("SELECT COUNT(*) AS c FROM accommodations").fetchone()["c"]
+            if count == 0:
+                seed_data(conn)
+        finally:
+            close_db()
 
 
 def seed_data(conn):
@@ -250,11 +260,13 @@ def delete_accommodation(accommodation_id):
         row = conn.execute("SELECT 1 FROM accommodations WHERE accommodation_id = ?", (accommodation_id,)).fetchone()
         if not row:
             return jsonify({"error": "not found"}), 404
+        conn.execute("DELETE FROM room_types WHERE accommodation_id = ?", (accommodation_id,))
         conn.execute("DELETE FROM accommodations WHERE accommodation_id = ?", (accommodation_id,))
         conn.commit()
-    finally:
-        conn.close()
-    return jsonify({"deleted": accommodation_id})
+        return jsonify({"deleted": accommodation_id}), 200
+    except sqlite3.Error as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
 
 
 # ===================== ROOM TYPES CRUD =====================
