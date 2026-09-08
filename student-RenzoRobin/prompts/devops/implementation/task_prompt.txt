@@ -1,0 +1,15 @@
+Recommend ONE concrete improvement to this CI/CD pipeline.
+
+Focus Areas:
+- Job structure: does docker-build correctly depend on test?
+- Whether the test job actually runs pytest, not just a syntax check
+- Path-scoped triggers (does the workflow only run when this student's
+  files change?)
+- Whether the compose file defines all three services this feature needs
+  (frontend, backend, database)
+
+Output Format:
+- Identify ONE concrete CI/CD pipeline improvement
+- State the reason, citing the evidence
+- State the expected impact on pipeline reliability or speed
+- Maximum 60 words

@@ -16,15 +16,23 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
 client = OpenAI(base_url=f"{OLLAMA_URL}/v1", api_key="ollama")
 
 
+# ===================== HELPER VALIDATORS =====================
+
+def validate_room_payload(data):
+    """Validates room creation and update payloads."""
+    if "price_per_night" in data:
+        price = data["price_per_night"]
+        if price is None or not isinstance(price, (int, float)) or price <= 0:
+            return {"error": "price_per_night must be a number greater than 0"}, 400
+    return None, None
+
+
 # ===================== DATABASE API CLIENT =====================
-# Thin wrapper around the database microservice. Any failure there
-# is surfaced as a 502 rather than crashing this service.
 
 def db_request(method, path, **kwargs):
     url = f"{DATABASE_API_URL}{path}"
     try:
         resp = requests.request(method, url, timeout=10, **kwargs)
-        resp.raise_for_status()
         return resp.json(), resp.status_code
     except requests.exceptions.RequestException as exc:
         return {"error": "database service unavailable", "detail": str(exc)}, 502
@@ -58,12 +66,20 @@ def list_areas():
     body, status = db_get("/areas")
     return jsonify(body), status
 
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify({"error": "method not allowed"}), 405
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "not found"}), 404
+
 
 # ===================== ACCOMMODATIONS CRUD (proxy) =====================
 
 @app.route("/accommodations", methods=["POST"])
 def create_accommodation():
-    body, status = db_post("/accommodations", request.get_json())
+    body, status = db_post("/accommodations", request.get_json(silent=True) or {})
     return jsonify(body), status
 
 
@@ -81,7 +97,7 @@ def get_accommodation(accommodation_id):
 
 @app.route("/accommodations/<int:accommodation_id>", methods=["PUT"])
 def update_accommodation(accommodation_id):
-    body, status = db_put(f"/accommodations/{accommodation_id}", request.get_json())
+    body, status = db_put(f"/accommodations/{accommodation_id}", request.get_json(silent=True) or {})
     return jsonify(body), status
 
 
@@ -95,7 +111,12 @@ def delete_accommodation(accommodation_id):
 
 @app.route("/accommodations/<int:accommodation_id>/rooms", methods=["POST"])
 def create_room(accommodation_id):
-    body, status = db_post(f"/accommodations/{accommodation_id}/rooms", request.get_json())
+    data = request.get_json(silent=True) or {}
+    price = data.get("price_per_night")
+    if price is None or isinstance(price, bool) or not isinstance(price, (int, float)) or price <= 0:
+        return jsonify({"error": "price_per_night must be greater than 0"}), 400
+
+    body, status = db_post(f"/accommodations/{accommodation_id}/rooms", data)
     return jsonify(body), status
 
 
@@ -113,7 +134,13 @@ def get_room(room_id):
 
 @app.route("/rooms/<int:room_id>", methods=["PUT"])
 def update_room(room_id):
-    body, status = db_put(f"/rooms/{room_id}", request.get_json())
+    data = request.get_json(silent=True) or {}
+    price = data.get("price_per_night")
+    
+    if price is None or isinstance(price, bool) or not isinstance(price, (int, float)) or price <= 0:
+        return jsonify({"error": "price_per_night must be greater than 0"}), 400
+
+    body, status = db_put(f"/rooms/{room_id}", data)
     return jsonify(body), status
 
 
@@ -127,7 +154,7 @@ def delete_room(room_id):
 
 @app.route("/priorities", methods=["POST"])
 def create_priority():
-    body, status = db_post("/priorities", request.get_json())
+    body, status = db_post("/priorities", request.get_json(silent=True) or {})
     return jsonify(body), status
 
 
@@ -139,7 +166,7 @@ def get_priority(user_id):
 
 @app.route("/priorities/<int:user_id>", methods=["PUT"])
 def update_priority(user_id):
-    body, status = db_put(f"/priorities/{user_id}", request.get_json())
+    body, status = db_put(f"/priorities/{user_id}", request.get_json(silent=True) or {})
     return jsonify(body), status
 
 
@@ -153,7 +180,7 @@ def delete_priority(user_id):
 
 @app.route("/lists", methods=["POST"])
 def create_list():
-    body, status = db_post("/lists", request.get_json())
+    body, status = db_post("/lists", request.get_json(silent=True) or {})
     return jsonify(body), status
 
 
@@ -165,7 +192,7 @@ def get_user_lists(user_id):
 
 @app.route("/lists/<int:list_id>", methods=["PUT"])
 def rename_list(list_id):
-    body, status = db_put(f"/lists/{list_id}", request.get_json())
+    body, status = db_put(f"/lists/{list_id}", request.get_json(silent=True) or {})
     return jsonify(body), status
 
 
@@ -177,7 +204,7 @@ def delete_list(list_id):
 
 @app.route("/lists/<int:list_id>/accommodations", methods=["POST"])
 def add_to_list(list_id):
-    body, status = db_post(f"/lists/{list_id}/accommodations", request.get_json())
+    body, status = db_post(f"/lists/{list_id}/accommodations", request.get_json(silent=True) or {})
     return jsonify(body), status
 
 
@@ -189,7 +216,7 @@ def get_list_accommodations(list_id):
 
 @app.route("/list-accommodations/<int:list_accom_id>", methods=["PUT"])
 def update_list_accommodation(list_accom_id):
-    body, status = db_put(f"/list-accommodations/{list_accom_id}", request.get_json())
+    body, status = db_put(f"/list-accommodations/{list_accom_id}", request.get_json(silent=True) or {})
     return jsonify(body), status
 
 
@@ -199,30 +226,33 @@ def remove_from_list(list_accom_id):
     return jsonify(body), status
 
 
-# ===================== RECOMMENDATION SCORING (business logic lives here) =====================
+# ===================== RECOMMENDATION SCORING =====================
 
 def score_accommodation(accom, weights, all_accoms, desired_facilities, target_city):
-    max_price = max((a["min_price"] for a in all_accoms), default=1) or 1
-    price_score = 1 - (accom["min_price"] / max_price)
+    min_p = accom.get("min_price") or 0.01
+    max_price = max((a.get("min_price") or 0.01 for a in all_accoms), default=1.0) or 1.0
+    price_score = max(0.0, 1.0 - (min_p / max_price))
 
-    location_score = 1.0 if target_city and target_city.lower() in accom["city_area"].lower() else 0.4
+    location_score = 1.0 if target_city and target_city.lower() in accom.get("city_area", "").lower() else 0.4
 
     if desired_facilities:
-        facility_score = len(set(desired_facilities) & set(accom["facilities"])) / len(desired_facilities)
+        facility_score = len(set(desired_facilities) & set(accom.get("facilities", []))) / len(desired_facilities)
     else:
         facility_score = 0.5
 
-    max_reviews = max((a["review_count"] for a in all_accoms), default=1) or 1
-    review_score = (accom["avg_rating"] / 5) * 0.7 + (accom["review_count"] / max_reviews) * 0.3
+    max_reviews = max((a.get("review_count", 0) for a in all_accoms), default=1) or 1
+    avg_rating = accom.get("avg_rating") or 0.0
+    review_count = accom.get("review_count") or 0
+    review_score = (avg_rating / 5.0) * 0.7 + (review_count / max_reviews) * 0.3
 
-    weight_sum = weights["price_weight"] + weights["location_weight"] + weights["facility_weight"] + weights["review_weight"]
-    weight_sum = weight_sum or 1
+    weight_sum = weights.get("price_weight", 0) + weights.get("location_weight", 0) + weights.get("facility_weight", 0) + weights.get("review_weight", 0)
+    weight_sum = weight_sum or 1.0
 
     total = (
-        price_score * weights["price_weight"] +
-        location_score * weights["location_weight"] +
-        facility_score * weights["facility_weight"] +
-        review_score * weights["review_weight"]
+        price_score * weights.get("price_weight", 0) +
+        location_score * weights.get("location_weight", 0) +
+        facility_score * weights.get("facility_weight", 0) +
+        review_score * weights.get("review_weight", 0)
     ) / weight_sum
 
     return total, {
@@ -235,7 +265,7 @@ def score_accommodation(accom, weights, all_accoms, desired_facilities, target_c
 
 @app.route("/recommendations", methods=["POST"])
 def generate_recommendations():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
     target_city = data.get("city")
     desired_facilities = data.get("desired_facilities", [])
@@ -249,7 +279,7 @@ def generate_recommendations():
         return jsonify(all_accoms), status
 
     if target_city:
-        all_accoms = [a for a in all_accoms if a["city_area"] == target_city]
+        all_accoms = [a for a in all_accoms if a.get("city_area") == target_city]
 
     scored = []
     for accom in all_accoms:
@@ -260,8 +290,8 @@ def generate_recommendations():
             "city_area": accom["city_area"],
             "avg_rating": accom["avg_rating"],
             "review_count": accom["review_count"],
-            "starting_price": accom["min_price"],
-            "facilities": accom["facilities"],
+            "starting_price": accom.get("min_price") or 0.0,
+            "facilities": accom.get("facilities", []),
             "score": round(total, 3),
             "breakdown": breakdown,
         })
@@ -280,11 +310,13 @@ def similarity_match(accommodation_id):
     if target is None:
         return jsonify({"error": "not found"}), 404
 
+    target_price = target.get("min_price") or 0.0
+
     def similarity(a):
-        same_city = 1 if a["city_area"] == target["city_area"] else 0
-        facility_overlap = len(set(a["facilities"]) & set(target["facilities"]))
-        price_diff = abs(a["min_price"] - target["min_price"])
-        return same_city * 3 + facility_overlap - (price_diff / 20)
+        same_city = 1 if a.get("city_area") == target.get("city_area") else 0
+        facility_overlap = len(set(a.get("facilities", [])) & set(target.get("facilities", [])))
+        price_diff = abs((a.get("min_price") or 0.0) - target_price)
+        return same_city * 3 + facility_overlap - (price_diff / 20.0)
 
     others = [a for a in all_accoms if a["accommodation_id"] != accommodation_id]
     others.sort(key=similarity, reverse=True)
@@ -293,15 +325,15 @@ def similarity_match(accommodation_id):
         "accommodation_id": a["accommodation_id"],
         "name": a["name"],
         "city_area": a["city_area"],
-        "starting_price": a["min_price"],
+        "starting_price": a.get("min_price") or 0.0,
     } for a in others[:4]])
 
 
-# ===================== AI: EXPLANATIONS (unchanged — no DB access needed) =====================
+# ===================== AI EXPLANATIONS =====================
 
 @app.route("/recommendations/explain", methods=["POST"])
 def explain_recommendation():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     name = data.get("name", "this accommodation")
     city = data.get("city_area", "")
     price = data.get("starting_price")
@@ -361,7 +393,7 @@ def explain_recommendation():
 
 @app.route("/recommendations/explain-compare", methods=["POST"])
 def explain_compare():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     items = data.get("items", [])
 
     if not items:

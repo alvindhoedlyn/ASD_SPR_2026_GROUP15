@@ -1,0 +1,29 @@
+Application Name:
+Accommodation Recommender (Student 3 microservice)
+
+Database Schema:
+- accommodations (accommodation_id PK, name, city_area, description, facilities JSON, images JSON, avg_rating, review_count)
+- room_types (room_id PK, accommodation_id FK, room_name, price_per_night, available_rooms, capacity, images JSON)
+- priorities (priority_id PK, user_id, price_weight, location_weight, facility_weight, review_weight)
+- lists (list_id PK, user_id, list_name)
+- list_accommodations (list_accom_id PK, list_id FK, accommodation_id FK, room_id FK nullable, status)
+
+Important Domain Rules:
+- price_per_night must always be > 0; a null or zero price indicates bad data, not a valid free room.
+- room_types.accommodation_id must always reference an existing accommodation (no orphans).
+- status on list_accommodations is constrained to: Option, Rejected, Accepted.
+
+Endpoints (backend service, port 5003):
+GET /health, GET /areas, GET /accommodations, GET /accommodations/<id>,
+POST /accommodations, PUT /accommodations/<id>, DELETE /accommodations/<id>,
+GET /accommodations/<id>/rooms, POST /accommodations/<id>/rooms,
+GET /rooms/<id>, PUT /rooms/<id>, DELETE /rooms/<id>,
+GET/PUT/DELETE /priorities/<user_id>,
+POST /lists, GET /lists/<user_id>, PUT/DELETE /lists/<id>,
+POST/GET /lists/<id>/accommodations,
+POST /recommendations, GET /accommodations/<id>/similar,
+POST /recommendations/explain, POST /recommendations/explain-compare
+
+Forbidden Operations:
+Do not suggest authentication/authorization changes — that is out of scope
+for this microservice and owned elsewhere in the shared backend.

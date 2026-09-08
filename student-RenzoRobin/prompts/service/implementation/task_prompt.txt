@@ -1,0 +1,22 @@
+Review Target: {{REVIEW_TARGET}}
+
+The evidence below comes from live database queries or live HTTP requests
+to the running backend service.
+
+Live Validation Evidence:
+{{VALIDATION_EVIDENCE}}
+
+Task:
+Analyze the evidence above. Identify ONE precise, evidence-backed improvement for:
+- Input validation
+- Error handling
+- Response formatting
+- Edge case testing
+
+If the evidence shows the app is not responding: Say "Unable to verify live behavior."
+If no improvement is supported by the evidence: Say "No evidence-backed improvement identified."
+
+Output Format:
+- Return exactly two bullet points (Issue + Recommendation), or the no-evidence sentence.
+- Maximum 60 words total.
+- No explanations, no reasoning.

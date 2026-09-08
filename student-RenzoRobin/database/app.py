@@ -1,7 +1,7 @@
 import json
 import os
 import sqlite3
-import datetime
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -9,6 +9,14 @@ app = Flask(__name__)
 DB_PATH = os.environ.get("DATABASE_PATH", "/app/database/data/accommodation.db")
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 PORT = int(os.environ.get("PORT", 6003))
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify({"error": "method not allowed"}), 405
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "not found"}), 404
 
 
 # ===================== DATABASE =====================
@@ -84,7 +92,7 @@ def seed_data(conn):
         accom_ids.append(cur.lastrowid)
 
     room_prices = [
-        65, 55, 40, 35, 30, 95, 110, 18, 32, 60,        # Ubud, Bali
+        65, 55, 40, 35, 30, 95, 110, 18, 32, 60,       # Ubud, Bali
         70, 25, 130, 85, 60, 55, 45, 20, 100, 150,      # Kyoto
         50, 90, 35, 65, 140, 22, 95, 160, 45, 70,       # Lisbon
     ]
@@ -101,16 +109,25 @@ def seed_data(conn):
     conn.commit()
 
 
+def safe_json_load(raw_str, fallback):
+    if not raw_str:
+        return fallback
+    try:
+        return json.loads(raw_str)
+    except (json.JSONDecodeError, TypeError):
+        return fallback
+
+
 def accommodation_to_dict(row):
     d = dict(row)
-    d["facilities"] = json.loads(d["facilities"] or "[]")
-    d["images"] = json.loads(d["images"] or "[]")
+    d["facilities"] = safe_json_load(d.get("facilities"), [])
+    d["images"] = safe_json_load(d.get("images"), [])
     return d
 
 
 def room_to_dict(row):
     d = dict(row)
-    d["images"] = json.loads(d["images"] or "[]")
+    d["images"] = safe_json_load(d.get("images"), [])
     return d
 
 
@@ -137,15 +154,22 @@ def list_areas():
 
 @app.route("/accommodations", methods=["POST"])
 def create_accommodation():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not data.get("name") or not data.get("city_area"):
+        return jsonify({"error": "name and city_area are required"}), 400
+    
     conn = get_db()
     try:
         cur = conn.execute(
             "INSERT INTO accommodations (name, city_area, description, facilities, images, avg_rating, review_count) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
-                data.get("name"), data.get("city_area"), data.get("description"),
-                json.dumps(data.get("facilities", [])), json.dumps(data.get("images", [])),
-                data.get("avg_rating", 0), data.get("review_count", 0),
+                data.get("name"),
+                data.get("city_area"),
+                data.get("description"),
+                json.dumps(data.get("facilities", [])),
+                json.dumps(data.get("images", [])),
+                data.get("avg_rating", 0),
+                data.get("review_count", 0),
             )
         )
         conn.commit()
@@ -191,17 +215,26 @@ def get_accommodation(accommodation_id):
 
 @app.route("/accommodations/<int:accommodation_id>", methods=["PUT"])
 def update_accommodation(accommodation_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
+        row = conn.execute("SELECT * FROM accommodations WHERE accommodation_id = ?", (accommodation_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+
         conn.execute(
             """UPDATE accommodations
                SET name = ?, city_area = ?, description = ?, facilities = ?, images = ?, avg_rating = ?, review_count = ?
                WHERE accommodation_id = ?""",
             (
-                data.get("name"), data.get("city_area"), data.get("description"),
-                json.dumps(data.get("facilities", [])), json.dumps(data.get("images", [])),
-                data.get("avg_rating", 0), data.get("review_count", 0), accommodation_id,
+                data.get("name", row["name"]),
+                data.get("city_area", row["city_area"]),
+                data.get("description", row["description"]),
+                json.dumps(data.get("facilities", safe_json_load(row["facilities"], []))),
+                json.dumps(data.get("images", safe_json_load(row["images"], []))),
+                data.get("avg_rating", row["avg_rating"]),
+                data.get("review_count", row["review_count"]),
+                accommodation_id,
             )
         )
         conn.commit()
@@ -214,8 +247,9 @@ def update_accommodation(accommodation_id):
 def delete_accommodation(accommodation_id):
     conn = get_db()
     try:
-        conn.execute("DELETE FROM list_accommodations WHERE accommodation_id = ?", (accommodation_id,))
-        conn.execute("DELETE FROM room_types WHERE accommodation_id = ?", (accommodation_id,))
+        row = conn.execute("SELECT 1 FROM accommodations WHERE accommodation_id = ?", (accommodation_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
         conn.execute("DELETE FROM accommodations WHERE accommodation_id = ?", (accommodation_id,))
         conn.commit()
     finally:
@@ -227,14 +261,22 @@ def delete_accommodation(accommodation_id):
 
 @app.route("/accommodations/<int:accommodation_id>/rooms", methods=["POST"])
 def create_room(accommodation_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    price = data.get("price_per_night")
+    if price is None or isinstance(price, bool) or not isinstance(price, (int, float)) or price <= 0:
+        return jsonify({"error": "price_per_night must be greater than 0"}), 400
+
     conn = get_db()
     try:
         cur = conn.execute(
             "INSERT INTO room_types (accommodation_id, room_name, price_per_night, available_rooms, capacity, images) VALUES (?, ?, ?, ?, ?, ?)",
             (
-                accommodation_id, data.get("room_name"), data.get("price_per_night"),
-                data.get("available_rooms", 1), data.get("capacity", 2), json.dumps(data.get("images", [])),
+                accommodation_id,
+                data.get("room_name"),
+                price,
+                data.get("available_rooms", 1),
+                data.get("capacity", 2),
+                json.dumps(data.get("images", [])),
             )
         )
         conn.commit()
@@ -266,28 +308,55 @@ def get_room(room_id):
     return jsonify(room_to_dict(row))
 
 
+
 @app.route("/rooms/<int:room_id>", methods=["PUT"])
 def update_room(room_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+
+    if data is None:
+        return jsonify({"error": "Invalid or missing JSON body"}), 400
+
     conn = get_db()
     try:
+        row = conn.execute("SELECT * FROM room_types WHERE room_id = ?", (room_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+
+        # Enforce strict price validation
+        if "price_per_night" in data:
+            price = data["price_per_night"]
+            if price is None or isinstance(price, bool) or not isinstance(price, (int, float)) or price <= 0:
+                return jsonify({"error": "price_per_night must be greater than 0"}), 400
+            new_price = price
+        else:
+            new_price = row["price_per_night"]
+
+        new_name = data.get("room_name") or row["room_name"]
+        new_avail = data.get("available_rooms") if data.get("available_rooms") is not None else row["available_rooms"]
+        new_cap = data.get("capacity") if data.get("capacity") is not None else row["capacity"]
+        raw_images = data.get("images")
+        new_images = json.dumps(raw_images) if raw_images is not None else row["images"]
+
         conn.execute(
-            "UPDATE room_types SET room_name = ?, price_per_night = ?, available_rooms = ?, capacity = ?, images = ? WHERE room_id = ?",
-            (
-                data.get("room_name"), data.get("price_per_night"), data.get("available_rooms"),
-                data.get("capacity"), json.dumps(data.get("images", [])), room_id,
-            )
+            """UPDATE room_types 
+               SET room_name = ?, price_per_night = ?, available_rooms = ?, capacity = ?, images = ? 
+               WHERE room_id = ?""",
+            (new_name, new_price, new_avail, new_cap, new_images, room_id)
         )
         conn.commit()
     finally:
         conn.close()
-    return jsonify({"updated": room_id})
+        
+    return jsonify({"updated": room_id}), 200
 
 
 @app.route("/rooms/<int:room_id>", methods=["DELETE"])
 def delete_room(room_id):
     conn = get_db()
     try:
+        row = conn.execute("SELECT 1 FROM room_types WHERE room_id = ?", (room_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "Room not found"}), 404
         conn.execute("UPDATE list_accommodations SET room_id = NULL WHERE room_id = ?", (room_id,))
         conn.execute("DELETE FROM room_types WHERE room_id = ?", (room_id,))
         conn.commit()
@@ -300,14 +369,17 @@ def delete_room(room_id):
 
 @app.route("/priorities", methods=["POST"])
 def create_priority():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
         cur = conn.execute(
             "INSERT INTO priorities (user_id, price_weight, location_weight, facility_weight, review_weight) VALUES (?, ?, ?, ?, ?)",
             (
-                data.get("user_id"), data.get("price_weight", 50), data.get("location_weight", 50),
-                data.get("facility_weight", 50), data.get("review_weight", 50),
+                data.get("user_id"),
+                data.get("price_weight", 50),
+                data.get("location_weight", 50),
+                data.get("facility_weight", 50),
+                data.get("review_weight", 50),
             )
         )
         conn.commit()
@@ -326,31 +398,44 @@ def get_priority(user_id):
         conn.close()
     if row is None:
         return jsonify({
-            "user_id": user_id, "price_weight": 50, "location_weight": 50,
-            "facility_weight": 50, "review_weight": 50,
+            "user_id": user_id,
+            "price_weight": 50,
+            "location_weight": 50,
+            "facility_weight": 50,
+            "review_weight": 50,
         })
     return jsonify(dict(row))
 
 
 @app.route("/priorities/<int:user_id>", methods=["PUT"])
 def update_priority(user_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
         existing = conn.execute("SELECT * FROM priorities WHERE user_id = ?", (user_id,)).fetchone()
+        now_str = datetime.now(timezone.utc).isoformat()
         if existing:
             conn.execute(
                 "UPDATE priorities SET price_weight = ?, location_weight = ?, facility_weight = ?, review_weight = ?, updated_at = ? WHERE user_id = ?",
                 (
-                    data.get("price_weight", 50), data.get("location_weight", 50),
-                    data.get("facility_weight", 50), data.get("review_weight", 50),
-                    datetime.datetime.utcnow().isoformat(), user_id,
+                    data.get("price_weight", existing["price_weight"]),
+                    data.get("location_weight", existing["location_weight"]),
+                    data.get("facility_weight", existing["facility_weight"]),
+                    data.get("review_weight", existing["review_weight"]),
+                    now_str,
+                    user_id,
                 )
             )
         else:
             conn.execute(
                 "INSERT INTO priorities (user_id, price_weight, location_weight, facility_weight, review_weight) VALUES (?, ?, ?, ?, ?)",
-                (user_id, data.get("price_weight", 50), data.get("location_weight", 50), data.get("facility_weight", 50), data.get("review_weight", 50))
+                (
+                    user_id,
+                    data.get("price_weight", 50),
+                    data.get("location_weight", 50),
+                    data.get("facility_weight", 50),
+                    data.get("review_weight", 50),
+                )
             )
         conn.commit()
     finally:
@@ -362,6 +447,9 @@ def update_priority(user_id):
 def delete_priority(user_id):
     conn = get_db()
     try:
+        row = conn.execute("SELECT 1 FROM priorities WHERE user_id = ?", (user_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
         conn.execute("DELETE FROM priorities WHERE user_id = ?", (user_id,))
         conn.commit()
     finally:
@@ -373,7 +461,7 @@ def delete_priority(user_id):
 
 @app.route("/lists", methods=["POST"])
 def create_list():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
         cur = conn.execute(
@@ -399,10 +487,14 @@ def get_user_lists(user_id):
 
 @app.route("/lists/<int:list_id>", methods=["PUT"])
 def rename_list(list_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
-        conn.execute("UPDATE lists SET list_name = ? WHERE list_id = ?", (data.get("list_name"), list_id))
+        row = conn.execute("SELECT * FROM lists WHERE list_id = ?", (list_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        new_name = data.get("list_name", row["list_name"])
+        conn.execute("UPDATE lists SET list_name = ? WHERE list_id = ?", (new_name, list_id))
         conn.commit()
     finally:
         conn.close()
@@ -413,6 +505,9 @@ def rename_list(list_id):
 def delete_list(list_id):
     conn = get_db()
     try:
+        row = conn.execute("SELECT 1 FROM lists WHERE list_id = ?", (list_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
         conn.execute("DELETE FROM list_accommodations WHERE list_id = ?", (list_id,))
         conn.execute("DELETE FROM lists WHERE list_id = ?", (list_id,))
         conn.commit()
@@ -425,7 +520,7 @@ def delete_list(list_id):
 
 @app.route("/lists/<int:list_id>/accommodations", methods=["POST"])
 def add_to_list(list_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
         cur = conn.execute(
@@ -463,12 +558,17 @@ def get_list_accommodations(list_id):
 
 @app.route("/list-accommodations/<int:list_accom_id>", methods=["PUT"])
 def update_list_accommodation(list_accom_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
+        row = conn.execute("SELECT * FROM list_accommodations WHERE list_accom_id = ?", (list_accom_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        new_status = data.get("status", row["status"])
+        new_room_id = data.get("room_id", row["room_id"])
         conn.execute(
             "UPDATE list_accommodations SET status = ?, room_id = ? WHERE list_accom_id = ?",
-            (data.get("status"), data.get("room_id"), list_accom_id)
+            (new_status, new_room_id, list_accom_id)
         )
         conn.commit()
     finally:
@@ -480,6 +580,9 @@ def update_list_accommodation(list_accom_id):
 def remove_from_list(list_accom_id):
     conn = get_db()
     try:
+        row = conn.execute("SELECT 1 FROM list_accommodations WHERE list_accom_id = ?", (list_accom_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
         conn.execute("DELETE FROM list_accommodations WHERE list_accom_id = ?", (list_accom_id,))
         conn.commit()
     finally:
@@ -487,7 +590,7 @@ def remove_from_list(list_accom_id):
     return jsonify({"deleted": list_accom_id})
 
 
-# ===================== INTERNAL: bulk read used by backend's scoring logic =====================
+# ===================== INTERNAL =====================
 
 @app.route("/internal/accommodations-with-price", methods=["GET"])
 def accommodations_with_price():
@@ -505,7 +608,7 @@ def accommodations_with_price():
     results = []
     for r in rows:
         d = dict(r)
-        d["facilities"] = json.loads(d["facilities"] or "[]")
+        d["facilities"] = safe_json_load(d.get("facilities"), [])
         d["min_price"] = d["min_price"] or 0
         results.append(d)
     return jsonify(results)
