@@ -2,6 +2,7 @@ const JB_HOME = "http://localhost:5000";
 const TOKEN_KEY = "jb_token";
 const USER_KEY = "jb_username";
 const ROLE_KEY = "jb_role";
+const USER_ID_KEY = "jb_user_id";
 
 function isLoggedIn() {
     return !!localStorage.getItem(TOKEN_KEY);
@@ -12,19 +13,26 @@ function getUsername() {
 function getRole() {
     return localStorage.getItem(ROLE_KEY) || "client";
 }
+function getUserId() {
+    return parseInt(localStorage.getItem(USER_ID_KEY), 10) || 1;
+}
 function isAdmin() {
     return isLoggedIn() && getRole() === "admin";
 }
 
-function storeSession(token, username, role) {
+function storeSession(token, username, role, userId) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, username);
     localStorage.setItem(ROLE_KEY, role);
+    if (userId) {
+        localStorage.setItem(USER_ID_KEY, userId);
+    }
 }
 function clearSession() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(ROLE_KEY);
+    localStorage.removeItem(USER_ID_KEY);
 }
 
 async function logOut() {
@@ -71,7 +79,7 @@ window.jbSessionReady = (async function initSession() {
             const res = await fetch(`${JB_HOME}/api/verify-session?token=${encodeURIComponent(urlToken)}`);
             if (res.ok) {
                 const session = await res.json();
-                storeSession(urlToken, session.username, session.role);
+                storeSession(urlToken, session.username, session.role, session.user_id);
             }
         } catch (e) { /* fall through to the isLoggedIn() check below */ }
 
@@ -147,10 +155,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 const session = await res.json();
                 errorEl.hidden = true;
-                storeSession(session.token, session.username, session.role);
+                storeSession(session.token, session.username, session.role, session.user_id);
                 window.location.href = "index.html";
             } catch (err) {
-                errorEl.textContent = "Could not reach the server. Try again.";
+                console.error("Login Exception:", err);
+                errorEl.textContent = "An error occurred during login. Check console for details.";
                 errorEl.hidden = false;
                 submitBtn.disabled = false;
             }

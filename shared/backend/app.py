@@ -61,7 +61,7 @@ def verify_session():
         return jsonify({"error": "Invalid or expired session"}), 401
 
     session = resp.json()
-    return jsonify({"username": session["username"], "role": session["role"]})
+    return jsonify({"username": session["username"], "role": session["role"],"user_id": session["user_id"]})
 
 
 @app.route("/api/logout", methods=["POST"])
