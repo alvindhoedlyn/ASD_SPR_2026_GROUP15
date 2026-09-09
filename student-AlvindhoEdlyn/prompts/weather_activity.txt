@@ -8,13 +8,19 @@ Context:
 Available Activity Categories and Items:
 {categories}
 
-Instructions:
-1. Review the weather condition carefully:
-   - If the weather is "Light Rain", "Thunderstorms", or "Tropical Downpour", select INDOOR activities (e.g., Museum visit, Art gallery tour, Cafe hopping, Cooking class, Spa visit, Boutique shopping).
-   - If the weather is "Sunny", "Clear", or "Partly Cloudy", prefer OUTDOOR activities (e.g., Beach day, Hiking trail, Kayaking, Botanical gardens walk, Viewpoint photography, Bike rental).
-   - If the weather is "Overcast", "Breezy", "Windy", or "Foggy", choose flexible sightseeing or cultural options.
-2. Align the selected activity with the user's preferences where possible.
-3. Select an exact category name from the available categories list.
+Strict Instructions:
+1. WEATHER CONSTRAINT (MANDATORY):
+   - IF weather is "Light Rain", "Thunderstorms", or "Tropical Downpour": You MUST ONLY select an INDOOR activity (e.g., Museum visit, Art gallery tour, Cafe hopping, Cooking class, Spa visit, Boutique shopping). DO NOT select outdoor activities like hiking, beach, or kayaking.
+   - IF weather is "Sunny", "Clear", or "Partly Cloudy": You MUST ONLY select an OUTDOOR activity (e.g., Beach day, Hiking trail, Kayaking, Botanical gardens walk, Viewpoint photography, Bike rental).
+   - IF weather is "Overcast", "Breezy", "Windy", or "Foggy": Select flexible sightseeing or cultural options.
 
-Respond strictly in valid JSON format with keys: "summary", "category", and "itinerary_item".
-Do not include any additional text or markdown formatting outside the JSON object.
+2. SINGLE ACTIVITY RULE:
+   - Select EXACTLY ONE single activity. Do not combine multiple activities (e.g., return "Museum visit", NOT "Museum visit and Cafe hopping").
+   - Select the activity item directly from the provided "{categories}" list if applicable.
+
+3. OUTPUT FORMAT:
+   - "category": Must match an exact category name from the available categories list.
+   - "itinerary_item": Must contain EXACTLY ONE activity description string.
+   - "summary": A 1-2 sentence concise narrative summary of the single planned activity.
+
+Respond strictly in valid raw JSON with keys: "summary", "category", and "itinerary_item". Do not wrap in markdown code blocks like ```json. Do not include any extra text.
