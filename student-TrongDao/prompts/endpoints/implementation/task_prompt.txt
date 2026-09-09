@@ -1,0 +1,12 @@
+Review the collected Location Recommender endpoint evidence.
+
+Check whether:
+- Flask routes were found.
+- The health endpoint responds.
+- The places endpoint responds.
+- The saved places endpoint responds.
+
+Identify one improvement supported by the evidence.
+
+If no improvement is supported, reply:
+No evidence-backed endpoint improvement identified.

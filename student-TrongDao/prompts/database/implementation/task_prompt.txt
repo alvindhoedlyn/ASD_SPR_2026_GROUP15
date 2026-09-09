@@ -1,0 +1,12 @@
+Review the collected Location Recommender database evidence.
+
+Check whether:
+- The database API is running.
+- Attraction records are available.
+- Recommendation requests and saved places can be read.
+- Saved places refer to valid attractions.
+
+Identify one improvement supported by the evidence.
+
+If no improvement is supported, reply:
+No evidence-backed database improvement identified.

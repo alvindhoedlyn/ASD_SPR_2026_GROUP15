@@ -1,0 +1,15 @@
+Review the collected Location Recommender DevOps evidence.
+
+Check whether:
+- The test and docker-build jobs exist.
+- Pytest is included.
+- The workflow only runs for the correct student files.
+- The Docker build waits for the tests.
+- The frontend, backend, and database targets are built.
+- Docker Compose contains the required services.
+- Qwen and Llama are configured.
+
+Identify one improvement supported by the evidence.
+
+If no improvement is supported, reply:
+No evidence-backed DevOps improvement identified.
