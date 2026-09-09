@@ -1,12 +1,14 @@
 import sys
-import os
+from pathlib import Path
 import pytest
-import tempfile
 from unittest.mock import patch
 
-# 1. Add project root & database directory to sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database")))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Dynamically add database and root directories to sys.path using pathlib
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATABASE_DIR = ROOT_DIR / "database"
+
+sys.path.insert(0, str(DATABASE_DIR))
+sys.path.insert(0, str(ROOT_DIR))
 
 
 @pytest.fixture

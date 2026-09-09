@@ -1,12 +1,14 @@
 import sys
 import os
+from pathlib import Path
 import pytest
 from unittest.mock import patch, MagicMock
 
-# 1. Add backend directory to sys.path so app.py can be imported correctly
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend")))
+# Dynamically add the backend directory to sys.path using pathlib
+BACKEND_DIR = Path(__file__).resolve().parent.parent / "backend"
+sys.path.insert(0, str(BACKEND_DIR))
 
-# 2. Import app instance from app.py
+# Import app instance from app.py
 from app import app
 
 
