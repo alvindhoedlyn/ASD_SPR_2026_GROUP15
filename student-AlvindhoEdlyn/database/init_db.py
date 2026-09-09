@@ -3,11 +3,13 @@ import sqlite3
 import random
 import json
 import os
+from pathlib import Path
 
 app = Flask(__name__)
 
 # Ensure the directory path exists before creating plan.db
-DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/plan.db")
+BASE_DIR = Path(__file__).resolve().parent
+DATABASE_PATH = BASE_DIR / "journeybuddy.db"
 os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
 
 WEATHER_POOL = [
