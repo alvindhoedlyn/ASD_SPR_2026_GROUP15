@@ -91,3 +91,9 @@ jobs:
           docker build \
             -t journeybuddy-student-keyuangan-database \
             ./student-KeyuanGan/database
+
+      - name: Build frontend microservice image
+        run: |
+          docker build \
+            -t journeybuddy-student-keyuangan-frontend \
+            ./student-KeyuanGan/frontend
