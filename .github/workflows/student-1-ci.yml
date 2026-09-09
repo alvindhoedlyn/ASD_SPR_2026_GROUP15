@@ -31,6 +31,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r student-AlvindhoEdlyn/requirements.txt pytest
       - name: Grant execution permissions
-        run: chmod +x student-AlvindhoEdlyn/app.py
+        run: chmod +x student-AlvindhoEdlyn/backend/app.py
       - name: Run tests
         run: python -m pytest student-AlvindhoEdlyn/tests -q
