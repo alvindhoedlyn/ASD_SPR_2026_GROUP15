@@ -3,3 +3,4 @@ openai
 python-dotenv
 requests
 flask_cors
+pytest

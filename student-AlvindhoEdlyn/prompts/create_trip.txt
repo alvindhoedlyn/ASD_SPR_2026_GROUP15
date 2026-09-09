@@ -1,0 +1,18 @@
+Create a {duration}-day trip itinerary based on these locations: {locations}.
+User Preferences: {preferences}.
+Daily Weather Forecast: {daily_weathers}.
+
+CRITICAL INSTRUCTIONS:
+1. WEATHER CONSTRAINT: Match each day's activity strictly to its weather condition:
+   - "Light Rain", "Thunderstorms", "Tropical Downpour": INDOOR activities ONLY (e.g., museums, cafes, galleries).
+   - "Sunny", "Clear", "Partly Cloudy": OUTDOOR activities ONLY (e.g., parks, beaches, viewpoints).
+   - "Overcast", "Breezy", "Windy", "Foggy": Flexible or sheltered sightseeing.
+2. Structure: Output exactly one object per day in sequential order.
+
+Respond ONLY with a raw JSON array of objects. Do not include markdown headers or commentary. Limit summary to 10 words maximum.
+
+Example format:
+[
+  {"summary": "Morning beach walk and coffee", "activity": "Visit Bondi Beach and try local cafes"},
+  {"summary": "Historical tour and dinner", "activity": "Explore the local museum and waterfront restaurants"}
+]

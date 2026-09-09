@@ -47,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
   init();
 
   async function init() {
+    updateHeaderUserInfo();
     await fetchJourneys();
     await fetchTrips();
     setupEventListeners();
@@ -55,6 +56,18 @@ document.addEventListener("DOMContentLoaded", () => {
   // -------------------------------------------------------------
   // Data Fetching Operations
   // -------------------------------------------------------------
+
+  function updateHeaderUserInfo() {
+    const userNameEl = document.getElementById("userName");
+    const userIdEl = document.getElementById("userId");
+
+    if (userNameEl && typeof getUsername === "function") {
+      userNameEl.textContent = getUsername();
+    }
+    if (userIdEl && typeof getUserId === "function") {
+      userIdEl.textContent = `#${getUserId()}`;
+    }
+  }
 
   async function fetchJourneys() {
     try {
@@ -127,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
         card.innerHTML = `
           <h3>Day ${String(day.day_number).padStart(2, "0")}</h3>
           <p class="day-location">${day.location}</p>
-          <p class="day-summary">${day.summary}</p>
+          <p class="day-summary">${day.summary || day.itinerary}</p>
         `;
         card.addEventListener("click", () => openDayDetails(day));
         dayRow.appendChild(card);
@@ -162,6 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const journeyId = parseInt(journeySelect.value, 10);
     const duration = parseInt(dayCountInput.value, 10);
     const preferences = preferencesInput.value.trim();
+    const activeUserId = parseInt(localStorage.getItem("userId"), 10) || 1;
 
     if (!journeyId) {
       if (availableJourneys.length === 0) {
@@ -183,7 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
           journeyId: journeyId,
           duration: duration,
           preferences: preferences,
-          userId: 1
+          userId: activeUserId
         })
       });
 
@@ -215,6 +229,42 @@ document.addEventListener("DOMContentLoaded", () => {
       await fetchTrips();
     } catch (err) {
       alert(`Error: ${err.message}`);
+    }
+  }
+
+  async function handleRegenerateTrip() {
+    if (trips.length === 0 || currentTripIndex < 0) {
+      console.error("No active trip found to regenerate.");
+      return;
+    }
+
+    const currentTrip = trips[currentTripIndex];
+    const tripId = currentTrip.trip_id;
+
+    try {
+      regenerateTripBtn.disabled = true;
+
+      const response = await fetch(`/api/trips/${tripId}/regenerate`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to regenerate trip");
+      }
+
+      const updatedTrip = await response.json();
+
+      // Update local trips array state and re-render view
+      trips[currentTripIndex] = updatedTrip;
+      renderCurrentTrip();
+
+    } catch (error) {
+      console.error("Error regenerating trip:", error);
+      alert(`Could not regenerate trip: ${error.message}`);
+    } finally {
+      regenerateTripBtn.disabled = false;
     }
   }
 
@@ -294,7 +344,7 @@ document.addEventListener("DOMContentLoaded", () => {
         activityGrid.appendChild(item);
       });
     } else {
-      activityGrid.innerHTML = `<p>${day.summary || "No activities specified."}</p>`;
+      activityGrid.innerHTML = `<p>${day.summary || day.itinerary || "No activities specified."}</p>`;
     }
 
     dayOverlay.style.display = "flex";
@@ -308,45 +358,57 @@ document.addEventListener("DOMContentLoaded", () => {
   // -------------------------------------------------------------
   // AI Assistant Chat Panel
   // -------------------------------------------------------------
+async function handleSendChat() {
+  const question = chatInput.value.trim();
+  if (!question) return;
 
-  async function handleSendChat() {
-    const question = chatInput.value.trim();
-    if (!question) return;
+  appendChatBubble(question, "user");
+  chatInput.value = "";
 
-    // Append user bubble
-    appendChatBubble(question, "user");
-    chatInput.value = "";
-
-    // Build itinerary context from current trip
-    let itineraryContext = "No active trip.";
-    if (trips.length > 0 && trips[currentTripIndex]) {
-      const trip = trips[currentTripIndex];
-      itineraryContext = JSON.stringify(trip.days || []);
-    }
-
-    // Append typing placeholder
-    const typingBubble = appendChatBubble("Thinking...", "assistant");
-
-    try {
-      const res = await fetch("/ask-with-context", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: question,
-          itinerary: itineraryContext
+  // Safe itinerary context parsing with fallbacks
+  let itineraryContext = "No active trip.";
+  if (trips.length > 0 && trips[currentTripIndex]) {
+    const trip = trips[currentTripIndex];
+    if (trip.days && trip.days.length > 0) {
+      itineraryContext = trip.days
+        .map((d, idx) => {
+          const dayNum = d.day_number || idx + 1;
+          const location = d.location || "Scheduled Location";
+          const details = d.summary || d.itinerary || d.activity || "";
+          return `Day ${dayNum} (${location}): ${details}`;
         })
-      });
+        .join("\n");
+    }
+  }
 
-      if (!res.ok) throw new Error("AI Service error");
+  const typingBubble = appendChatBubble("Thinking...", "assistant");
 
-      const responseHtml = await res.text();
-      typingBubble.innerHTML = responseHtml;
-    } catch (err) {
-      typingBubble.textContent = "Sorry, I had trouble processing that request.";
+  try {
+    const res = await fetch("/ask-with-context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: question,
+        itinerary: itineraryContext
+      })
+    });
+
+    const responseText = await res.text();
+
+    if (!res.ok) {
+      console.error(`Server Error (${res.status}):`, responseText);
+      throw new Error(`Server returned status ${res.status}`);
     }
 
-    chatBody.scrollTop = chatBody.scrollHeight;
+    // Safely render response HTML or plain text
+    typingBubble.innerHTML = responseText;
+  } catch (err) {
+    console.error("Chat Request Failed:", err);
+    typingBubble.textContent = "Sorry, I had trouble reaching the AI service. Check server logs.";
   }
+
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
 
   function appendChatBubble(text, sender) {
     const bubble = document.createElement("div");
@@ -375,10 +437,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Global Trip Controls
     deleteTripBtn.addEventListener("click", handleDeleteTrip);
-    regenerateTripBtn.addEventListener("click", () => {
-      // Directs user back to new trip generation pre-filled
-      showFrameState(generateFormState);
-    });
+    
+    // Connected to full trip regeneration endpoint
+    regenerateTripBtn.addEventListener("click", handleRegenerateTrip);
 
     // Navigation Controls
     prevTripBtn.addEventListener("click", () => {

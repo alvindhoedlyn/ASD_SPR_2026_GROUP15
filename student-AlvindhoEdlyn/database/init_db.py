@@ -49,6 +49,7 @@ def init_db():
         user_ID INTEGER NOT NULL,
         journey_ID INTEGER NOT NULL,
         duration INTEGER NOT NULL,
+        preferences TEXT,
         FOREIGN KEY (journey_ID) REFERENCES journey(journey_ID)
     )""")
 
@@ -205,6 +206,63 @@ def create_trip():
         conn.close()
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/trips/<int:trip_id>", methods=["PUT"])
+def update_full_trip(trip_id):
+    data = request.get_json() or {}
+    days = data.get("days", [])
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    try:
+        # 1. Verify trip exists
+        cursor.execute("SELECT trip_ID FROM trip WHERE trip_ID = ?", (trip_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({"error": "Trip not found"}), 404
+
+        # 2. Delete existing days associated with this trip
+        cursor.execute("DELETE FROM day WHERE trip_ID = ?", (trip_id,))
+
+        # 3. Insert the newly generated days
+        created_days = []
+        for d in days:
+            cursor.execute(
+                """
+                INSERT INTO day (trip_ID, weather, itinerary, activity)
+                VALUES (?, ?, ?, ?)
+                """,
+                (trip_id, d["weather"], d["itinerary"], d["activity"])
+            )
+            created_days.append({
+                "day_id": cursor.lastrowid,
+                "day_number": d["day_number"],
+                "location": d["location"],
+                "weather": d["weather"],
+                "itinerary": d["itinerary"],
+                "activity": d["activity"]
+            })
+
+        # 4. Update the trip duration if it changed
+        cursor.execute(
+            "UPDATE trip SET duration = ? WHERE trip_ID = ?",
+            (len(days), trip_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "trip_id": trip_id,
+            "days": created_days,
+            "message": "Trip overwritten successfully"
+        }), 200
+
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return jsonify({"error": str(e)}), 500
+    
 @app.route("/api/trips/<int:trip_id>/days/<int:day_number>", methods=["PUT"])
 def update_trip_day(trip_id, day_number):
     data = request.get_json() or {}

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS trip (
     user_ID INTEGER NOT NULL,
     journey_ID INTEGER NOT NULL,
     duration INTEGER NOT NULL,
+    preference TEXT,
 );
 
 CREATE TABLE IF NOT EXISTS day(

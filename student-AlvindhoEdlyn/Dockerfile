@@ -6,7 +6,6 @@ COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./backend/
-COPY frontend/ ./frontend/
 COPY database/ ./database/
 COPY prompts/ ./prompts/
 
