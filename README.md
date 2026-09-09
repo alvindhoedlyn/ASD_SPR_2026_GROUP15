@@ -302,6 +302,19 @@ C:.
 │   │   .dockerignore
 │   │   Dockerfile
 │   │
+│   ├───agentic_loop 
+│   │   │   main.py 
+│   │   │ 
+│   │   ├───collectors 
+│   │   │       databasse_collector.py 
+│   │   │       devops_collector.py 
+│   │   │       endpoints_collector.py 
+│   │   
+│   │   ├───config 
+│   │   │       review_config.py 
+│   │   │ 
+│   │   └───pipelines 
+│   │           review_pipeline.py 
 │   ├───backend
 │   │       app.py
 │   │       requirements.txt
@@ -322,6 +335,25 @@ C:.
 │   │   └───js
 │   │           location.js
 │   │
+│   ├───prompts 
+│   │   ├───database 
+│   │   │   ├───implementation 
+│   │   │   │	│ System_prompt.txt 
+│   │   │   │	│ Task_prompt.txt 
+│   │   │   ├───review 
+│   │   │   │    │ review_promp.txt 
+│   │   ├───devops 
+│   │   │   ├───implementation 
+│   │   │   │	│ System_prompt.txt 
+│   │   │   │	│ Task_prompt.txt 
+│   │   │   ├───review 
+│   │   │   │   │ review_promp.txt 
+│   │   ├───endpoints 
+│   │   │   ├───implementation 
+│   │   │   │	│ System_prompt.txt 
+│   │   │   │	│ Task_prompt.txt 
+│   │   │   ├───review 
+│   │   │   │   │ review_promp.txt 
 │   └───tests
 │           test_backend.py
 │           test_database.py
