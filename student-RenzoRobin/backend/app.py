@@ -13,6 +13,8 @@ DATABASE_API_URL = os.environ.get("DATABASE_API_URL", "http://student-RenzoRobin
 OLLAMA_URL = os.environ.get("OLLAMA_BASE_URL", "http://ai-mode:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
 
+MCP_ENABLED = os.environ.get("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
 client = OpenAI(base_url=f"{OLLAMA_URL}/v1", api_key="ollama")
 
 
@@ -460,6 +462,63 @@ def explain_compare():
             "detail": str(exc)
         }), 503
 
-
+def mcp_mode_is_enabled(req):
+    """Checks the global MCP_ENABLED env var AND a per-request header,
+    so the frontend toggle (X-MCP-Mode) can turn MCP off without
+    restarting the service."""
+    if not MCP_ENABLED:
+        return False
+    mode_header = req.headers.get("X-MCP-Mode", "on").strip().lower()
+    return mode_header in ("1", "true", "yes", "on")
+ 
+ 
+def mcp_disabled_response():
+    return jsonify({"error": "MCP mode is disabled"}), 403
+ 
+ 
+@app.route("/mcp/accommodations-by-city", methods=["POST"])
+def mcp_accommodations_by_city():
+    if not mcp_mode_is_enabled(request):
+        return mcp_disabled_response()
+ 
+    data = request.get_json(silent=True) or request.form
+    city_area = (data.get("city_area") or "").strip()
+    if not city_area:
+        return jsonify({"error": "city_area is required"}), 400
+ 
+    body, status = db_get("/accommodations", params={"city": city_area})
+    return jsonify({
+        "tool": "accommodations_by_city",
+        "input": {"city_area": city_area},
+        "result": body,
+    }), status
+ 
+ 
+@app.route("/mcp/accommodation-details/<int:accommodation_id>", methods=["POST"])
+def mcp_accommodation_details(accommodation_id):
+    if not mcp_mode_is_enabled(request):
+        return mcp_disabled_response()
+ 
+    details, status = db_get(f"/accommodations/{accommodation_id}")
+    if status >= 400:
+        return jsonify({
+            "tool": "accommodation_details",
+            "input": {"accommodation_id": accommodation_id},
+            "result": details,
+        }), status
+ 
+    rooms, rooms_status = db_get(f"/accommodations/{accommodation_id}/rooms")
+    if rooms_status >= 400:
+        rooms = []
+ 
+    if isinstance(details, dict):
+        details["rooms"] = rooms
+ 
+    return jsonify({
+        "tool": "accommodation_details",
+        "input": {"accommodation_id": accommodation_id},
+        "result": details,
+    }), status
+ 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT)

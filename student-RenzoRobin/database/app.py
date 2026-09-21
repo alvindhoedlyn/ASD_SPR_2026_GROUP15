@@ -200,7 +200,7 @@ def list_accommodations():
         params = []
         if city:
             query += " WHERE city_area LIKE ?"
-            params.append(f"%{city}%")
+            params.append(f"{city}")
         rows = conn.execute(query, params).fetchall()
     finally:
         conn.close()
