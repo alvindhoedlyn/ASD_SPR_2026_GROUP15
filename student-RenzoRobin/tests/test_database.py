@@ -139,7 +139,7 @@ class TestAccommodationCRUD:
         resp = client.get("/accommodations?city=Kyoto")
         results = resp.get_json()
         assert len(results) == 10
-        assert all(r["city_area"] == "Kyoto, Japan" for r in results)
+        assert all(r["city_area"] == "Kyoto" for r in results)
 
     def test_filter_accommodations_by_facility(self, client):
         resp = client.get("/accommodations?facility=parking")
