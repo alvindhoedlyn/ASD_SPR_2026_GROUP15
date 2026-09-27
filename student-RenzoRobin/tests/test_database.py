@@ -82,7 +82,7 @@ class TestSeedData:
         assert resp.status_code == 200
         areas = resp.get_json()
         assert areas == sorted(areas)
-        assert "Bali, Indonesia" in areas
+        assert "Bali" in areas
 
 
 class TestAccommodationCRUD:
