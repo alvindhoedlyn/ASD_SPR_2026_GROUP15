@@ -50,6 +50,36 @@ header.app-header {
     letter-spacing: -0.02em;
 }
 
+.app-header .brand a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Navigation Menu */
+.app-header .nav-menu {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.nav-link-btn {
+    text-decoration: none;
+    padding: 8px 14px;
+    background: var(--card-frame, #f0f0f0);
+    border: var(--border-w) solid var(--line);
+    border-radius: 8px;
+    color: var(--ink, #333);
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.nav-link-btn:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+}
+
+/* User Area & Avatar */
 .app-header .user-area {
     display: flex;
     align-items: center;
@@ -79,37 +109,6 @@ header.app-header {
 .avatar-btn:focus-visible {
     outline: 3px solid var(--ink);
     outline-offset: 2px;
-}
-
-/* ---------- Main ---------- */
-main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 12px 28px 40px;
-}
-
-h1.title {
-    text-align: center;
-    font-size: clamp(2.2rem, 5vw, 3.4rem);
-    font-weight: 900;
-    letter-spacing: -0.01em;
-    margin: 0 0 16px;
-}
-
-h1.title .plane {
-    font-size: 0.55em;
-    margin-left: 6px;
-}
-
-.plan-frame {
-    background: var(--card-frame);
-    border: var(--border-w) solid var(--line);
-    border-radius: var(--radius-lg);
-    padding: 16px;
-    height: 250px;
-    display: flex;
-    align-items: center;
-    position: relative;
 }
 
 /* ---------- plan-frame states ---------- */

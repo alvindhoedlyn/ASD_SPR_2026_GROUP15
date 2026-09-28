@@ -5,11 +5,14 @@ WORKDIR /usr/share/nginx/html
 # Clean default NGINX HTML files
 RUN rm -rf ./*
 
-# Copy custom NGINX configuration (if you created nginx.conf)
+# Copy custom NGINX configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Copy assets and all individual HTML pages
 COPY css/ ./css/
 COPY index.html .
+COPY mcp_frontend.html .
+COPY rag_frontend.html .
 COPY script.js .
 
 EXPOSE 80
