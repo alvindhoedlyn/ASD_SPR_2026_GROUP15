@@ -2,6 +2,11 @@ from flask import Flask, jsonify, render_template, request
 
 from agentic_loop import run_budget_agent
 
+from mcp_client import (
+    get_budget_summary_via_mcp,
+    get_budget_expenses_via_mcp,
+)
+
 from database_client import (
     get_expenses as db_get_expenses,
     get_expense as db_get_expense,
@@ -350,6 +355,56 @@ def get_budget_summary():
     except Exception as error:
         return jsonify({
             "error": "Unable to calculate budget summary",
+            "details": str(error)
+        }), 503
+
+
+# =========================================================
+# Shared MCP Integration
+# =========================================================
+
+@app.route("/api/mcp/budget-summary", methods=["GET"])
+def mcp_budget_summary():
+    """
+    Retrieve the Budget Tracker summary through
+    the group's shared MCP server.
+    """
+
+    try:
+        result = get_budget_summary_via_mcp()
+
+        return jsonify({
+            "source": "shared-mcp-server",
+            "tool": "budget_summary",
+            "result": result
+        }), 200
+
+    except Exception as error:
+        return jsonify({
+            "error": "Unable to retrieve budget summary through MCP",
+            "details": str(error)
+        }), 503
+
+
+@app.route("/api/mcp/expenses", methods=["GET"])
+def mcp_budget_expenses():
+    """
+    Retrieve Budget Tracker expenses through
+    the group's shared MCP server.
+    """
+
+    try:
+        result = get_budget_expenses_via_mcp()
+
+        return jsonify({
+            "source": "shared-mcp-server",
+            "tool": "budget_expenses",
+            "result": result
+        }), 200
+
+    except Exception as error:
+        return jsonify({
+            "error": "Unable to retrieve expenses through MCP",
             "details": str(error)
         }), 503
 
