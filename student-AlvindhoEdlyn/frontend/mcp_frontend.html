@@ -14,7 +14,7 @@
     <div class="brand">
         <a href="http://localhost:3000">JourneyBuddy</a>
     </div>
-    
+
     <!-- Navigation Links -->
     <nav class="nav-menu">
         <a href="/" class="nav-link-btn">Itinerary</a>
@@ -26,6 +26,29 @@
         <span>Welcome!</span>
     </div>
 </header>
+
 <main>
-    <p>MCP</p>
+  <h1 class="title">Itinerary Planner</h1>
+  <div class="mcp-bar">
+    <span id="mcpStatus" class="mcp-status off">MCP mode off</span>
+    <label class="mcp-switch">
+      <input type="checkbox" id="mcpToggle" role="switch">
+      MCP mode
+    </label>
+    <button type="button" id="mcpRefresh" class="btn mcp-run" hidden>Reload tools</button>
+  </div>
+
+  <p id="mcpOffNote" class="mcp-off-note">Turn on MCP mode to load the tools from the MCP server and run them one at a time.</p>
+
+  <section id="mcpPanel" hidden>
+    <div class="plan-frame"><div id="toolList"></div></div>
+
+    <h2 class="mcp-log-title">Call log</h2>
+    <ul id="callLog" class="mcp-log"><li>No calls yet.</li></ul>
+  </section>
 </main>
+
+<script src="js/script.js"></script>
+<script src="js/mcp_script.js"></script>
+</body>
+</html>

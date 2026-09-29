@@ -9,6 +9,8 @@ Run locally (NOT in Docker):
 
 from mcp.server.fastmcp import FastMCP
 
+mcp = FastMCP("Group Travel App MCP Server")
+
 from tools_accommodation import (
     get_accommodations_by_city,
     get_accommodation_details,
@@ -20,13 +22,11 @@ from tools_itinerary import (
     get_activity_categories,
 )
 
-mcp = FastMCP("Group Travel App MCP Server")
-
 AVAILABLE_TOOLS = [
     "accommodations_by_city",   # student-3 / RenzoRobin
     "accommodation_details",    # student-3 / RenzoRobin
-    "available_journeys",       # Itinerary / Travel App
-    "generate_trip_itinerary",  # Itinerary / Travel App
+    "available_journeys",       # Itinerary / Travel App (AlvindhoEdlyn)
+    "generate_trip_itinerary",  # Itinerary / Travel App (AlvindhoEdlyn)
 ]
 
 # ACCOMMODATION TOOL SET----
@@ -46,23 +46,35 @@ def accommodation_details(accommodation_id: int):
 # ITINERARY TOOL SET----
 @mcp.tool()
 def available_journeys() -> str:
-    """Fetch all available travel journeys and their locations from the database service."""
+    """List all available journeys (id, label, locations) that a trip itinerary can be generated for."""
     return get_available_journeys()
 
 
-@mcp.tool()
-def generate_trip_itinerary_tool(journey_id: int, duration: int, preferences: str = "General exploration", user_id: int = 1) -> str:
-    """Generate a custom AI travel itinerary set based on desired journey ID and duration."""
+# name= keeps the public tool name as "generate_trip_itinerary" while the Python
+# function name stays distinct from the imported helper above.
+@mcp.tool(name="generate_trip_itinerary")
+def generate_trip_itinerary_tool(
+    journey_id: int,
+    duration: int,
+    preferences: str = "General exploration",
+    user_id: int = 1,
+) -> str:
+    """Generate and save an AI-written day-by-day trip itinerary.
+
+    Args:
+        journey_id: ID of the journey (get it from available_journeys).
+        duration: Number of days for the trip (at least 1).
+        preferences: Free-text traveller preferences, e.g. "food and museums".
+        user_id: ID of the user the trip is saved for.
+    """
     return generate_trip_itinerary(journey_id, duration, preferences, user_id)
 
 
 @mcp.resource("travel://activity-categories")
 def activity_categories_resource() -> str:
-    """Expose available activity categories and options as an MCP resource."""
+    """Activity categories and example activities used for itinerary generation."""
     return get_activity_categories()
-
 # ITINERARY TOOL SET----
-
 
 if __name__ == "__main__":
     print("Starting Group Travel App MCP Server...")

@@ -15,8 +15,13 @@ DATABASE_NAME = "plan.db"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_PATH = os.path.join(BASE_DIR, "..", "prompts", "plan_suggestions.txt")
 DB_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://student-AlvindhoEdlyn-database:6001")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ai-mode:11434/v1")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
+MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+if not OLLAMA_BASE_URL.endswith("/v1"):
+    OLLAMA_BASE_URL += "/v1"
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+
 WEATHER_POOL = [
     "Sunny", "Clear", "Partly Cloudy", "Overcast", "Light Rain", 
     "Thunderstorms", "Breezy", "Windy", "Foggy", "Tropical Downpour"
@@ -31,6 +36,40 @@ ACTIVITY_CATEGORIES = {
     "Shopping": ["Boutique shopping", "Souvenir hunting", "Craft market visit"]
 }
 
+WEATHER_RULES = {
+    "Sunny": "Prefer an outdoor activity, since the weather is good for it.",
+    "Clear": "Prefer an outdoor activity, since the weather is good for it.",
+    "Partly Cloudy": "An outdoor activity is fine.",
+    "Overcast": "An outdoor or indoor activity is both fine.",
+    "Light Rain": "Lean toward an indoor or covered activity if possible.",
+    "Thunderstorms": "Choose an indoor activity, since it isn't safe to be outside.",
+    "Breezy": "An outdoor activity is fine.",
+    "Windy": "Avoid activities like kayaking or cycling that are hard in strong wind.",
+    "Foggy": "Avoid activities that rely on long-distance views, like viewpoint photography.",
+    "Tropical Downpour": "Choose an indoor activity, since it isn't safe to be outside.",
+}
+DEFAULT_WEATHER_RULE = "Choose an activity that suits the weather described above."
+
+MCP_TOOLS = [
+    {
+        "name": "available_journeys",
+        "description": "List all available journeys (id, label, locations).",
+        "endpoint": "/mcp/available-journeys",
+        "inputs": [],
+    },
+    {
+        "name": "generate_trip_itinerary",
+        "description": "Generate and save an AI-written day-by-day trip itinerary.",
+        "endpoint": "/mcp/generate-trip-itinerary",
+        "inputs": [
+            {"name": "journey_id", "type": "number", "required": True},
+            {"name": "duration", "type": "number", "required": True},
+            {"name": "preferences", "type": "text", "required": False, "default": "General exploration"},
+            {"name": "user_id", "type": "number", "required": False, "default": 1},
+        ],
+    },
+]
+
 app = Flask(
     __name__,
     template_folder="../frontend",
@@ -40,14 +79,7 @@ app = Flask(
 
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Change this:
-raw_url = os.getenv("OLLAMA_BASE_URL", "http://ai-mode:11434")
-base_url = raw_url.rstrip("/")
-
-client = OpenAI(
-    base_url=base_url,
-    api_key="ollama"  
-)
+client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
 
 def load_prompt(filename):
     # Navigate up one level from 'backend' to '/app', then into 'prompts'
@@ -56,6 +88,161 @@ def load_prompt(filename):
     
     with open(prompt_path, "r", encoding="utf-8") as f:
         return f.read()
+
+def mcp_mode_is_enabled(req):
+    if not MCP_ENABLED:
+        return False
+    return req.headers.get("X-MCP-Mode", "on").strip().lower() in ("1", "true", "yes", "on")
+
+
+def mcp_disabled_response():
+    return jsonify({"error": "MCP mode is disabled"}), 403
+
+def generate_ai_itinerary(duration, locations, preferences, daily_weathers):
+    results = []
+    
+    # Attempt to load prompt template
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_path = os.path.join(base_dir, "..", "prompts", "weather_activity.txt")
+    
+    template = None
+    try:
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            template = f.read()
+    except FileNotFoundError:
+        print(f"Warning: Prompt file not found at {prompt_path}. Using fallback generation.")
+
+    for i in range(duration):
+        weather = daily_weathers[i]
+        location = locations[i % len(locations)]
+
+        if template:
+            prompt = template.format(
+                weather=weather,
+                location=location,
+                preferences=preferences or "General exploration",
+                categories=json.dumps(ACTIVITY_CATEGORIES, indent=2),
+                weather_rule=WEATHER_RULES.get(weather, DEFAULT_WEATHER_RULE)
+            )
+
+            try:
+                response = client.chat.completions.create(
+                    model=OLLAMA_MODEL,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful travel planner. Output strictly valid JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.5,
+                    timeout=10
+                )
+                
+                content = response.choices[0].message.content.strip()
+                if content.startswith("```"):
+                    content = content.split("```")[1].replace("json", "").strip()
+
+                ai_json = json.loads(content)
+                act_item = ai_json.get("itinerary_item", f"Explore {location}")
+                
+                results.append({
+                    "summary": f"{act_item}",
+                    "activity": act_item,
+                    "category": ai_json.get("category", "Sightseeing")
+                })
+                continue
+            except Exception as e:
+                print(f"Ollama generation failed for day {i+1}: {e}")
+
+        # Fallback format: "Location: Selected Activity"
+        fallback_cat = random.choice(list(ACTIVITY_CATEGORIES.keys()))
+        fallback_item = random.choice(ACTIVITY_CATEGORIES[fallback_cat])
+        
+        results.append({
+            "summary": f"{location}: {fallback_item}",
+            "activity": fallback_item,
+            "category": fallback_cat
+        })
+
+    return results
+
+def create_trip(journey_id, duration, preferences, user_id):
+    if not journey_id or not duration or int(duration) < 1:
+        return jsonify({"error": "Valid journeyId and duration required."}), 400
+
+    duration = int(duration)
+
+    try:
+        journey_resp = requests.get(f"{DB_SERVICE_URL}/api/journeys/{journey_id}", timeout=5)
+        if journey_resp.status_code == 404:
+            return jsonify({"error": "Journey not found"}), 404
+        elif journey_resp.status_code != 200:
+            return jsonify({"error": "Failed to retrieve journey data"}), 500
+
+        journey = journey_resp.json()
+        locations = journey["locations"]
+
+        # Pick random weather per day and run AI generation
+        daily_weathers = [random.choice(WEATHER_POOL) for _ in range(duration)]
+        ai_generated_days = generate_ai_itinerary(duration, locations, preferences, daily_weathers)
+
+        days_data = []
+        for i in range(duration):
+            location = locations[i % len(locations)]
+            weather = daily_weathers[i]
+
+            itinerary = ai_generated_days[i]["summary"]
+            act_text = ai_generated_days[i]["activity"]
+            category = ai_generated_days[i]["category"]
+
+            days_data.append({
+                "day_number": i + 1,
+                "location": location,
+                "weather": weather,
+                "itinerary": itinerary,
+                "activity": act_text,
+                "category": category
+            })
+
+        db_payload = {
+            "user_id": user_id,
+            "journey_id": journey_id,
+            "duration": duration,
+            "days": days_data
+        }
+
+        create_resp = requests.post(f"{DB_SERVICE_URL}/api/trips", json=db_payload, timeout=5)
+        if create_resp.status_code != 201:
+            return jsonify(create_resp.json()), create_resp.status_code
+
+        created_trip = create_resp.json()
+
+        # Format activity metadata for the frontend view
+        formatted_days = []
+        for d in created_trip["days"]:
+            formatted_days.append({
+                "day_number": d["day_number"],
+                "summary": d["itinerary"],
+                "location": d["location"],
+                "activities": [
+                    {"text": d["location"], "icon": "📍"},
+                    {"text": f"Weather: {d['weather']}", "icon": "☀️"},
+                    {"text": d["activity"], "icon": "📷"}
+                ]
+            })
+
+        return jsonify({
+            "trip_id": created_trip["trip_id"],
+            "user_id": user_id,
+            "journey_id": journey_id,
+            "duration": duration,
+            "label": journey["label"],
+            "days": formatted_days,
+        }), 201
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ----- ROUTES -----
 
 @app.route("/")
@@ -65,7 +252,8 @@ def home():
 @app.route("/health")
 def health():
     """Health endpoint used by the integrated Docker Compose CI check."""
-    return {"status": "ok", "student": "1"}
+    return {"status": "ok"}
+
 @app.route("/ask-with-context", methods=["POST"])
 def ask_with_context():
     if request.is_json:
@@ -171,157 +359,16 @@ def get_trips():
         return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-def generate_ai_itinerary(duration, locations, preferences, daily_weathers):
-    results = []
-    
-    # Attempt to load prompt template
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    prompt_path = os.path.join(base_dir, "..", "prompts", "weather_activity.txt")
-    
-    template = None
-    try:
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            template = f.read()
-    except FileNotFoundError:
-        print(f"Warning: Prompt file not found at {prompt_path}. Using fallback generation.")
-
-    for i in range(duration):
-        weather = daily_weathers[i]
-        location = locations[i % len(locations)]
-
-        if template:
-            prompt = template.format(
-                weather=weather,
-                location=location,
-                preferences=preferences or "General exploration",
-                categories=json.dumps(ACTIVITY_CATEGORIES, indent=2)
-            )
-
-            try:
-                response = client.chat.completions.create(
-                    model=OLLAMA_MODEL,
-                    messages=[
-                        {"role": "system", "content": "You are a helpful travel planner. Output strictly valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.5,
-                    timeout=10
-                )
-                
-                content = response.choices[0].message.content.strip()
-                if content.startswith("```"):
-                    content = content.split("```")[1].replace("json", "").strip()
-
-                ai_json = json.loads(content)
-                act_item = ai_json.get("itinerary_item", f"Explore {location}")
-                
-                results.append({
-                    "summary": f"{act_item}",
-                    "activity": act_item,
-                    "category": ai_json.get("category", "Sightseeing")
-                })
-                continue
-            except Exception as e:
-                print(f"Ollama generation failed for day {i+1}: {e}")
-
-        # Fallback format: "Location: Selected Activity"
-        fallback_cat = random.choice(list(ACTIVITY_CATEGORIES.keys()))
-        fallback_item = random.choice(ACTIVITY_CATEGORIES[fallback_cat])
-        
-        results.append({
-            "summary": f"{location}: {fallback_item}",
-            "activity": fallback_item,
-            "category": fallback_cat
-        })
-
-    return results
-
+         
 @app.route("/api/trips/generate", methods=["POST"])
 def generate_trip():
     data = request.get_json() or {}
-    journey_id = data.get("journeyId")
-    duration = data.get("duration")
-    preferences = data.get("preferences", "")
-    user_id = data.get("userId", 1)
-
-    if not journey_id or not duration or int(duration) < 1:
-        return jsonify({"error": "Valid journeyId and duration required."}), 400
-
-    duration = int(duration)
-
-    try:
-        # Fetch journey details from DB service
-        journey_resp = requests.get(f"{DB_SERVICE_URL}/api/journeys/{journey_id}", timeout=5)
-        if journey_resp.status_code == 404:
-            return jsonify({"error": "Journey not found"}), 404
-        elif journey_resp.status_code != 200:
-            return jsonify({"error": "Failed to retrieve journey data"}), 500
-
-        journey = journey_resp.json()
-        locations = journey["locations"]
-
-        # Pick random weather per day and run AI generation
-        daily_weathers = [random.choice(WEATHER_POOL) for _ in range(duration)]
-        ai_generated_days = generate_ai_itinerary(duration, locations, preferences, daily_weathers)
-
-        days_data = []
-        for i in range(duration):
-            location = locations[i % len(locations)]
-            weather = daily_weathers[i]
-
-            itinerary = ai_generated_days[i]["summary"]
-            act_text = ai_generated_days[i]["activity"]
-            category = ai_generated_days[i]["category"]
-
-            days_data.append({
-                "day_number": i + 1,
-                "location": location,
-                "weather": weather,
-                "itinerary": itinerary,
-                "activity": act_text,
-                "category": category
-            })
-
-        db_payload = {
-            "user_id": user_id,
-            "journey_id": journey_id,
-            "duration": duration,
-            "days": days_data
-        }
-
-        create_resp = requests.post(f"{DB_SERVICE_URL}/api/trips", json=db_payload, timeout=5)
-        if create_resp.status_code != 201:
-            return jsonify(create_resp.json()), create_resp.status_code
-
-        created_trip = create_resp.json()
-
-        # Format activity metadata for the frontend view
-        formatted_days = []
-        for d in created_trip["days"]:
-            formatted_days.append({
-                "day_number": d["day_number"],
-                "summary": d["itinerary"],
-                "location": d["location"],
-                "activities": [
-                    {"text": d["location"], "icon": "📍"},
-                    {"text": f"Weather: {d['weather']}", "icon": "☀️"},
-                    {"text": d["activity"], "icon": "📷"}
-                ]
-            })
-
-        return jsonify({
-            "trip_id": created_trip["trip_id"],
-            "user_id": user_id,
-            "journey_id": journey_id,
-            "duration": duration,
-            "label": journey["label"],
-            "days": formatted_days,
-        }), 201
-
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return create_trip(
+        data.get("journeyId"),
+        data.get("duration"),
+        data.get("preferences", ""),
+        data.get("userId", 1),
+    )
     
 @app.route("/api/trips/<int:trip_id>/regenerate", methods=["PUT"])
 def regenerate_trip(trip_id):
@@ -522,6 +569,44 @@ def delete_trip(trip_id):
         return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/mcp/tools", methods=["GET"])
+def mcp_list_tools():
+    if not mcp_mode_is_enabled(request):
+        return mcp_disabled_response()
+    return jsonify({"tools": MCP_TOOLS})
+
+@app.route("/mcp/available-journeys", methods=["POST"])
+def mcp_available_journeys():
+    if not mcp_mode_is_enabled(request):
+        return mcp_disabled_response()
+    try:
+        resp = requests.get(f"{DB_SERVICE_URL}/api/journeys", timeout=5)
+        return jsonify({"tool": "available_journeys", "input": {}, "result": resp.json()}), resp.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
+
+@app.route("/mcp/generate-trip-itinerary", methods=["POST"])
+def mcp_generate_trip_itinerary():
+    if not mcp_mode_is_enabled(request):
+        return mcp_disabled_response()
+
+    data = request.get_json(silent=True) or {}
+    try:
+        journey_id = int(data.get("journey_id"))
+        duration = int(data.get("duration"))
+        user_id = int(data.get("user_id") or 1)
+    except (TypeError, ValueError):
+        return jsonify({"error": "journey_id and duration must be numbers"}), 400
+
+    preferences = data.get("preferences") or "General exploration"
+    resp, status = create_trip(journey_id, duration, preferences, user_id)
+    return jsonify({
+        "tool": "generate_trip_itinerary",
+        "input": {"journey_id": journey_id, "duration": duration,
+                  "preferences": preferences, "user_id": user_id},
+        "result": resp.get_json(),
+    }), status
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)

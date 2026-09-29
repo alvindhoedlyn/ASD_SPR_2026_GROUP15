@@ -13,7 +13,7 @@ COPY css/ ./css/
 COPY index.html .
 COPY mcp_frontend.html .
 COPY rag_frontend.html .
-COPY script.js .
+COPY js/ /usr/share/nginx/html/js/
 
 EXPOSE 80
 

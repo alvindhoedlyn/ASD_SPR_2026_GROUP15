@@ -1,13 +1,11 @@
 :root {
-    --header-bg: #ddc3b3;
+    --header-bg: #d4c6aa;
     --page-bg: #ded4bc;
     --card-frame: #1b4d3e;
-    --header-bg: #e8e2d5;
     --card-face: #f0eae1;
     --ink: #241a12;
     --line: #191008;
     --panel-bg: #a9856a;
-    --panel-header: #;
     --panel-face: #e6d3b8;
     --modal-bg: #6f4226;
     --modal-face: #fff;
@@ -68,7 +66,7 @@ header.app-header {
     background: var(--card-frame, #f0f0f0);
     border: var(--border-w) solid var(--line);
     border-radius: 8px;
-    color: var(--ink, #333);
+    color: #fff;
     font-size: 0.95rem;
     font-weight: 600;
     transition: transform 0.15s ease, background 0.15s ease;
@@ -110,7 +108,39 @@ header.app-header {
     outline: 3px solid var(--ink);
     outline-offset: 2px;
 }
+/* ---------- Itinerary page layout ---------- */
+.itinerary-title,
+main h1 {
+    text-align: center;
+    font-size: 3.4rem;
+    margin: 28px 0 24px;
+}
 
+main {
+    padding: 0 27px 40px;
+}
+
+h1.title {
+    text-align: center;
+    font-size: 2.5rem;
+    margin: 20px 0 24px;
+}
+
+.plan-frame {
+    background: var(--card-frame);
+    border: var(--border-w) solid var(--line);
+    border-radius: 26px;
+    padding: 30px 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    overflow: hidden;   /* keeps the cards inside the green box */
+}
+
+/* the row scrolls inside the frame's padding */
+.plan-frame .day-row {
+    overflow-x: auto;
+    padding-bottom: 12px;
+}
 /* ---------- plan-frame states ---------- */
 .frame-state {
     min-height: 308px;
@@ -592,7 +622,45 @@ a.btn {
     color: var(--ink);
     font-size: 1.3rem;
 }
+    /* Reuses the tokens and .btn / .plan-frame from css/style.css; only MCP-specific bits live here */
+.mcp-bar {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; margin: 0 auto 24px; 
+}
+    .mcp-switch { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; cursor: pointer; }
+    .mcp-switch input { width: 22px; height: 22px; accent-color: var(--card-frame); cursor: pointer; }
+    .mcp-status { padding: 8px 20px; border: 3px dashed #6b4226; border-radius: 999px; font-weight: 800; }
+    .mcp-status.ok { color: var(--card-frame); }
+    .mcp-status.warn { color: #8a5a1c; }
+    .mcp-status.err { color: #a34a3a; }
+    .mcp-status.off { color: #6b5844; }
 
+    .mcp-off-note { max-width: 520px; margin: 0 auto; padding: 22px 28px; text-align: center; font-weight: 600;
+                    background: var(--card-face); border: 2px solid #b98a55; border-radius: var(--radius-md); }
+
+    .mcp-tool { background: var(--card-face); border: var(--border-w) solid var(--line); border-radius: var(--radius-md);
+                padding: 18px 22px; margin-bottom: 16px; }
+    .mcp-tool:last-child { margin-bottom: 0; }
+    .mcp-tool h2 { margin: 0 0 4px; font-size: 1.25rem; }
+    .mcp-desc { margin: 0 0 14px; font-weight: 600; color: #5a4632; font-size: .92rem; }
+    .mcp-fields { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+    .mcp-field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; min-width: 160px; }
+    .mcp-field input[type="text"], .mcp-field input[type="number"] {
+        border: 2px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-weight: 700; background: #fff; }
+    .mcp-field input:focus-visible { outline: 3px solid var(--ink); outline-offset: 1px; }
+    .mcp-run { padding: 10px 24px; font-size: .9rem; }
+
+    .mcp-out { display: none; margin: 14px 0 0; padding: 12px 14px; background: #fff; border: 2px solid var(--line);
+               border-radius: 8px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+               font: .85rem/1.4 ui-monospace, Consolas, monospace; }
+    .mcp-out.show { display: block; }
+    .mcp-out.error { border-color: #a34a3a; color: #a34a3a; }
+    .mcp-meta { margin-top: 6px; font-size: .8rem; font-weight: 600; color: #5a4632; }
+
+    .mcp-log-title { text-align: center; font-size: 1.6rem; margin: 34px 0 12px; }
+    .mcp-log { list-style: none; max-width: 1400px; margin: 0 auto; padding: 14px 20px; background: var(--panel-face);
+               border: var(--border-w) solid var(--line); border-radius: var(--radius-md);
+               font: 600 .85rem/1.5 ui-monospace, Consolas, monospace; }
+    .mcp-log li { padding: 3px 0; }
 @media (prefers-reduced-motion: reduce) {
 
     .day-card,
@@ -616,3 +684,4 @@ a.btn {
         font-size: 0.85rem;
     }
 }
+
