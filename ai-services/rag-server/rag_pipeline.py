@@ -23,6 +23,7 @@ import chromadb
 from openai import OpenAI
 
 from corpus_accommodation import load_accommodation_chunks
+from corpus_location import load_location_chunks
 
 # Other students: import your own corpus_<feature>.py loader here, e.g.
 # from corpus_flights import load_flight_chunks
@@ -159,6 +160,7 @@ def append_audit(tool_name, tool_input, tool_output, validation_status, outcome,
 def build_corpus() -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     chunks.extend(load_accommodation_chunks())
+    chunks.extend(load_location_chunks())
     # Other students: extend chunks with your own loader's output here, e.g.
     # chunks.extend(load_flight_chunks())
     for chunk in chunks:
@@ -271,14 +273,27 @@ def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[st
             meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
             text = docs[i] if i < len(docs) else ""
             candidate_tokens = _tokenize(text) - boilerplate
-            overlap = len(query_tokens & candidate_tokens)
+            matched_terms = query_tokens & candidate_tokens
+            overlap = len(matched_terms)
+            query_coverage = (
+                overlap / len(query_tokens)
+                if query_tokens
+                else 0.0
+            )
+
             candidates.append({
                 "chunk_id": chunk_id,
                 "source_id": meta.get("source_id"),
                 "authority_tier": meta.get("authority_tier"),
-                "distance": distances[i] if i < len(distances) else None,
+                "distance": (
+                    distances[i]
+                    if i < len(distances)
+                    else None
+                ),
                 "text": text,
                 "keyword_overlap": overlap,
+                "query_coverage": round(query_coverage, 3),
+                "matched_terms": sorted(matched_terms)
             })
 
         # Keyword overlap is the primary sort key: this toy hash embedding's
@@ -321,37 +336,39 @@ def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[st
 # distances don't spread out meaningfully for short, similarly-worded
 # chunks (see retrieve_context), so overlap is the trustworthy signal.
 
-def confidence_from_results(results: list[dict[str, Any]]) -> str:
+def confidence_from_results(
+    results: list[dict[str, Any]]
+) -> str:
     if not results:
         return "Insufficient"
 
-    top_overlap = results[0].get("keyword_overlap", 0)
-    if top_overlap >= 2:
-        return "High"
-    if top_overlap == 1:
-        return "Medium"
-    return "Insufficient"
+    top_result = results[0]
 
+    overlap = top_result.get("keyword_overlap", 0)
+    coverage = top_result.get("query_coverage", 0.0)
+
+    if overlap >= 2 and coverage >= 0.75:
+        return "High"
+
+    if overlap >= 1 and coverage >= 0.70:
+        return "Medium"
+
+    return "Insufficient"
 
 def generate_grounded_answer(query: str, context: str) -> str:
     prompt = (
-        "Here is retrieved CONTEXT, made up of one or more separate "
-        "accommodation entries. Only use facts present in it — do not "
-        "invent, estimate, or assume anything not stated here. If the "
-        "context does not contain enough information to answer, reply "
-        "with exactly: Insufficient context.\n\n"
-        "IMPORTANT: Each accommodation entry has its OWN Facilities list. "
-        "Before stating that a specific accommodation has a facility "
-        "(e.g. breakfast, pool, parking, wifi), check that facility is "
-        "literally listed in THAT accommodation's own Facilities line. "
-        "Do not assume every accommodation shares a facility just because "
-        "one of them does, or because the question mentioned it. If an "
-        "accommodation's Facilities line does not list something, say it "
-        "does not have that facility rather than omitting or guessing.\n\n"
-        f"CONTEXT:\n{context}\n\nQUESTION:\n{query}\n\n"
-        "Answer in 2-3 sentences, using only the facts given above, "
-        "verified per accommodation as instructed."
+        "The following CONTEXT contains separate travel records. "
+        "Answer using only facts explicitly present in these records. "
+        "Do not invent, estimate, or assume missing information. "
+        "Treat every record independently and never transfer a field "
+        "or value from one record to another. If the context does not "
+        "contain enough information, reply exactly with: "
+        "Insufficient context.\n\n"
+        f"CONTEXT:\n{context}\n\n"
+        f"QUESTION:\n{query}\n\n"
+        "Answer in 2-3 concise sentences using only the supplied facts."
     )
+
     try:
         response = client.chat.completions.create(
             model=OLLAMA_MODEL,
@@ -359,24 +376,27 @@ def generate_grounded_answer(query: str, context: str) -> str:
                 {
                     "role": "system",
                     "content": (
-                        "You are a retrieval-grounded travel assistant. You only "
-                        "restate and lightly rephrase facts present in the given "
-                        "context. You never invent statistics or details not "
-                        "present in the context. When multiple accommodations are "
-                        "in the context, you check each one's own Facilities line "
-                        "individually rather than assuming they all share a "
-                        "facility. If the context is insufficient, you reply with "
-                        "exactly: Insufficient context."
-                    ),
+                        "You are a retrieval-grounded travel assistant. "
+                        "You only restate or lightly rephrase facts from "
+                        "the supplied context. You never invent details. "
+                        "Treat each retrieved record independently. If "
+                        "the context is insufficient, reply exactly with: "
+                        "Insufficient context."
+                    )
                 },
-                {"role": "user", "content": prompt},
+                {
+                    "role": "user",
+                    "content": prompt
+                }
             ],
             max_tokens=150,
-            temperature=0.2,
+            temperature=0.2
         )
+
         return response.choices[0].message.content
-    except Exception as exc:
-        return f"Ollama unavailable: {exc}"
+
+    except Exception as error:
+        return f"Ollama unavailable: {error}"
 
 
 def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str, Any]:
@@ -402,12 +422,33 @@ def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str
         append_audit("answer_question", {"query": query, "k": k, "caller": caller}, output, "pass", "insufficient_context", start)
         return output
 
-    context = "\n\n".join(r.get("text", "") for r in results)
+    top_overlap = results[0].get("keyword_overlap", 0)
+    top_coverage = results[0].get("query_coverage", 0.0)
+
+    grounding_results = [
+        result
+        for result in results
+        if (
+            result.get("keyword_overlap", 0) == top_overlap
+            and result.get("query_coverage", 0.0)
+            == top_coverage
+        )
+    ]
+
+    context = "\n\n".join(
+        result.get("text", "")
+        for result in grounding_results
+    )
+
     answer = generate_grounded_answer(query, context)
 
     citations = [
-        {"chunk_id": r.get("chunk_id"), "source_id": r.get("source_id"), "authority_tier": r.get("authority_tier")}
-        for r in results
+        {
+            "chunk_id": result.get("chunk_id"),
+            "source_id": result.get("source_id"),
+            "authority_tier": result.get("authority_tier")
+        }
+        for result in grounding_results
     ]
 
     output = {
@@ -420,6 +461,8 @@ def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str
             "k": k,
             "retrieved_count": len(results),
             "top_chunk": results[0].get("chunk_id") if results else None,
+            "grounding_count": len(grounding_results),
+            "top_query_coverage": top_coverage,
         },
     }
     append_audit(
