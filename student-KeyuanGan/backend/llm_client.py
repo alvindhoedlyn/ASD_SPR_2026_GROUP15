@@ -5,7 +5,7 @@ import requests
 
 OLLAMA_BASE_URL = os.getenv(
     "OLLAMA_BASE_URL",
-    "http://ai-mode:11434"
+    "http://host.docker.internal:11434"
 )
 
 OLLAMA_MODEL = os.getenv(
