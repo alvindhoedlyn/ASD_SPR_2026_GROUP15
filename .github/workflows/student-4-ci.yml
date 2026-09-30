@@ -5,11 +5,17 @@ on:
     paths:
       - "student-TrongDao/**"
       - ".github/workflows/student-4-ci.yml"
+      - "ai-services/mcp-server/**"
+      - "ai-services/rag-server/**"
+      - "docker-compose.yml"
 
   pull_request:
     paths:
       - "student-TrongDao/**"
       - ".github/workflows/student-4-ci.yml"
+      - "ai-services/mcp-server/**"
+      - "ai-services/rag-server/**"
+      - "docker-compose.yml"
 
   workflow_dispatch:
 
@@ -21,6 +27,12 @@ jobs:
     name: Test Location Recommender
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    env:
+      MCP_ENABLED: "false"
+      RAG_ENABLED: "false"
+      MCP_SERVER_URL: ""
+      RAG_SERVER_URL: ""
 
     steps:
       - name: Check out repository

@@ -1,4 +1,5 @@
 import importlib.util
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -42,6 +43,73 @@ REQUEST_DATA = {
     "accessibility_needs": "None",
     "status": "completed"
 }
+
+
+def test_saved_place_migration_adds_account_ownership():
+    specification = importlib.util.spec_from_file_location(
+        "location_init_db_migration_test",
+        DATABASE_DIRECTORY / "init_db.py"
+    )
+    init_db = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(init_db)
+
+    connection = sqlite3.connect(":memory:")
+    connection.execute(
+        "CREATE TABLE places(attraction_id INTEGER PRIMARY KEY)"
+    )
+    connection.execute("INSERT INTO places VALUES (10)")
+    connection.execute(
+        """
+        CREATE TABLE saved_places(
+            saved_place_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            attraction_id INTEGER NOT NULL UNIQUE,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO saved_places(attraction_id, notes)
+        VALUES (10, 'Preserved note')
+        """
+    )
+
+    init_db.migrate_saved_places(connection)
+
+    columns = {
+        row[1]
+        for row in connection.execute(
+            "PRAGMA table_info(saved_places)"
+        ).fetchall()
+    }
+    migrated_record = connection.execute(
+        """
+        SELECT saved_place_id, user_id, attraction_id, notes
+        FROM saved_places
+        """
+    ).fetchone()
+
+    assert "journey_id" not in columns
+    assert "user_id" in columns
+    assert migrated_record == (1, 1, 10, "Preserved note")
+
+    connection.execute(
+        """
+        INSERT INTO saved_places(user_id, attraction_id, notes)
+        VALUES (2, 10, 'Another account')
+        """
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO saved_places(user_id, attraction_id, notes)
+            VALUES (1, 10, 'Duplicate for same account')
+            """
+        )
+
+    connection.close()
 
 
 @pytest.fixture
@@ -206,9 +274,16 @@ def test_recommendation_request_crud(client):
 
 
 def test_saved_place_crud(client):
+    place_response = client.post(
+        "/places",
+        json=PLACE_DATA
+    )
+
+    assert place_response.status_code == 201
+
     saved_place = {
-        "journey_id": "SAVED-TEST-01",
-        "attraction_id": 1,
+        "user_id": 1,
+        "attraction_id": place_response.get_json()["attraction_id"],
         "notes": "Visit in the morning"
     }
 
@@ -223,15 +298,23 @@ def test_saved_place_crud(client):
         create_response.get_json()["saved_place_id"]
     )
 
+    duplicate_response = client.post(
+        "/saved-places",
+        json=saved_place
+    )
+
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.get_json()["error"] == (
+        "This attraction is already saved"
+    )
+
     read_response = client.get(
-        f"/saved-places/{saved_place_id}"
+        f"/saved-places/{saved_place_id}?user_id=1"
     )
 
     assert read_response.status_code == 200
-    assert (
-        read_response.get_json()["journey_id"]
-        == "SAVED-TEST-01"
-    )
+    assert read_response.get_json()["saved_place_id"] == saved_place_id
+    assert "journey_id" not in read_response.get_json()
 
     saved_place["notes"] = "Visit in the afternoon"
 
@@ -243,7 +326,7 @@ def test_saved_place_crud(client):
     assert update_response.status_code == 200
 
     read_updated_response = client.get(
-        f"/saved-places/{saved_place_id}"
+        f"/saved-places/{saved_place_id}?user_id=1"
     )
 
     assert (
@@ -252,16 +335,85 @@ def test_saved_place_crud(client):
     )
 
     delete_response = client.delete(
-        f"/saved-places/{saved_place_id}"
+        f"/saved-places/{saved_place_id}?user_id=1"
     )
 
     assert delete_response.status_code == 200
 
     missing_response = client.get(
-        f"/saved-places/{saved_place_id}"
+        f"/saved-places/{saved_place_id}?user_id=1"
     )
 
     assert missing_response.status_code == 404
+
+
+def test_saved_places_are_isolated_by_user(client):
+    place_response = client.post("/places", json=PLACE_DATA)
+    attraction_id = place_response.get_json()["attraction_id"]
+
+    first_user_response = client.post(
+        "/saved-places",
+        json={
+            "user_id": 1,
+            "attraction_id": attraction_id,
+            "notes": "First user's note"
+        }
+    )
+    second_user_response = client.post(
+        "/saved-places",
+        json={
+            "user_id": 2,
+            "attraction_id": attraction_id,
+            "notes": "Second user's note"
+        }
+    )
+
+    assert first_user_response.status_code == 201
+    assert second_user_response.status_code == 201
+
+    first_saved_place_id = first_user_response.get_json()[
+        "saved_place_id"
+    ]
+
+    first_user_list = client.get("/saved-places?user_id=1")
+    second_user_list = client.get("/saved-places?user_id=2")
+
+    first_user_matches = [
+        place for place in first_user_list.get_json()
+        if place["attraction_id"] == attraction_id
+    ]
+    second_user_matches = [
+        place for place in second_user_list.get_json()
+        if place["attraction_id"] == attraction_id
+    ]
+
+    assert [place["notes"] for place in first_user_matches] == [
+        "First user's note"
+    ]
+    assert [place["notes"] for place in second_user_matches] == [
+        "Second user's note"
+    ]
+
+    cross_account_read = client.get(
+        f"/saved-places/{first_saved_place_id}?user_id=2"
+    )
+    cross_account_update = client.put(
+        f"/saved-places/{first_saved_place_id}",
+        json={"user_id": 2, "notes": "Changed by user 2"}
+    )
+    cross_account_delete = client.delete(
+        f"/saved-places/{first_saved_place_id}?user_id=2"
+    )
+
+    assert cross_account_read.status_code == 404
+    assert cross_account_update.status_code == 404
+    assert cross_account_delete.status_code == 404
+
+    owner_read = client.get(
+        f"/saved-places/{first_saved_place_id}?user_id=1"
+    )
+    assert owner_read.status_code == 200
+    assert owner_read.get_json()["notes"] == "First user's note"
 
 
 def test_invalid_requests(client):
@@ -281,7 +433,7 @@ def test_invalid_requests(client):
     assert missing_place.status_code == 404
 
     missing_saved_place = client.get(
-        "/saved-places/999999"
+        "/saved-places/999999?user_id=1"
     )
 
     assert missing_saved_place.status_code == 404
