@@ -114,12 +114,12 @@ services:
       - "5002:5000"
     environment:
       - DATABASE_SERVICE_URL=http://student-KeyuanGan-database:5001
-      - OLLAMA_BASE_URL=http://ai-mode:11434
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     networks:
       - journeybuddy-net
     depends_on:
       - student-KeyuanGan-database
-      - ai-mode
+
   student-KeyuanGan-database:
     build:
       context: ./student-KeyuanGan/database
