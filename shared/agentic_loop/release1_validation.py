@@ -7,7 +7,7 @@ Adds two local, non-containerised validation modes to the shared agentic loop:
 2. RAG Validation Mode
 
 The validator runs directly on the host machine and connects to:
-- Shared MCP Server: http://localhost:8000/mcp
+- Shared MCP Server: http://localhost:5200/mcp
 - Shared RAG Server: http://localhost:8100
 
 Usage:
@@ -27,7 +27,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 
-MCP_SERVER_URL = "http://localhost:8000/mcp"
+MCP_SERVER_URL = "http://localhost:5200/mcp"
 RAG_SERVER_URL = "http://localhost:8100"
 
 

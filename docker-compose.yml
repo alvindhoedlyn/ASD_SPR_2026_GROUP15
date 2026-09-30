@@ -12,7 +12,6 @@ services:
       - shared-backend
       - student-AlvindhoEdlyn
       - student-KeyuanGan-frontend
-
       - student-RenzoRobin-backend
       - student-TrongDao
       - student-YajunNing
@@ -56,15 +55,16 @@ services:
     volumes:
       - alvindhoedlyn-data:/app/instance
     environment:
-      - PORT=5001                  
+      - PORT=5001
       - HOST=0.0.0.0
       - DATABASE_SERVICE_URL=http://student-AlvindhoEdlyn-database:6001
-      - OLLAMA_BASE_URL=http://ai-mode:11434/v1
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
       - OLLAMA_MODEL=qwen2.5:0.5b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - journeybuddy-net
     depends_on:
-      - ai-mode
       - student-AlvindhoEdlyn-database
 
   student-AlvindhoEdlyn-frontend:
@@ -105,6 +105,7 @@ services:
       - journeybuddy-net
     depends_on:
       - student-KeyuanGan-backend
+
   student-KeyuanGan-backend:
     build:
       context: ./student-KeyuanGan
@@ -115,10 +116,13 @@ services:
     environment:
       - DATABASE_SERVICE_URL=http://student-KeyuanGan-database:5001
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - journeybuddy-net
     depends_on:
       - student-KeyuanGan-database
+
 
   student-KeyuanGan-database:
     build:
@@ -131,7 +135,6 @@ services:
       - keyuangan-data:/app/data
     networks:
       - journeybuddy-net
-
 
   student-RenzoRobin-frontend:
     build:
@@ -156,13 +159,17 @@ services:
     environment:
       PORT: "5003"
       DATABASE_API_URL: http://student-RenzoRobin-database:6003
-      OLLAMA_BASE_URL: http://ai-mode:11434
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen2.5:0.5b
+      MCP_ENABLED: "true"
+      RAG_ENABLED: "true"
+      RAG_SERVICE_URL: http://host.docker.internal:5100
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - journeybuddy-net
     depends_on:
       - student-RenzoRobin-database
-      - ai-mode
     restart: unless-stopped
 
   student-RenzoRobin-database:
@@ -180,6 +187,7 @@ services:
     networks:
       - journeybuddy-net
     restart: unless-stopped
+
   student-TrongDao:
     build:
       context: ./student-TrongDao
@@ -204,14 +212,21 @@ services:
     environment:
       PORT: "5000"
       DATABASE_API_URL: http://student-TrongDao-database:5000
-      OLLAMA_API_URL: http://ai-mode:11434
+      AUTH_SERVICE_URL: http://shared-backend:5000
+      OLLAMA_API_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen2.5:0.5b
       OLLAMA_REVIEW_MODEL: llama3.1:8b
+      MCP_ENABLED: "${MCP_ENABLED:-false}"
+      MCP_SERVER_URL: "${MCP_SERVER_URL:-}"
+      RAG_ENABLED: "${RAG_ENABLED:-true}"
+      RAG_SERVER_URL: http://host.docker.internal:5100
+      RAG_REQUEST_TIMEOUT: "30"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - journeybuddy-net
     depends_on:
       - student-TrongDao-database
-      - ai-mode
 
   student-TrongDao-database:
     build:
@@ -250,13 +265,14 @@ services:
       PORT: "5005"
       DATABASE_SERVICE_URL: http://yajunning-database-service:6005
       AUTH_SERVICE_URL: http://shared-backend:5000
-      OLLAMA_BASE_URL: http://ai-mode:11434/v1
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: qwen2.5:0.5b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - journeybuddy-net
       - yajunning-net
     depends_on:
-      - ai-mode
       - yajunning-database-service
 
   yajunning-database-service:
@@ -273,16 +289,6 @@ services:
     networks:
       - yajunning-net
 
-  ai-mode:
-    image: ollama/ollama:latest
-    container_name: ai-mode
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-models:/root/.ollama
-    networks:
-      - journeybuddy-net
-
 networks:
   journeybuddy-net:
     driver: bridge
@@ -290,7 +296,6 @@ networks:
     driver: bridge
 
 volumes:
-  ollama-models:
   shared-data:
   alvindhoedlyn-data:
   keyuangan-data:

@@ -15,7 +15,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 MCP_SERVER_URL = os.getenv(
     "MCP_SERVER_URL",
-    "http://host.docker.internal:8000/mcp",
+    "http://host.docker.internal:5200/mcp",
 )
 
 

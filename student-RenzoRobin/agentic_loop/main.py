@@ -8,16 +8,29 @@ Menu:
     1 - DB          (live database evidence)
     2 - Endpoints   (live HTTP evidence against the running backend)
     3 - DevOps      (CI/CD pipeline evidence, two-stage implementation+review)
-    4 - Run All
+    4 - MCP         (MCP tool-call validation, two-stage implementation+review)
+    5 - RAG         (RAG grounded-answer validation, two-stage implementation+review)
+    6 - Run All
     0 - Exit
+
+MCP and RAG modes require student-RenzoRobin-backend (and, for RAG, the
+shared rag_http_server.py) to be running and reachable at localhost, since
+their collectors call the real backend routes rather than mocking them.
 """
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
 THIS_FILE = Path(__file__).resolve()
 APP_DIR = THIS_FILE.parent.parent          # student-RenzoRobin/
 REPO_ROOT = APP_DIR.parent                 # repository root
+
+# AIRunner's default OLLAMA_BASE_URL ("http://ai-mode:11434/v1") points at
+# a Docker container that no longer exists — the agentic loop runs on the
+# host, not in Docker. setdefault() only applies this if OLLAMA_BASE_URL
+# isn't already set some other way, so it won't override a real override.
+os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 
 sys.path.insert(0, str(REPO_ROOT))
 from shared.agentic_loop.core.ai_runner import AIRunner            # noqa: E402
@@ -39,19 +52,26 @@ AGENTIC_LOOP_DIR = THIS_FILE.parent
 db_collector = _load_local_module("renzorobin_db_collector", AGENTIC_LOOP_DIR / "collectors" / "db_collector.py")
 endpoints_collector = _load_local_module("renzorobin_endpoints_collector", AGENTIC_LOOP_DIR / "collectors" / "endpoints_collector.py")
 devops_collector = _load_local_module("renzorobin_devops_collector", AGENTIC_LOOP_DIR / "collectors" / "devops_collector.py")
+mcp_collector = _load_local_module("renzorobin_mcp_collector", AGENTIC_LOOP_DIR / "collectors" / "mcp_collector.py")
+rag_collector = _load_local_module("renzorobin_rag_collector", AGENTIC_LOOP_DIR / "collectors" / "rag_collector.py")
+
 db_pipeline = _load_local_module("renzorobin_db_pipeline", AGENTIC_LOOP_DIR / "pipelines" / "db_pipeline.py")
 endpoints_pipeline = _load_local_module("renzorobin_endpoints_pipeline", AGENTIC_LOOP_DIR / "pipelines" / "endpoints_pipeline.py")
 architecture_pipeline = _load_local_module("renzorobin_architecture_pipeline", AGENTIC_LOOP_DIR / "pipelines" / "architecture_pipeline.py")
+mcp_validation_pipeline = _load_local_module("renzorobin_mcp_validation_pipeline", AGENTIC_LOOP_DIR / "pipelines" / "mcp_validation_pipeline.py")
+rag_validation_pipeline = _load_local_module("renzorobin_rag_validation_pipeline", AGENTIC_LOOP_DIR / "pipelines" / "rag_validation_pipeline.py")
 
 COLLECTORS = {
     "db": db_collector.collect,
     "endpoints": endpoints_collector.collect,
     "devops": devops_collector.collect,
+    "mcp": mcp_collector.collect,
+    "rag": rag_collector.collect,
 }
 
 
 def _menu_choice_to_key(choice: str) -> str | None:
-    return {"1": "db", "2": "endpoints", "3": "devops"}.get(choice)
+    return {"1": "db", "2": "endpoints", "3": "devops", "4": "mcp", "5": "rag"}.get(choice)
 
 
 def _run(mode_key: str, mode_config: dict, prompts: PromptRegistry, ai: AIRunner) -> str:
@@ -70,6 +90,14 @@ def _run(mode_key: str, mode_config: dict, prompts: PromptRegistry, ai: AIRunner
         return run_mode(mode, APP_DIR, REPO_ROOT, prompts, ai, collect_fn,
                          implementation_prompt_fn=architecture_pipeline.build_implementation_prompt,
                          review_prompt_fn=architecture_pipeline.build_review_prompt)
+    if mode_key == "mcp":
+        return run_mode(mode, APP_DIR, REPO_ROOT, prompts, ai, collect_fn,
+                         implementation_prompt_fn=mcp_validation_pipeline.build_implementation_prompt,
+                         review_prompt_fn=mcp_validation_pipeline.build_review_prompt)
+    if mode_key == "rag":
+        return run_mode(mode, APP_DIR, REPO_ROOT, prompts, ai, collect_fn,
+                         implementation_prompt_fn=rag_validation_pipeline.build_implementation_prompt,
+                         review_prompt_fn=rag_validation_pipeline.build_review_prompt)
     raise ValueError(f"Unknown mode: {mode_key}")
 
 
@@ -83,25 +111,30 @@ def main() -> None:
         "DB": str(APP_DIR / "prompts" / "service"),
         "Endpoints": str(APP_DIR / "prompts" / "service"),
         "DevOps": str(APP_DIR / "prompts" / "devops"),
+        "MCP": str(APP_DIR / "prompts" / "mcp"),
+        "RAG": str(APP_DIR / "prompts" / "rag"),
     })
 
     while True:
-        reporter.print_menu([("1", "DB"), ("2", "Endpoints"), ("3", "DevOps"), ("4", "Run All")])
+        reporter.print_menu([
+            ("1", "DB"), ("2", "Endpoints"), ("3", "DevOps"),
+            ("4", "MCP"), ("5", "RAG"), ("6", "Run All"),
+        ])
         choice = input("Choose a review target: ").strip()
 
         if choice == "0":
             print("Loop closed.")
             break
 
-        if choice == "4":
-            for key in ("db", "endpoints", "devops"):
+        if choice == "6":
+            for key in ("db", "endpoints", "devops", "mcp", "rag"):
                 result = _run(key, mode_config, prompts, ai)
                 reporter.print_result(mode_config[key].label, result)
             continue
 
         mode_key = _menu_choice_to_key(choice)
         if not mode_key:
-            print("Invalid choice. Select 0, 1, 2, 3, or 4.")
+            print("Invalid choice. Select 0, 1, 2, 3, 4, 5, or 6.")
             continue
 
         result = _run(mode_key, mode_config, prompts, ai)

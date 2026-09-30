@@ -48,7 +48,7 @@ def get_missing_place_fields(data):
 
 def get_missing_saved_place_fields(data):
     required_fields = [
-        "journey_id",
+        "user_id",
         "attraction_id"
     ]
 
@@ -56,6 +56,15 @@ def get_missing_saved_place_fields(data):
         field for field in required_fields
         if field not in data or data[field] in (None, "")
     ]
+
+
+def get_positive_user_id(value):
+    try:
+        user_id = int(value)
+    except (TypeError, ValueError):
+        return None
+
+    return user_id if user_id > 0 else None
 
 def get_missing_recommendation_fields(data):
     required_fields = [
@@ -528,64 +537,39 @@ def delete_recommendation_request(request_id):
 
 @app.get("/saved-places")
 def get_saved_places():
-    journey_id = request.args.get("journey_id", "").strip()
+    user_id = get_positive_user_id(request.args.get("user_id"))
+
+    if user_id is None:
+        return jsonify({"error": "A valid user_id is required"}), 400
 
     conn = get_db_connection()
 
     try:
-        if journey_id:
-            saved_place_rows = conn.execute(
-                """
-                SELECT
-                    saved_places.saved_place_id,
-                    saved_places.journey_id,
-                    saved_places.attraction_id,
-                    saved_places.notes,
-                    saved_places.created_at,
-                    places.attraction_name,
-                    places.city,
-                    places.country,
-                    places.category,
-                    places.longitude,
-                    places.latitude,
-                    places.estimated_cost,
-                    places.currency,
-                    places.expected_duration_minutes
-                FROM saved_places
-                JOIN places
-                    ON saved_places.attraction_id =
-                       places.attraction_id
-                WHERE saved_places.journey_id = ?
-                ORDER BY saved_places.saved_place_id
-                """,
-                (journey_id,)
-            ).fetchall()
-
-        else:
-            saved_place_rows = conn.execute(
-                """
-                SELECT
-                    saved_places.saved_place_id,
-                    saved_places.journey_id,
-                    saved_places.attraction_id,
-                    saved_places.notes,
-                    saved_places.created_at,
-                    places.attraction_name,
-                    places.city,
-                    places.country,
-                    places.category,
-                    places.longitude,
-                    places.latitude,
-                    places.estimated_cost,
-                    places.currency,
-                    places.expected_duration_minutes
-                FROM saved_places
-                JOIN places
-                    ON saved_places.attraction_id =
-                       places.attraction_id
-                ORDER BY saved_places.saved_place_id
-                """
-            ).fetchall()
+        saved_place_rows = conn.execute(
+            """
+            SELECT
+                saved_places.saved_place_id,
+                saved_places.attraction_id,
+                saved_places.notes,
+                saved_places.created_at,
+                places.attraction_name,
+                places.city,
+                places.country,
+                places.category,
+                places.longitude,
+                places.latitude,
+                places.estimated_cost,
+                places.currency,
+                places.expected_duration_minutes
+            FROM saved_places
+            JOIN places
+                ON saved_places.attraction_id =
+                   places.attraction_id
+            WHERE saved_places.user_id = ?
+            ORDER BY saved_places.saved_place_id
+            """,
+            (user_id,)
+        ).fetchall()
 
         return jsonify([
             dict(saved_place)
@@ -598,6 +582,11 @@ def get_saved_places():
 
 @app.get("/saved-places/<int:saved_place_id>")
 def get_saved_place(saved_place_id):
+    user_id = get_positive_user_id(request.args.get("user_id"))
+
+    if user_id is None:
+        return jsonify({"error": "A valid user_id is required"}), 400
+
     conn = get_db_connection()
 
     try:
@@ -605,7 +594,6 @@ def get_saved_place(saved_place_id):
             """
             SELECT
                 saved_places.saved_place_id,
-                saved_places.journey_id,
                 saved_places.attraction_id,
                 saved_places.notes,
                 saved_places.created_at,
@@ -623,8 +611,9 @@ def get_saved_place(saved_place_id):
                 ON saved_places.attraction_id =
                    places.attraction_id
             WHERE saved_places.saved_place_id = ?
+              AND saved_places.user_id = ?
             """,
-            (saved_place_id,)
+            (saved_place_id, user_id)
         ).fetchone()
 
         if saved_place is None:
@@ -650,6 +639,11 @@ def add_saved_place():
             "fields": missing_fields
         }), 400
 
+    user_id = get_positive_user_id(data.get("user_id"))
+
+    if user_id is None:
+        return jsonify({"error": "A valid user_id is required"}), 400
+
     conn = get_db_connection()
 
     try:
@@ -670,14 +664,14 @@ def add_saved_place():
         cursor = conn.execute(
             """
             INSERT INTO saved_places (
-                journey_id,
+                user_id,
                 attraction_id,
                 notes
             )
             VALUES (?, ?, ?)
             """,
             (
-                data["journey_id"],
+                user_id,
                 data["attraction_id"],
                 data.get("notes", "")
             )
@@ -696,8 +690,7 @@ def add_saved_place():
         if "UNIQUE constraint failed" in str(exc):
             return jsonify({
                 "error": (
-                    "This place is already saved "
-                    "for the selected journey"
+                    "This attraction is already saved"
                 )
             }), 409
 
@@ -714,44 +707,25 @@ def add_saved_place():
 def update_saved_place(saved_place_id):
     data = request.get_json(silent=True) or {}
 
-    missing_fields = get_missing_saved_place_fields(data)
+    user_id = get_positive_user_id(data.get("user_id"))
 
-    if missing_fields:
-        return jsonify({
-            "error": "Missing required fields",
-            "fields": missing_fields
-        }), 400
+    if user_id is None:
+        return jsonify({"error": "A valid user_id is required"}), 400
 
     conn = get_db_connection()
 
     try:
-        place = conn.execute(
-            """
-            SELECT attraction_id
-            FROM places
-            WHERE attraction_id = ?
-            """,
-            (data["attraction_id"],)
-        ).fetchone()
-
-        if place is None:
-            return jsonify({
-                "error": "Place not found"
-            }), 404
-
         cursor = conn.execute(
             """
             UPDATE saved_places
-            SET journey_id = ?,
-                attraction_id = ?,
-                notes = ?
+            SET notes = ?
             WHERE saved_place_id = ?
+              AND user_id = ?
             """,
             (
-                data["journey_id"],
-                data["attraction_id"],
                 data.get("notes", ""),
-                saved_place_id
+                saved_place_id,
+                user_id
             )
         )
 
@@ -767,28 +741,17 @@ def update_saved_place(saved_place_id):
             "saved_place_id": saved_place_id
         }), 200
 
-    except sqlite3.IntegrityError as exc:
-        conn.rollback()
-
-        if "UNIQUE constraint failed" in str(exc):
-            return jsonify({
-                "error": (
-                    "This place is already saved "
-                    "for the selected journey"
-                )
-            }), 409
-
-        return jsonify({
-            "error": "Invalid saved place data",
-            "details": str(exc)
-        }), 400
-
     finally:
         conn.close()
 
 
 @app.delete("/saved-places/<int:saved_place_id>")
 def delete_saved_place(saved_place_id):
+    user_id = get_positive_user_id(request.args.get("user_id"))
+
+    if user_id is None:
+        return jsonify({"error": "A valid user_id is required"}), 400
+
     conn = get_db_connection()
 
     try:
@@ -796,8 +759,9 @@ def delete_saved_place(saved_place_id):
             """
             DELETE FROM saved_places
             WHERE saved_place_id = ?
+              AND user_id = ?
             """,
-            (saved_place_id,)
+            (saved_place_id, user_id)
         )
 
         if cursor.rowcount == 0:

@@ -12,6 +12,7 @@ def collect(app_dir, repo_root):
         "BACKEND_BASE_URL",
         DEFAULT_BACKEND_URL
     )
+    session_token = os.getenv("SESSION_TOKEN", "").strip()
 
     backend_file = app_dir / "backend" / "app.py"
 
@@ -30,13 +31,20 @@ def collect(app_dir, repo_root):
     if not routes:
         return False, "No Flask API routes were found."
 
+    saved_headers = (
+        {"Authorization": f"Bearer {session_token}"}
+        if session_token
+        else {}
+    )
+
     safe_checks = [
-        ("Health endpoint", f"{backend_url}/health"),
-        ("Places endpoint", f"{backend_url}/api/places"),
+        ("Health endpoint", f"{backend_url}/health", {}, 200),
+        ("Places endpoint", f"{backend_url}/api/places", {}, 200),
         (
             "Saved places endpoint",
-            f"{backend_url}/api/saved-places"
-            "?journey_id=AGENTIC-EVIDENCE"
+            f"{backend_url}/api/saved-places",
+            saved_headers,
+            200 if session_token else 401
         )
     ]
 
@@ -44,14 +52,18 @@ def collect(app_dir, repo_root):
     failed_checks = []
 
     try:
-        for name, url in safe_checks:
-            response = requests.get(url, timeout=5)
+        for name, url, headers, expected_status in safe_checks:
+            response = requests.get(
+                url,
+                headers=headers,
+                timeout=5
+            )
 
             results.append(
                 f"{name} returned HTTP {response.status_code}"
             )
 
-            if response.status_code != 200:
+            if response.status_code != expected_status:
                 failed_checks.append(name)
 
         if failed_checks:
@@ -82,4 +94,4 @@ def collect(app_dir, repo_root):
         return False, "A backend endpoint request timed out."
 
     except requests.RequestException as error:
-        return False, f"Endpoint request failed: {error}"   
+        return False, f"Endpoint request failed: {error}"

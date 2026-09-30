@@ -1,0 +1,1 @@
+Assess the MCP tool-call evidence below. State whether each tool call succeeded and returned a valid, structured result, and give an overall pass/fail verdict for the MCP integration.

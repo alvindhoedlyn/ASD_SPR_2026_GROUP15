@@ -3,7 +3,7 @@ from shared.agentic_loop.config.review_config import ModeConfig
 
 def build_mode_config() -> dict[str, ModeConfig]:
     return {
-                "db": ModeConfig(
+        "db": ModeConfig(
             key="db",
             label="DB",
             prompt_family="service",
@@ -31,6 +31,28 @@ def build_mode_config() -> dict[str, ModeConfig]:
             key="devops",
             label="DevOps",
             prompt_family="devops",
+            implementation_prompts=(
+                "implementation/system_prompt.txt",
+                "implementation/task_prompt.txt",
+            ),
+            review_prompts=("review/review_prompt.txt",),
+            two_stage=True,
+        ),
+        "mcp": ModeConfig(
+            key="mcp",
+            label="MCP",
+            prompt_family="mcp",
+            implementation_prompts=(
+                "implementation/system_prompt.txt",
+                "implementation/task_prompt.txt",
+            ),
+            review_prompts=("review/review_prompt.txt",),
+            two_stage=True,
+        ),
+        "rag": ModeConfig(
+            key="rag",
+            label="RAG",
+            prompt_family="rag",
             implementation_prompts=(
                 "implementation/system_prompt.txt",
                 "implementation/task_prompt.txt",

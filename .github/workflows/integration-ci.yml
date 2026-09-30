@@ -23,9 +23,6 @@ jobs:
       - name: Wait for services to be ready
         run: sleep 20
 
-      - name: Pull Ollama model
-        run: docker exec ai-mode ollama pull qwen2.5:0.5b
-
       - name: Check all containers are running
         run: |
           docker compose ps

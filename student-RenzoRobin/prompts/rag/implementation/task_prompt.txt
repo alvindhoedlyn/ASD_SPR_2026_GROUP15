@@ -1,0 +1,1 @@
+Assess the RAG evidence below, which contains one query expected to be grounded and one expected to be insufficient-context. State whether each behaved correctly, and give an overall pass/fail verdict for the RAG integration.
