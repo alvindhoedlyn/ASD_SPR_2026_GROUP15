@@ -507,3 +507,195 @@ def test_saved_places_reject_invalid_session(client):
     assert response.get_json()["error"] == (
         "Invalid or expired session"
     )
+
+def test_release_one_status_when_services_are_disabled(client):
+    with (
+        patch.object(backend_app, "MCP_ENABLED", False),
+        patch.object(backend_app, "RAG_ENABLED", False),
+        patch.object(backend_app, "MCP_SERVER_URL", ""),
+        patch.object(backend_app, "RAG_SERVER_URL", "")
+    ):
+        response = client.get("/api/release-1/status")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "mcp": {
+            "enabled": False,
+            "configured": False
+        },
+        "rag": {
+            "enabled": False,
+            "configured": False
+        }
+    }
+
+
+def test_release_one_status_when_services_are_configured(client):
+    with (
+        patch.object(backend_app, "MCP_ENABLED", True),
+        patch.object(backend_app, "RAG_ENABLED", True),
+        patch.object(
+            backend_app,
+            "MCP_SERVER_URL",
+            "http://example-mcp"
+        ),
+        patch.object(
+            backend_app,
+            "RAG_SERVER_URL",
+            "http://example-rag"
+        )
+    ):
+        response = client.get("/api/release-1/status")
+
+    assert response.status_code == 200
+
+    response_data = response.get_json()
+
+    assert response_data["mcp"] == {
+        "enabled": True,
+        "configured": True
+    }
+    assert response_data["rag"] == {
+        "enabled": True,
+        "configured": True
+    }
+
+def test_rag_answer_is_disabled_during_ci(client):
+    with (
+        patch.object(backend_app, "RAG_ENABLED", False),
+        patch.object(
+            backend_app.requests,
+            "post"
+        ) as mock_post
+    ):
+        response = client.post(
+            "/api/rag/answer",
+            json={"query": "Which attractions are free?"}
+        )
+
+    assert response.status_code == 403
+    assert response.get_json()["error"] == (
+        "RAG mode is disabled"
+    )
+    mock_post.assert_not_called()
+
+
+def test_rag_answer_requires_query(client):
+    with patch.object(
+        backend_app,
+        "RAG_ENABLED",
+        True
+    ):
+        response = client.post(
+            "/api/rag/answer",
+            json={}
+        )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "query is required"
+
+
+def test_rag_answer_returns_grounded_response(client):
+    rag_result = {
+        "status": "success",
+        "query": "Which Sydney attractions are free?",
+        "answer": (
+            "The Royal Botanic Garden and Bondi Beach "
+            "have an estimated cost of 0 AUD."
+        ),
+        "citations": [
+            {
+                "chunk_id": "location_2",
+                "source_id": (
+                    "student-TrongDao-database:/places/2"
+                ),
+                "authority_tier": "tier_1"
+            }
+        ],
+        "confidence_category": "High",
+        "retrieval_summary": {
+            "k": 5,
+            "retrieved_count": 5,
+            "top_chunk": "location_2"
+        }
+    }
+
+    with (
+        patch.object(backend_app, "RAG_ENABLED", True),
+        patch.object(
+            backend_app,
+            "RAG_SERVER_URL",
+            "http://rag-server.test"
+        ),
+        patch.object(
+            backend_app.requests,
+            "post",
+            return_value=FakeResponse(rag_result)
+        ) as mock_post
+    ):
+        response = client.post(
+            "/api/rag/answer",
+            json={
+                "query": "Which Sydney attractions are free?",
+                "k": 5
+            }
+        )
+
+    assert response.status_code == 200
+    assert response.get_json() == rag_result
+
+    mock_post.assert_called_once_with(
+        "http://rag-server.test/answer",
+        json={
+            "query": "Which Sydney attractions are free?",
+            "k": 5,
+            "caller": "student-TrongDao"
+        },
+        timeout=backend_app.RAG_REQUEST_TIMEOUT
+    )
+
+
+def test_rag_answer_preserves_insufficient_context(client):
+    rag_result = {
+        "status": "insufficient_context",
+        "query": "Which attractions are open on Mars?",
+        "answer": (
+            "Insufficient context available to answer "
+            "this question."
+        ),
+        "citations": [],
+        "confidence_category": "Insufficient",
+        "retrieval_summary": {
+            "k": 5,
+            "retrieved_count": 5
+        }
+    }
+
+    with (
+        patch.object(backend_app, "RAG_ENABLED", True),
+        patch.object(
+            backend_app,
+            "RAG_SERVER_URL",
+            "http://rag-server.test"
+        ),
+        patch.object(
+            backend_app.requests,
+            "post",
+            return_value=FakeResponse(rag_result)
+        )
+    ):
+        response = client.post(
+            "/api/rag/answer",
+            json={
+                "query": "Which attractions are open on Mars?"
+            }
+        )
+
+    assert response.status_code == 200
+    assert response.get_json()["status"] == (
+        "insufficient_context"
+    )
+    assert response.get_json()["citations"] == []
+    assert response.get_json()["confidence_category"] == (
+        "Insufficient"
+    )

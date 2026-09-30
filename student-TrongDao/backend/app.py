@@ -43,8 +43,65 @@ OLLAMA_REVIEW_MODEL = os.getenv(
 )
 
 
+RAG_REQUEST_TIMEOUT = int(
+    os.getenv("RAG_REQUEST_TIMEOUT", "30")
+)
+
+
+def rag_mode_is_enabled(current_request):
+    if not RAG_ENABLED:
+        return False
+
+    header_value = current_request.headers.get(
+        "X-RAG-Mode",
+        "on"
+    )
+
+    return header_value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on"
+    }
+
+
+def call_rag_service(path, payload):
+    if not RAG_SERVER_URL:
+        return {
+            "error": "RAG server is not configured"
+        }, 503
+
+    try:
+        response = requests.post(
+            f"{RAG_SERVER_URL}{path}",
+            json=payload,
+            timeout=RAG_REQUEST_TIMEOUT
+        )
+    except requests.ConnectionError:
+        return {
+            "error": "RAG server is unavailable"
+        }, 502
+    except requests.Timeout:
+        return {
+            "error": "RAG server request timed out"
+        }, 504
+    except requests.RequestException as error:
+        return {
+            "error": "RAG server request failed",
+            "details": str(error)
+        }, 502
+
+    try:
+        response_data = response.json()
+    except ValueError:
+        return {
+            "error": "RAG server returned invalid JSON"
+        }, 502
+
+    return response_data, response.status_code
+
+
 def get_current_user_id():
-    """Resolve the caller's bearer token through the shared auth service."""
     auth_header = request.headers.get("Authorization", "")
 
     if not auth_header.startswith("Bearer "):
@@ -95,6 +152,32 @@ def get_current_user_id():
 
     return user_id, None
 
+def environment_flag(name, default=False):
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on"
+    }
+
+
+MCP_ENABLED = environment_flag("MCP_ENABLED")
+RAG_ENABLED = environment_flag("RAG_ENABLED")
+
+MCP_SERVER_URL = os.getenv(
+    "MCP_SERVER_URL",
+    ""
+).rstrip("/")
+
+RAG_SERVER_URL = os.getenv(
+    "RAG_SERVER_URL",
+    ""
+).rstrip("/")
 
 def call_ollama(system_prompt, user_prompt, model):
     response = requests.post(
@@ -217,6 +300,58 @@ def home():
 def health():
     return {"status": "ok", "student": "4: TrongDao"}
 
+
+@app.get("/api/release-1/status")
+def release_one_status():
+    return jsonify({
+        "mcp": {
+            "enabled": MCP_ENABLED,
+            "configured": bool(MCP_SERVER_URL)
+        },
+        "rag": {
+            "enabled": RAG_ENABLED,
+            "configured": bool(RAG_SERVER_URL)
+        }
+    }), 200
+
+
+@app.post("/api/rag/answer")
+def answer_rag_question():
+    if not rag_mode_is_enabled(request):
+        return jsonify({
+            "error": "RAG mode is disabled"
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    query = str(data.get("query", "")).strip()
+
+    if not query:
+        return jsonify({
+            "error": "query is required"
+        }), 400
+
+    try:
+        result_count = int(data.get("k", 5))
+    except (TypeError, ValueError):
+        return jsonify({
+            "error": "k must be an integer"
+        }), 400
+
+    if result_count < 1 or result_count > 10:
+        return jsonify({
+            "error": "k must be between 1 and 10"
+        }), 400
+
+    response_data, status_code = call_rag_service(
+        "/answer",
+        {
+            "query": query,
+            "k": result_count,
+            "caller": "student-TrongDao"
+        }
+    )
+
+    return jsonify(response_data), status_code
 
 @app.route("/api/places", methods=["GET"])
 def get_places():

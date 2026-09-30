@@ -6,10 +6,33 @@ Run locally (NOT in Docker):
     pip install -r requirements.txt
     python server.py
 """
+import os
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import (
+    TransportSecuritySettings
+)
 
-mcp = FastMCP("Group Travel App MCP Server")
+MCP_HOST = os.getenv("MCP_HOST", "0.0.0.0")
+MCP_PORT = int(os.getenv("MCP_PORT", "5200"))
+
+mcp = FastMCP(
+    "Group Travel App MCP Server",
+    host=MCP_HOST,
+    port=MCP_PORT,
+    streamable_http_path="/mcp",
+    json_response=True,
+    stateless_http=True,
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[
+            f"localhost:{MCP_PORT}",
+            f"127.0.0.1:{MCP_PORT}",
+            f"host.docker.internal:{MCP_PORT}"
+        ]
+    )
+)
 
 from tools_accommodation import (
     get_accommodations_by_city,
@@ -22,11 +45,18 @@ from tools_itinerary import (
     get_activity_categories,
 )
 
+from tools_location import (
+    attractions_by_city as get_attractions_by_city,
+    attraction_details as get_attraction_details,
+)
+
 AVAILABLE_TOOLS = [
     "accommodations_by_city",   # student-3 / RenzoRobin
     "accommodation_details",    # student-3 / RenzoRobin
     "available_journeys",       # Itinerary / Travel App (AlvindhoEdlyn)
     "generate_trip_itinerary",  # Itinerary / Travel App (AlvindhoEdlyn)
+    "attractions_by_city",   # student-4 / TrongPhucDao
+    "attraction_details",   # student-4 / TrongPhucDao
 ]
 
 # ACCOMMODATION TOOL SET----
@@ -76,6 +106,22 @@ def activity_categories_resource() -> str:
     return get_activity_categories()
 # ITINERARY TOOL SET----
 
+# ATTRACTION TOOL SET
+@mcp.tool()
+def attractions_by_city(
+    city: str,
+    category: str | None = None,
+) -> dict[str, Any]:
+    """Return attractions in a city, optionally filtered by category."""
+    return get_attractions_by_city(city, category)
+
+
+@mcp.tool()
+def attraction_details(attraction_id: int) -> dict[str, Any]:
+    """Return detailed information for one attraction."""
+    return get_attraction_details(attraction_id)
+# ATTRACTION TOOL SET
+
 if __name__ == "__main__":
     print("Starting Group Travel App MCP Server...")
     print("Server status: RUNNING")
@@ -83,4 +129,8 @@ if __name__ == "__main__":
     print("Available tools:")
     for tool in AVAILABLE_TOOLS:
         print(f"- {tool}")
-    mcp.run()
+    print(
+    f"Streamable HTTP endpoint: "
+    f"http://localhost:{MCP_PORT}/mcp"
+    )
+    mcp.run(transport="streamable-http")
