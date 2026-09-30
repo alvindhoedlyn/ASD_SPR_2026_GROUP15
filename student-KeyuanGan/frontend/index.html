@@ -1888,7 +1888,123 @@
 
     </section>
 
- 
+     <!-- RAG Knowledge Assistant -->
+
+    <section class="section ai-section">
+
+        <div class="ai-header">
+
+            <h3>
+                RAG Knowledge Assistant
+            </h3>
+
+            <span class="ai-badge">
+                Shared RAG
+            </span>
+
+        </div>
+
+        <p class="section-description">
+            Ask questions about the JourneyBuddy Budget Tracker.
+            Answers are retrieved from the approved shared knowledge base
+            and include a confidence level and source citation.
+        </p>
+
+        <div class="form-group">
+
+            <label for="rag-question">
+                Question
+            </label>
+
+            <input
+                type="text"
+                id="rag-question"
+                placeholder="e.g. How is remaining budget calculated?"
+            >
+
+        </div>
+
+        <div class="form-actions">
+
+            <button
+                class="primary-btn"
+                type="button"
+                id="rag-query-btn"
+            >
+                Ask RAG
+            </button>
+
+        </div>
+
+        <div
+            id="rag-loading"
+            style="display:none; margin-top:20px;"
+        >
+            Searching the JourneyBuddy knowledge base...
+        </div>
+
+        <div
+            id="rag-result"
+            style="display:none; margin-top:25px;"
+        >
+
+            <h4 class="ai-result-title">
+                Answer
+            </h4>
+
+            <div
+                id="rag-answer"
+                class="ai-advice-box"
+            >
+            </div>
+
+            <div class="ai-summary-grid">
+
+                <div class="ai-summary-item">
+
+                    <p>Confidence</p>
+
+                    <strong id="rag-confidence">
+                        -
+                    </strong>
+
+                </div>
+
+                <div class="ai-summary-item">
+
+                    <p>Source</p>
+
+                    <strong id="rag-source">
+                        -
+                    </strong>
+
+                </div>
+
+                <div class="ai-summary-item">
+
+                    <p>Section</p>
+
+                    <strong id="rag-section">
+                        -
+                    </strong>
+
+                </div>
+
+                <div class="ai-summary-item">
+
+                    <p>Service</p>
+
+                    <strong id="rag-service">
+                        Shared RAG
+                    </strong>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
 
     <!-- Expense Form -->
 
@@ -3235,8 +3351,7 @@ async function loadBudgetSettings() {
  
 
                         );
-
- 
+    
 
                         loadBudgetSummary();
 
@@ -4810,49 +4925,243 @@ async function loadBudgetSettings() {
 
  
 
-    document
-
- 
-
+       document
         .getElementById(
-
- 
-
             "ai-advice-btn"
-
- 
-
         )
-
- 
-
         .addEventListener(
-
- 
-
             "click",
-
- 
-
             loadAiBudgetAdvice
-
- 
-
         );
 
- 
+
+    async function queryRagKnowledge() {
+
+        const questionInput =
+            document.getElementById(
+                "rag-question"
+            );
+
+        const button =
+            document.getElementById(
+                "rag-query-btn"
+            );
+
+        const loading =
+            document.getElementById(
+                "rag-loading"
+            );
+
+        const resultContainer =
+            document.getElementById(
+                "rag-result"
+            );
+
+        const answerContainer =
+            document.getElementById(
+                "rag-answer"
+            );
+
+        const confidenceContainer =
+            document.getElementById(
+                "rag-confidence"
+            );
+
+        const sourceContainer =
+            document.getElementById(
+                "rag-source"
+            );
+
+        const sectionContainer =
+            document.getElementById(
+                "rag-section"
+            );
+
+        const question =
+            questionInput.value.trim();
+
+
+        if (!question) {
+
+            showMessage(
+                "Please enter a RAG question.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        button.disabled = true;
+
+        button.textContent =
+            "Searching...";
+
+        loading.style.display =
+            "block";
+
+        resultContainer.style.display =
+            "none";
+
+
+        try {
+
+            const response =
+                await fetch(
+                    `${API_BASE}/api/rag/query`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            question: question
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.details ||
+                    data.error ||
+                    "Unable to query RAG server"
+                );
+            }
+
+
+            const result =
+                data.result || {};
+
+
+            answerContainer.textContent =
+                result.answer ||
+                "No answer was returned.";
+
+
+            confidenceContainer.textContent =
+                result.confidence ||
+                "unknown";
+
+
+            const sources =
+                Array.isArray(
+                    result.sources
+                )
+                    ? result.sources
+                    : [];
+
+
+            if (sources.length > 0) {
+
+                sourceContainer.textContent =
+                    sources
+                        .map(
+                            source =>
+                                source.document
+                        )
+                        .filter(
+                            (
+                                value,
+                                index,
+                                array
+                            ) =>
+                                array.indexOf(
+                                    value
+                                ) === index
+                        )
+                        .join(", ");
+
+
+                sectionContainer.textContent =
+                    sources
+                        .map(
+                            source =>
+                                source.section
+                        )
+                        .filter(
+                            Boolean
+                        )
+                        .join(", ");
+
+            } else {
+
+                sourceContainer.textContent =
+                    "No source";
+
+                sectionContainer.textContent =
+                    "Insufficient context";
+            }
+
+
+            resultContainer.style.display =
+                "block";
+
+
+        } catch (error) {
+
+            showMessage(
+                `RAG Error: ${error.message}`,
+                "error"
+            );
+
+        } finally {
+
+            loading.style.display =
+                "none";
+
+            button.disabled =
+                false;
+
+            button.textContent =
+                "Ask RAG";
+        }
+    }
+
+
+    document
+        .getElementById(
+            "rag-query-btn"
+        )
+        .addEventListener(
+            "click",
+            queryRagKnowledge
+        );
+
+
+    document
+        .getElementById(
+            "rag-question"
+        )
+        .addEventListener(
+            "keydown",
+            function(event) {
+
+                if (
+                    event.key === "Enter"
+                ) {
+
+                    event.preventDefault();
+
+                    queryRagKnowledge();
+                }
+            }
+        );
+
 
     loadBudgetSummary();
 
- 
-
     loadBudgetSettings();
 
- 
-
     loadExpenses();
-
- 
 
 </script>
 
