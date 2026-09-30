@@ -13,7 +13,13 @@ DATABASE_API_URL = os.environ.get("DATABASE_API_URL", "http://student-RenzoRobin
 OLLAMA_URL = os.environ.get("OLLAMA_BASE_URL", "http://ai-mode:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
 
+MCP_ENABLED = os.environ.get("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
 client = OpenAI(base_url=f"{OLLAMA_URL}/v1", api_key="ollama")
+
+RAG_ENABLED = os.environ.get("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+RAG_SERVICE_URL = os.environ.get("RAG_SERVICE_URL", "http://host.docker.internal:5100")
+RAG_SERVICE_TIMEOUT_SECONDS = int(os.environ.get("RAG_SERVICE_TIMEOUT_SECONDS", "180"))
 
 
 # ===================== HELPER VALIDATORS =====================
@@ -460,6 +466,134 @@ def explain_compare():
             "detail": str(exc)
         }), 503
 
+def mcp_mode_is_enabled(req):
+    """Checks the global MCP_ENABLED env var AND a per-request header,
+    so the frontend toggle (X-MCP-Mode) can turn MCP off without
+    restarting the service."""
+    if not MCP_ENABLED:
+        return False
+    mode_header = req.headers.get("X-MCP-Mode", "on").strip().lower()
+    return mode_header in ("1", "true", "yes", "on")
+ 
+ 
+def mcp_disabled_response():
+    return jsonify({"error": "MCP mode is disabled"}), 403
+ 
+ 
+@app.route("/mcp/accommodations-by-city", methods=["POST"])
+def mcp_accommodations_by_city():
+    if not mcp_mode_is_enabled(request):
+        return mcp_disabled_response()
+ 
+    data = request.get_json(silent=True) or request.form
+    city_area = (data.get("city_area") or "").strip()
+    if not city_area:
+        return jsonify({"error": "city_area is required"}), 400
+ 
+    body, status = db_get("/accommodations", params={"city": city_area})
+    return jsonify({
+        "tool": "accommodations_by_city",
+        "input": {"city_area": city_area},
+        "result": body,
+    }), status
+ 
+ 
+@app.route("/mcp/accommodation-details/<int:accommodation_id>", methods=["POST"])
+def mcp_accommodation_details(accommodation_id):
+    if not mcp_mode_is_enabled(request):
+        return mcp_disabled_response()
+ 
+    details, status = db_get(f"/accommodations/{accommodation_id}")
+    if status >= 400:
+        return jsonify({
+            "tool": "accommodation_details",
+            "input": {"accommodation_id": accommodation_id},
+            "result": details,
+        }), status
+ 
+    rooms, rooms_status = db_get(f"/accommodations/{accommodation_id}/rooms")
+    if rooms_status >= 400:
+        rooms = []
+ 
+    if isinstance(details, dict):
+        details["rooms"] = rooms
+ 
+    return jsonify({
+        "tool": "accommodation_details",
+        "input": {"accommodation_id": accommodation_id},
+        "result": details,
+    }), status
 
+def rag_mode_is_enabled(req):
+    if not RAG_ENABLED:
+        return False
+    mode_header = req.headers.get("X-RAG-Mode", "on").strip().lower()
+    return mode_header in ("1", "true", "yes", "on")
+ 
+ 
+def rag_disabled_response():
+    return jsonify({"error": "RAG mode is disabled"}), 403
+ 
+ 
+def call_rag_service(path, payload):
+    url = f"{RAG_SERVICE_URL}{path}"
+    try:
+        resp = requests.post(url, json=payload, timeout=RAG_SERVICE_TIMEOUT_SECONDS)
+    except requests.exceptions.ConnectionError as exc:
+        return {"error": "RAG service unavailable", "detail": str(exc)}, 502
+    except requests.exceptions.Timeout as exc:
+        return {"error": "RAG service timed out", "detail": str(exc)}, 502
+ 
+    try:
+        body = resp.json()
+    except ValueError:
+        return {"error": "RAG service returned invalid response", "detail": resp.text[:200]}, 502
+ 
+    # insufficient_context is a valid, expected outcome from the RAG server
+    if resp.status_code >= 400 and body.get("status") != "insufficient_context":
+        return {"error": "RAG service error", "detail": body}, resp.status_code
+ 
+    return body, resp.status_code
+ 
+ 
+@app.route("/rag/refresh", methods=["POST"])
+def rag_refresh():
+    if not rag_mode_is_enabled(request):
+        return rag_disabled_response()
+ 
+    data = request.get_json(silent=True) or {}
+    caller = (data.get("caller") or "student").strip() or "student"
+    body, status = call_rag_service("/refresh", {"caller": caller})
+    return jsonify(body), status
+ 
+ 
+@app.route("/rag/retrieve", methods=["POST"])
+def rag_retrieve():
+    if not rag_mode_is_enabled(request):
+        return rag_disabled_response()
+ 
+    data = request.get_json(silent=True) or {}
+    query = (data.get("query") or "").strip()
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+ 
+    k = int(data.get("k", 5))
+    body, status = call_rag_service("/retrieve", {"query": query, "k": k, "caller": "student"})
+    return jsonify(body), status
+ 
+@app.route("/rag/answer", methods=["POST"])
+def rag_answer():
+    if not rag_mode_is_enabled(request):
+        return rag_disabled_response()
+ 
+    data = request.get_json(silent=True) or {}
+    query = (data.get("query") or "").strip()
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+ 
+    k = int(data.get("k", 5))
+    body, status = call_rag_service("/answer", {"query": query, "k": k, "caller": "student"})
+    return jsonify(body), status
+ 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT)

@@ -21,3 +21,8 @@ build/
 
 # Generated SQLite databases
 *.db
+
+# RAG server generated/regenerable state (rebuilt via refresh_corpus)
+ai-services/rag-server/chroma/
+ai-services/rag-server/corpus/
+*.sqlite3

@@ -1,26 +1,16 @@
-You are a travel assistant planning a day trip itinerary.
+Plan ONE activity for a day trip.
 
-Context:
-- Location: "{location}"
-- Weather: "{weather}"
-- User Preferences: "{preferences}"
+Location: {location}
+Weather: {weather}
+Preferences: {preferences}
 
-Available Activity Categories and Items:
+Activities you may choose from:
 {categories}
 
-Strict Instructions:
-1. WEATHER CONSTRAINT (MANDATORY):
-   - IF weather is "Light Rain", "Thunderstorms", or "Tropical Downpour": You MUST ONLY select an INDOOR activity (e.g., Museum visit, Art gallery tour, Cafe hopping, Cooking class, Spa visit, Boutique shopping). DO NOT select outdoor activities like hiking, beach, or kayaking.
-   - IF weather is "Sunny", "Clear", or "Partly Cloudy": You MUST ONLY select an OUTDOOR activity (e.g., Beach day, Hiking trail, Kayaking, Botanical gardens walk, Viewpoint photography, Bike rental).
-   - IF weather is "Overcast", "Breezy", "Windy", or "Foggy": Select flexible sightseeing or cultural options.
+Rules:
+- Choose exactly one item from the list above, copied exactly as written.
+- {weather_rule}
+- "category" must be the category the chosen item belongs to.
 
-2. SINGLE ACTIVITY RULE:
-   - Select EXACTLY ONE single activity. Do not combine multiple activities (e.g., return "Museum visit", NOT "Museum visit and Cafe hopping").
-   - Select the activity item directly from the provided "{categories}" list if applicable.
-
-3. OUTPUT FORMAT:
-   - "category": Must match an exact category name from the available categories list.
-   - "itinerary_item": Must contain EXACTLY ONE activity description string.
-   - "summary": A 1-2 sentence concise narrative summary of the single planned activity.
-
-Respond strictly in valid raw JSON with keys: "summary", "category", and "itinerary_item". Do not wrap in markdown code blocks like ```json. Do not include any extra text.
+Reply with JSON only:
+{{"itinerary_item": "Museum visit", "category": "Culture"}}

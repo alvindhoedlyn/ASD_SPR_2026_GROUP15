@@ -34,7 +34,10 @@
         <div class="tabs">
             <button class="tab-btn active" data-tab="recommend">Recommendations</button>
             <button class="tab-btn" data-tab="manage" id="manage-tab-btn">Manage Listings</button>
+            <button class="tab-btn" data-tab="mcp" id="mcp-tab-btn">MCP Tools</button>
+            <button class="tab-btn" data-tab="rag" id="rag-tab-btn">RAG Assistant</button>
         </div>
+
 
         <div id="area-select-modal" class="modal-overlay">
             <div class="modal-box">
@@ -132,6 +135,86 @@
 
         </section>
 
+        <section id="tab-mcp" class="tab-panel">
+
+            <div class="priority-panel">
+                <h2>MCP Tools</h2>
+                <p class="panel-sub">Run shared MCP tools against the accommodation data.</p>
+
+                <div class="slider-row">
+                    <label for="mcp-mode-toggle">MCP Enabled</label>
+                    <input type="checkbox" id="mcp-mode-toggle" checked>
+                    <span class="slider-val" id="mcp-mode-state">ON</span>
+                </div>
+            </div>
+
+            <div class="results-header">
+                <h2>Accommodations by City</h2>
+            </div>
+            <form id="mcp-city-form" class="listing-form-modal-fields">
+                <input class="field-input" type="text" id="mcp_city_area" placeholder="e.g. Sydney" required>
+                <button class="btn-primary" type="submit">Run Tool</button>
+            </form>
+
+            <div class="results-header">
+                <h2>Accommodation Details</h2>
+            </div>
+            <form id="mcp-details-form" class="listing-form-modal-fields">
+                <input class="field-input" type="number" id="mcp_accommodation_id" placeholder="Accommodation ID"
+                    required>
+                <button class="btn-primary" type="submit">Run Tool</button>
+            </form>
+
+            <div class="results-header">
+                <h2>Result</h2>
+            </div>
+            <pre id="mcp-result" class="panel-sub">MCP tool responses will appear here.</pre>
+
+        </section>
+
+        <section id="tab-rag" class="tab-panel">
+
+            <div class="priority-panel">
+                <h2>RAG Assistant</h2>
+                <p class="panel-sub">Ask grounded questions about accommodations. Answers cite their sources and show a
+                    confidence category.</p>
+
+                <div class="slider-row">
+                    <label for="rag-mode-toggle">RAG Enabled</label>
+                    <input type="checkbox" id="rag-mode-toggle" checked>
+                    <span class="slider-val" id="rag-mode-state">ON</span>
+                </div>
+            </div>
+
+            <div class="results-header">
+                <h2>Refresh Knowledge Base</h2>
+            </div>
+            <form id="rag-refresh-form" class="listing-form-modal-fields">
+                <button class="btn-secondary" type="submit">Refresh Corpus</button>
+            </form>
+
+            <div class="results-header">
+                <h2>Ask a Question</h2>
+            </div>
+            <form id="rag-answer-form" class="listing-form-modal-fields">
+                <input class="field-input" type="text" id="rag_question"
+                    placeholder="e.g. What accommodations are in Kyoto?" required>
+                <button class="btn-primary" type="submit">Ask</button>
+            </form>
+
+            <div class="results-header">
+                <h2>Answer</h2>
+            </div>
+            <div id="rag-answer-box" class="panel-sub">Answers will appear here, with citations and a confidence
+                category.</div>
+
+            <div class="results-header">
+                <h2>Raw Result</h2>
+            </div>
+            <pre id="rag-result" class="panel-sub">RAG tool responses will appear here.</pre>
+
+        </section>
+
         <!-- ===================== ADD/EDIT LISTING FORM (modal) ===================== -->
         <div id="listing-form-modal" class="modal-overlay" hidden>
             <div class="modal-box modal-wide">
@@ -184,6 +267,8 @@
 
     <script src="http://localhost:3000/js/main.js"></script>
     <script src="./js/accommodation.js"></script>
+    <script src="./js/mcp.js"></script>
+    <script src="./js/rag.js"></script>
 </body>
 
 </html>

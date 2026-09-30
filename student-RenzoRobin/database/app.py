@@ -56,41 +56,41 @@ def init_db():
 
 def seed_data(conn):
     accommodations = [
-        # ---- Bali, Indonesia ----
-        ("Ubud Riverside Villa", "Bali, Indonesia", "A quiet villa in Ubud beside a working rice terrace, ten minutes from central Ubud.", ["wifi", "pool", "breakfast"], 4.8, 210),
-        ("Ubud Rice Terrace Bungalow", "Bali, Indonesia", "Wooden bungalow in Ubud overlooking Tegallalang, popular with couples.", ["wifi", "breakfast"], 4.6, 88),
-        ("Ubud Forest Eco Lodge", "Bali, Indonesia", "Sustainable lodge in Ubud near the Monkey Forest, solar-powered.", ["wifi", "parking"], 4.5, 54),
-        ("Ubud Art House Homestay", "Bali, Indonesia", "Family homestay in Ubud run by local painters, walk to the art market.", ["wifi", "breakfast"], 4.7, 41),
-        ("Ubud Yoga Retreat Room", "Bali, Indonesia", "Simple room in Ubud attached to a daily yoga studio.", ["wifi"], 4.4, 63),
-        ("Ubud Palace View Suite", "Bali, Indonesia", "Suite overlooking the Ubud Water Palace courtyard.", ["wifi", "pool", "breakfast", "parking"], 4.9, 132),
-        ("Ubud Jungle Pool Villa", "Bali, Indonesia", "Private pool villa in Ubud surrounded by jungle canopy.", ["wifi", "pool", "parking"], 4.8, 176),
-        ("Ubud Backpacker Hostel", "Bali, Indonesia", "Budget dorms and privates in Ubud, five minutes from the market.", ["wifi"], 3.8, 310),
-        ("Ubud Organic Farmstay", "Bali, Indonesia", "Stay on a working organic farm near Ubud with cooking classes.", ["wifi", "breakfast"], 4.6, 47),
-        ("Ubud Central Boutique Inn", "Bali, Indonesia", "Small boutique inn right on Ubud's Monkey Forest Road.", ["wifi", "breakfast", "parking"], 4.3, 120),
+        # ---- Bali ----
+        ("Ubud Riverside Villa", "Bali", "A quiet villa in Ubud beside a working rice terrace, ten minutes from central Ubud.", ["wifi", "pool", "breakfast"], 4.8, 210),
+        ("Ubud Rice Terrace Bungalow", "Bali", "Wooden bungalow in Ubud overlooking Tegallalang, popular with couples.", ["wifi", "breakfast"], 4.6, 88),
+        ("Ubud Forest Eco Lodge", "Bali", "Sustainable lodge in Ubud near the Monkey Forest, solar-powered.", ["wifi", "parking"], 4.5, 54),
+        ("Ubud Art House Homestay", "Bali", "Family homestay in Ubud run by local painters, walk to the art market.", ["wifi", "breakfast"], 4.7, 41),
+        ("Ubud Yoga Retreat Room", "Bali", "Simple room in Ubud attached to a daily yoga studio.", ["wifi"], 4.4, 63),
+        ("Ubud Palace View Suite", "Bali", "Suite overlooking the Ubud Water Palace courtyard.", ["wifi", "pool", "breakfast", "parking"], 4.9, 132),
+        ("Ubud Jungle Pool Villa", "Bali", "Private pool villa in Ubud surrounded by jungle canopy.", ["wifi", "pool", "parking"], 4.8, 176),
+        ("Ubud Backpacker Hostel", "Bali", "Budget dorms and privates in Ubud, five minutes from the market.", ["wifi"], 3.8, 310),
+        ("Ubud Organic Farmstay", "Bali", "Stay on a working organic farm near Ubud with cooking classes.", ["wifi", "breakfast"], 4.6, 47),
+        ("Ubud Central Boutique Inn", "Bali", "Small boutique inn right on Ubud's Monkey Forest Road.", ["wifi", "breakfast", "parking"], 4.3, 120),
 
-        # ---- Kyoto, Japan ----
-        ("Kyoto Machiya Townhouse", "Kyoto, Japan", "Restored wooden machiya near Gion, with a private tsuboniwa garden.", ["wifi", "parking"], 4.8, 150),
-        ("Kyoto Station Capsule Inn", "Kyoto, Japan", "Compact capsule stay two minutes from Kyoto Station.", ["wifi"], 4.0, 260),
-        ("Kyoto Riverside Ryokan", "Kyoto, Japan", "Traditional ryokan on the Kamo River with kaiseki breakfast.", ["wifi", "breakfast"], 4.9, 98),
-        ("Kyoto Zen Garden Inn", "Kyoto, Japan", "Quiet inn near a temple complex, tatami rooms.", ["wifi", "breakfast"], 4.7, 74),
-        ("Kyoto Modern Loft", "Kyoto, Japan", "Renovated loft in Nakagyo, walkable to Nishiki Market.", ["wifi", "parking"], 4.5, 112),
-        ("Kyoto Bamboo Grove Cottage", "Kyoto, Japan", "Small cottage near Arashiyama's bamboo grove.", ["wifi"], 4.6, 65),
-        ("Kyoto Family Guesthouse", "Kyoto, Japan", "Two-room guesthouse suited to families, close to Nijo Castle.", ["wifi", "breakfast", "parking"], 4.4, 58),
-        ("Kyoto Budget Hostel", "Kyoto, Japan", "Simple dorms and privates near Kawaramachi's shopping streets.", ["wifi"], 3.9, 225),
-        ("Kyoto Temple View Suite", "Kyoto, Japan", "Suite with a rooftop view toward Higashiyama's temples.", ["wifi", "breakfast"], 4.8, 83),
-        ("Kyoto Onsen Ryokan", "Kyoto, Japan", "Ryokan with a small private onsen bath.", ["wifi", "pool", "breakfast"], 4.9, 140),
+        # ---- Kyoto ----
+        ("Kyoto Machiya Townhouse", "Kyoto", "Restored wooden machiya near Gion, with a private tsuboniwa garden.", ["wifi", "parking"], 4.8, 150),
+        ("Kyoto Station Capsule Inn", "Kyoto", "Compact capsule stay two minutes from Kyoto Station.", ["wifi"], 4.0, 260),
+        ("Kyoto Riverside Ryokan", "Kyoto", "Traditional ryokan on the Kamo River with kaiseki breakfast.", ["wifi", "breakfast"], 4.9, 98),
+        ("Kyoto Zen Garden Inn", "Kyoto", "Quiet inn near a temple complex, tatami rooms.", ["wifi", "breakfast"], 4.7, 74),
+        ("Kyoto Modern Loft", "Kyoto", "Renovated loft in Nakagyo, walkable to Nishiki Market.", ["wifi", "parking"], 4.5, 112),
+        ("Kyoto Bamboo Grove Cottage", "Kyoto", "Small cottage near Arashiyama's bamboo grove.", ["wifi"], 4.6, 65),
+        ("Kyoto Family Guesthouse", "Kyoto", "Two-room guesthouse suited to families, close to Nijo Castle.", ["wifi", "breakfast", "parking"], 4.4, 58),
+        ("Kyoto Budget Hostel", "Kyoto", "Simple dorms and privates near Kawaramachi's shopping streets.", ["wifi"], 3.9, 225),
+        ("Kyoto Temple View Suite", "Kyoto", "Suite with a rooftop view toward Higashiyama's temples.", ["wifi", "breakfast"], 4.8, 83),
+        ("Kyoto Onsen Ryokan", "Kyoto", "Ryokan with a small private onsen bath.", ["wifi", "pool", "breakfast"], 4.9, 140),
 
-        # ---- Lisbon, Portugal ----
-        ("Lisbon Alfama Loft", "Lisbon, Portugal", "Tiled loft in the Alfama district with tram views from the window.", ["wifi"], 4.5, 105),
-        ("Lisbon Riverside Apartment", "Lisbon, Portugal", "Apartment overlooking the Tagus, near Cais do Sodré.", ["wifi", "parking"], 4.6, 92),
-        ("Lisbon Bairro Alto Studio", "Lisbon, Portugal", "Studio steps from Bairro Alto's bars and restaurants.", ["wifi"], 4.2, 178),
-        ("Lisbon Belem Guesthouse", "Lisbon, Portugal", "Family-run guesthouse near the Jerónimos Monastery.", ["wifi", "breakfast"], 4.7, 63),
-        ("Lisbon Rooftop Pool Suite", "Lisbon, Portugal", "Suite with rooftop pool access and city views.", ["wifi", "pool", "breakfast"], 4.8, 141),
-        ("Lisbon Budget Hostel", "Lisbon, Portugal", "Social hostel near Rossio Square, popular with backpackers.", ["wifi"], 3.9, 302),
-        ("Lisbon Principe Real Flat", "Lisbon, Portugal", "Design-forward flat in the trendy Príncipe Real area.", ["wifi", "parking"], 4.6, 87),
-        ("Lisbon Ocean View Villa", "Lisbon, Portugal", "Villa on the coast near Cascais, short drive from the city.", ["wifi", "pool", "parking"], 4.9, 55),
-        ("Lisbon Historic Center Room", "Lisbon, Portugal", "Simple room in a converted 18th-century building downtown.", ["wifi", "breakfast"], 4.3, 130),
-        ("Lisbon Family Townhouse", "Lisbon, Portugal", "Multi-room townhouse suited to families or groups.", ["wifi", "breakfast", "parking"], 4.5, 44),
+        # ---- Lisbon ----
+        ("Lisbon Alfama Loft", "Lisbon", "Tiled loft in the Alfama district with tram views from the window.", ["wifi"], 4.5, 105),
+        ("Lisbon Riverside Apartment", "Lisbon", "Apartment overlooking the Tagus, near Cais do Sodré.", ["wifi", "parking"], 4.6, 92),
+        ("Lisbon Bairro Alto Studio", "Lisbon", "Studio steps from Bairro Alto's bars and restaurants.", ["wifi"], 4.2, 178),
+        ("Lisbon Belem Guesthouse", "Lisbon", "Family-run guesthouse near the Jerónimos Monastery.", ["wifi", "breakfast"], 4.7, 63),
+        ("Lisbon Rooftop Pool Suite", "Lisbon", "Suite with rooftop pool access and city views.", ["wifi", "pool", "breakfast"], 4.8, 141),
+        ("Lisbon Budget Hostel", "Lisbon", "Social hostel near Rossio Square, popular with backpackers.", ["wifi"], 3.9, 302),
+        ("Lisbon Principe Real Flat", "Lisbon", "Design-forward flat in the trendy Príncipe Real area.", ["wifi", "parking"], 4.6, 87),
+        ("Lisbon Ocean View Villa", "Lisbon", "Villa on the coast near Cascais, short drive from the city.", ["wifi", "pool", "parking"], 4.9, 55),
+        ("Lisbon Historic Center Room", "Lisbon", "Simple room in a converted 18th-century building downtown.", ["wifi", "breakfast"], 4.3, 130),
+        ("Lisbon Family Townhouse", "Lisbon", "Multi-room townhouse suited to families or groups.", ["wifi", "breakfast", "parking"], 4.5, 44),
     ]
 
     accom_ids = []
@@ -117,7 +117,6 @@ def seed_data(conn):
         )
 
     conn.commit()
-
 
 def safe_json_load(raw_str, fallback):
     if not raw_str:
@@ -200,7 +199,7 @@ def list_accommodations():
         params = []
         if city:
             query += " WHERE city_area LIKE ?"
-            params.append(f"%{city}%")
+            params.append(f"{city}")
         rows = conn.execute(query, params).fetchall()
     finally:
         conn.close()
