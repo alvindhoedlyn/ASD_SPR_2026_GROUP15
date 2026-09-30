@@ -1,0 +1,1 @@
+You are reviewing another model's verdict on the MCP integration evidence. Critique whether the verdict is actually supported by the evidence given, and flag anything overstated or unsupported.
