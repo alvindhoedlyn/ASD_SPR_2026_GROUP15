@@ -60,6 +60,12 @@ jobs:
             student-KeyuanGan/backend/agentic_loop.py
 
           python -m py_compile \
+            student-KeyuanGan/backend/mcp_client.py
+
+          python -m py_compile \
+            student-KeyuanGan/backend/rag_client.py
+
+          python -m py_compile \
             student-KeyuanGan/database/app.py
 
       - name: Run automated tests
