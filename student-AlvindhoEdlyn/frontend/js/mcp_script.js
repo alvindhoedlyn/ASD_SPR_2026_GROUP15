@@ -4,7 +4,9 @@
  * Wrapped in an IIFE so it can't collide with globals in script.js.
  */
 (function () {
-  // Backend (Docker, published port). Change if your page is served elsewhere.
+  // Relative path: goes through the frontend container's nginx proxy
+  // (which forwards /mcp/ to the backend). A hardcoded localhost:5001
+  // bypasses that proxy and breaks once this is served over Docker.
   const API_BASE = "";
 
   const toggle = document.getElementById("mcpToggle");
@@ -14,6 +16,10 @@
   const panel = document.getElementById("mcpPanel");
   const toolList = document.getElementById("toolList");
   const callLog = document.getElementById("callLog");
+
+  // Populated once per loadTools() call, used to render journey_id as a
+  // dropdown of names instead of a raw numeric field the user has to guess.
+  let availableJourneys = [];
 
   function setStatus(text, cls) {
     statusEl.textContent = text;
@@ -33,6 +39,7 @@
     return {
       "Content-Type": "application/json",
       "X-MCP-Mode": toggle.checked ? "on" : "off",
+      "Authorization": "Bearer " + (localStorage.getItem("jb_token") || ""),
     };
   }
 
@@ -41,6 +48,21 @@
     setStatus("Loading tools…", "warn");
     toolList.innerHTML = "";
     try {
+      // main.js's initSession() may still be verifying a ?token= from the
+      // URL and writing it to localStorage - wait for that to finish so
+      // mcpHeaders() doesn't read jb_token before it's actually stored.
+      if (window.jbSessionReady) await window.jbSessionReady;
+
+      // Fetch journey names up front so any journey_id field can render as
+      // a dropdown of labels rather than asking the user to type a raw ID.
+      // /api/journeys is a public proxy route - no MCP mode or token needed.
+      try {
+        const journeysResp = await fetch("/api/journeys");
+        availableJourneys = journeysResp.ok ? await journeysResp.json() : [];
+      } catch (_) {
+        availableJourneys = [];
+      }
+
       const resp = await fetch(API_BASE + "/mcp/tools", { headers: mcpHeaders() });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "HTTP " + resp.status);
@@ -73,9 +95,32 @@
       const label = document.createElement("label");
       label.className = "mcp-field";
       label.textContent = f.name + (f.required ? " *" : "");
-      const input = document.createElement("input");
-      input.type = f.type === "number" ? "number" : "text";
-      if (f.default !== undefined) input.value = f.default;
+
+      let input;
+      if (f.name === "journey_id") {
+        // Dropdown of journey names instead of a raw ID the user has to
+        // look up elsewhere - same source and labelling as the main
+        // Itinerary page's journey picker.
+        input = document.createElement("select");
+        if (availableJourneys.length === 0) {
+          const opt = document.createElement("option");
+          opt.textContent = "No journeys available";
+          opt.disabled = true;
+          input.appendChild(opt);
+        } else {
+          availableJourneys.forEach((j) => {
+            const opt = document.createElement("option");
+            opt.value = j.journey_id;
+            opt.textContent = `${j.label} (${j.locations.length} locations)`;
+            input.appendChild(opt);
+          });
+        }
+      } else {
+        input = document.createElement("input");
+        input.type = f.type === "number" ? "number" : "text";
+        if (f.default !== undefined) input.value = f.default;
+      }
+
       inputs[f.name] = input;
       label.appendChild(input);
       fields.appendChild(label);

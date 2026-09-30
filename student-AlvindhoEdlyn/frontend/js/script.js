@@ -47,10 +47,29 @@ document.addEventListener("DOMContentLoaded", () => {
   init();
 
   async function init() {
+    // main.js's initSession() may still be verifying a ?token= from the
+    // URL and writing it to localStorage - wait for that to finish so
+    // authHeaders() doesn't read jb_token before it's actually stored.
+    if (window.jbSessionReady) await window.jbSessionReady;
+
     updateHeaderUserInfo();
     await fetchJourneys();
     await fetchTrips();
     setupEventListeners();
+  }
+
+  // -------------------------------------------------------------
+  // Auth helper
+  // -------------------------------------------------------------
+
+  // Every call to this backend's /api/trips* routes must prove who's
+  // asking, since the backend now resolves user_id from this token
+  // (via shared-backend) rather than trusting anything the client sends.
+  function authHeaders(extra) {
+    return Object.assign(
+      { "Authorization": "Bearer " + (localStorage.getItem("jb_token") || "") },
+      extra || {}
+    );
   }
 
   // -------------------------------------------------------------
@@ -93,7 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function fetchTrips() {
     try {
-      const res = await fetch("/api/trips");
+      const res = await fetch("/api/trips", { headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to load trips");
       trips = await res.json();
 
@@ -175,7 +194,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const journeyId = parseInt(journeySelect.value, 10);
     const duration = parseInt(dayCountInput.value, 10);
     const preferences = preferencesInput.value.trim();
-    const activeUserId = parseInt(localStorage.getItem("userId"), 10) || 1;
 
     if (!journeyId) {
       if (availableJourneys.length === 0) {
@@ -192,12 +210,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const res = await fetch("/api/trips/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           journeyId: journeyId,
           duration: duration,
-          preferences: preferences,
-          userId: activeUserId
+          preferences: preferences
         })
       });
 
@@ -223,7 +240,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!confirm("Are you sure you want to delete this trip?")) return;
 
     try {
-      const res = await fetch(`/api/trips/${tripId}`, { method: "DELETE" });
+      const res = await fetch(`/api/trips/${tripId}`, {
+        method: "DELETE",
+        headers: authHeaders()
+      });
       if (!res.ok) throw new Error("Failed to delete trip");
 
       await fetchTrips();
@@ -246,7 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const response = await fetch(`/api/trips/${tripId}/regenerate`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" }
+        headers: authHeaders({ "Content-Type": "application/json" })
       });
 
       if (!response.ok) {
@@ -278,7 +298,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const res = await fetch(`/api/trips/${tripId}/days/${activeDayNumber}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" }
+        headers: authHeaders({ "Content-Type": "application/json" })
       });
 
       if (!res.ok) throw new Error("Failed to regenerate day");
@@ -313,7 +333,8 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteDayBtn.disabled = true;
 
       const res = await fetch(`/api/trips/${tripId}/days/${activeDayNumber}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: authHeaders()
       });
 
       if (!res.ok) throw new Error("Failed to delete day");
@@ -437,7 +458,7 @@ async function handleSendChat() {
 
     // Global Trip Controls
     deleteTripBtn.addEventListener("click", handleDeleteTrip);
-    
+
     // Connected to full trip regeneration endpoint
     regenerateTripBtn.addEventListener("click", handleRegenerateTrip);
 

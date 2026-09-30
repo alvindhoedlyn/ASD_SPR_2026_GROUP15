@@ -63,7 +63,7 @@ def generate_trip_itinerary_tool(
 
     Args:
         journey_id: ID of the journey (get it from available_journeys).
-        duration: Number of days for the trip (at least 1).
+        duration: Number of days for the trip (1-14).
         preferences: Free-text traveller preferences, e.g. "food and museums".
         user_id: ID of the user the trip is saved for.
     """
