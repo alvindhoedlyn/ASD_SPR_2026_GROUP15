@@ -18,6 +18,7 @@ sys.path.insert(
 
 
 from app import app
+import agentic_loop
 
 
 class BudgetTrackerTests(unittest.TestCase):
@@ -226,7 +227,7 @@ class BudgetTrackerTests(unittest.TestCase):
 
 
     @patch("app.run_budget_agent")
-    def test_ai_budget_advice(
+    def test_ai_budget_advice_release1_route(
         self,
         mock_run_budget_agent
     ):
@@ -234,40 +235,62 @@ class BudgetTrackerTests(unittest.TestCase):
         mock_run_budget_agent.return_value = {
             "summary": {
                 "total_budget": 5000.0,
-                "total_spent": 1323.5,
-                "remaining_budget": 3676.5,
-                "spending_percentage": 26.5,
-                "highest_category": "Transport",
-                "highest_category_amount": 657.0,
+                "total_spent": 959.0,
+                "remaining_budget": 4041.0,
+                "spending_percentage": 19.2,
+                "highest_category": "Accommodation",
+                "highest_category_amount": 420.0,
                 "min_price": 1000.0,
                 "max_price": 2500.0
             },
 
             "advice":
-                "Reduce unnecessary transport expenses.",
+                "Current spending remains within the available budget.",
 
             "trace": [
                 {
                     "stage": "Plan",
                     "detail":
-                        "Analyse current budget and expenses."
+                        "Collect live budget data and approved knowledge."
                 },
                 {
                     "stage": "Act",
                     "detail":
-                        "Retrieve budget and expense data."
+                        "Call MCP tools and the shared RAG service."
                 },
                 {
-                    "stage": "Observe",
+                    "stage": "Observe - MCP Validation",
                     "detail":
-                        "Calculate spending and remaining budget."
+                        "Validated MCP budget and expense data."
+                },
+                {
+                    "stage": "Observe - RAG Validation",
+                    "detail":
+                        "Validated grounded RAG knowledge and source."
                 },
                 {
                     "stage": "Adapt",
                     "detail":
-                        "Generate grounded advice using Qwen."
+                        "Generate advice using local Qwen."
                 }
-            ]
+            ],
+
+            "validation": {
+                "mcp": {
+                    "status": "passed",
+                    "expense_records": 10
+                },
+                "rag": {
+                    "status": "passed",
+                    "confidence": "high",
+                    "source": "budget_tracker.md",
+                    "section": "Remaining Budget"
+                },
+                "local_ai": {
+                    "status": "passed",
+                    "model": "qwen2.5:0.5b"
+                }
+            }
         }
 
         response = self.client.get(
@@ -296,22 +319,174 @@ class BudgetTrackerTests(unittest.TestCase):
             data
         )
 
+        self.assertIn(
+            "validation",
+            data
+        )
+
+        self.assertEqual(
+            data["validation"]["mcp"]["status"],
+            "passed"
+        )
+
+        self.assertEqual(
+            data["validation"]["rag"]["status"],
+            "passed"
+        )
+
+        self.assertEqual(
+            data["validation"]["local_ai"]["status"],
+            "passed"
+        )
+
         stages = [
             step["stage"]
             for step in data["trace"]
         ]
 
-        self.assertEqual(
-            stages,
-            [
-                "Plan",
-                "Act",
-                "Observe",
-                "Adapt"
-            ]
+        self.assertIn(
+            "Observe - MCP Validation",
+            stages
+        )
+
+        self.assertIn(
+            "Observe - RAG Validation",
+            stages
         )
 
         mock_run_budget_agent.assert_called_once()
+
+
+    @patch("agentic_loop.generate_response")
+    @patch("agentic_loop.query_rag")
+    @patch("agentic_loop.get_budget_expenses_via_mcp")
+    @patch("agentic_loop.get_budget_summary_via_mcp")
+    def test_agentic_loop_release1_validation(
+        self,
+        mock_budget_summary,
+        mock_budget_expenses,
+        mock_query_rag,
+        mock_generate_response
+    ):
+
+        mock_budget_summary.return_value = {
+            "total_budget": 5000.0,
+            "total_spent": 600.0,
+            "remaining_budget": 4400.0,
+            "min_price": 1000.0,
+            "max_price": 2500.0
+        }
+
+        mock_budget_expenses.return_value = [
+            {
+                "expense_id": 1,
+                "category": "Transport",
+                "description": "Flight",
+                "amount": 500.0,
+                "expense_date": "2026-09-05"
+            },
+            {
+                "expense_id": 2,
+                "category": "Food",
+                "description": "Dinner",
+                "amount": 100.0,
+                "expense_date": "2026-09-05"
+            }
+        ]
+
+        mock_query_rag.return_value = {
+            "answer":
+                "Remaining budget is calculated by subtracting "
+                "total spending from the total budget.",
+            "confidence": "high",
+            "sources": [
+                {
+                    "document": "budget_tracker.md",
+                    "section": "Remaining Budget"
+                }
+            ]
+        }
+
+        mock_generate_response.return_value = (
+            "Your spending is within the available budget."
+        )
+
+        result = agentic_loop.run_budget_agent()
+
+        self.assertEqual(
+            result["validation"]["mcp"]["status"],
+            "passed"
+        )
+
+        self.assertEqual(
+            result["validation"]["rag"]["status"],
+            "passed"
+        )
+
+        self.assertEqual(
+            result["validation"]["local_ai"]["status"],
+            "passed"
+        )
+
+        self.assertEqual(
+            result["validation"]["rag"]["confidence"],
+            "high"
+        )
+
+        self.assertEqual(
+            result["validation"]["rag"]["source"],
+            "budget_tracker.md"
+        )
+
+        self.assertEqual(
+            result["summary"]["total_budget"],
+            5000.0
+        )
+
+        self.assertEqual(
+            result["summary"]["total_spent"],
+            600.0
+        )
+
+        self.assertEqual(
+            result["summary"]["remaining_budget"],
+            4400.0
+        )
+
+        stages = [
+            step["stage"]
+            for step in result["trace"]
+        ]
+
+        self.assertIn(
+            "Plan",
+            stages
+        )
+
+        self.assertIn(
+            "Act",
+            stages
+        )
+
+        self.assertIn(
+            "Observe - MCP Validation",
+            stages
+        )
+
+        self.assertIn(
+            "Observe - RAG Validation",
+            stages
+        )
+
+        self.assertIn(
+            "Adapt",
+            stages
+        )
+
+        mock_budget_summary.assert_called_once()
+        mock_budget_expenses.assert_called_once()
+        mock_query_rag.assert_called_once()
+        mock_generate_response.assert_called_once()
 
 
     @patch("app.db_delete_expense")
