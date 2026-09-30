@@ -303,16 +303,16 @@ RECOMMENDATION_REQUESTS = [
 
 
 SAVED_PLACE_NAMES = [
-    ("DEMO-01", "Sydney Opera House"),
-    ("DEMO-02", "Royal Botanic Garden"),
-    ("DEMO-03", "Art Gallery of New South Wales"),
-    ("DEMO-04", "SEA LIFE Sydney Aquarium"),
-    ("DEMO-05", "Bondi Beach"),
-    ("DEMO-06", "Darling Harbour"),
-    ("DEMO-07", "Barangaroo Reserve"),
-    ("DEMO-08", "The Rocks"),
-    ("DEMO-09", "Taronga Zoo"),
-    ("DEMO-10", "Manly Beach")
+    "Sydney Opera House",
+    "Royal Botanic Garden",
+    "Art Gallery of New South Wales",
+    "SEA LIFE Sydney Aquarium",
+    "Bondi Beach",
+    "Darling Harbour",
+    "Barangaroo Reserve",
+    "The Rocks",
+    "Taronga Zoo",
+    "Manly Beach"
 ]
 
 
@@ -323,6 +323,72 @@ def create_connection():
     connection.execute("PRAGMA foreign_keys = ON")
 
     return connection
+
+
+def migrate_saved_places(connection):
+    """Add account ownership and remove legacy journey grouping safely."""
+    table = connection.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name = 'saved_places'
+        """
+    ).fetchone()
+
+    if table is None:
+        return
+
+    columns = {
+        row[1]
+        for row in connection.execute(
+            "PRAGMA table_info(saved_places)"
+        ).fetchall()
+    }
+
+    if "user_id" in columns and "journey_id" not in columns:
+        return
+
+    legacy_user_id = int(os.getenv("LEGACY_SAVED_PLACES_USER_ID", "1"))
+
+    user_id_expression = (
+        "user_id"
+        if "user_id" in columns
+        else str(legacy_user_id)
+    )
+
+    connection.executescript(
+        """
+        ALTER TABLE saved_places RENAME TO saved_places_legacy;
+
+        CREATE TABLE saved_places(
+            saved_place_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            attraction_id INTEGER NOT NULL
+                REFERENCES places(attraction_id) ON DELETE CASCADE,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, attraction_id)
+        );
+
+        INSERT OR IGNORE INTO saved_places (
+            saved_place_id,
+            user_id,
+            attraction_id,
+            notes,
+            created_at
+        )
+        SELECT
+            saved_place_id,
+            {user_id_expression},
+            attraction_id,
+            notes,
+            created_at
+        FROM saved_places_legacy
+        ORDER BY saved_place_id;
+
+        DROP TABLE saved_places_legacy;
+        """.format(user_id_expression=user_id_expression)
+    )
 
 
 def initialise_database(reset=False):
@@ -337,6 +403,8 @@ def initialise_database(reset=False):
                 DROP TABLE IF EXISTS places;
                 """
             )
+
+        migrate_saved_places(connection)
 
         schema = SCHEMA_PATH.read_text(encoding="utf-8")
         connection.executescript(schema)
@@ -410,17 +478,17 @@ def initialise_database(reset=False):
 
             saved_places = [
                 (
-                    journey_id,
+                    1,
                     place_ids[attraction_name],
                     "Seeded demonstration favourite"
                 )
-                for journey_id, attraction_name in SAVED_PLACE_NAMES
+                for attraction_name in SAVED_PLACE_NAMES
             ]
 
             connection.executemany(
                 """
                 INSERT INTO saved_places (
-                    journey_id,
+                    user_id,
                     attraction_id,
                     notes
                 )

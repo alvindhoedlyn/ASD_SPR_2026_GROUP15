@@ -36,6 +36,7 @@ def collect(app_dir, repo_root):
 
         saved_response = requests.get(
             f"{database_url}/saved-places",
+            params={"user_id": 1},
             timeout=5
         )
 

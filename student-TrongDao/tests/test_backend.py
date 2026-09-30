@@ -68,6 +68,18 @@ SAMPLE_PLACES = [
     }
 ]
 
+AUTH_HEADERS = {
+    "Authorization": "Bearer test-session-token"
+}
+
+
+def verified_session_response(user_id=7):
+    return FakeResponse({
+        "user_id": user_id,
+        "username": "test-user",
+        "role": "client"
+    })
+
 
 def recommendation_request(ai_mode=False):
     return {
@@ -322,50 +334,60 @@ def test_get_saved_places(client):
     saved_places = [
         {
             "saved_place_id": 1,
-            "journey_id": "PYTEST-01",
             "attraction_id": 1,
             "attraction_name": "Test Nature Garden",
             "notes": "Morning visit"
         }
     ]
 
+    def fake_get(url, params, timeout):
+        if url.endswith("/api/verify-session"):
+            assert params == {"token": "test-session-token"}
+            return verified_session_response()
+
+        assert url.endswith("/saved-places")
+        assert params == {"user_id": 7}
+        return FakeResponse(saved_places)
+
     with patch.object(
         backend_app.requests,
         "get",
-        return_value=FakeResponse(saved_places)
-    ) as mock_get:
+        side_effect=fake_get
+    ):
         response = client.get(
-            "/api/saved-places?journey_id=PYTEST-01"
+            "/api/saved-places",
+            headers=AUTH_HEADERS
         )
 
     assert response.status_code == 200
     assert response.get_json() == saved_places
 
-    mock_get.assert_called_once_with(
-        f"{backend_app.DATABASE_API_URL}/saved-places",
-        params={"journey_id": "PYTEST-01"},
-        timeout=5
-    )
-
-
 def test_save_attraction(client):
-    with patch.object(
-        backend_app.requests,
-        "post",
-        return_value=FakeResponse(
-            {
-                "message": "Place saved successfully",
-                "saved_place_id": 20
-            },
-            201
-        )
+    with (
+        patch.object(
+            backend_app.requests,
+            "get",
+            return_value=verified_session_response()
+        ),
+        patch.object(
+            backend_app.requests,
+            "post",
+            return_value=FakeResponse(
+                {
+                    "message": "Place saved successfully",
+                    "saved_place_id": 20
+                },
+                201
+            )
+        ) as mock_post
     ):
         response = client.post(
             "/api/saved-places",
+            headers=AUTH_HEADERS,
             json={
-                "journey_id": "PYTEST-01",
                 "attraction_id": 1,
-                "notes": "Morning visit"
+                "notes": "Morning visit",
+                "user_id": 999
             }
         )
 
@@ -373,22 +395,49 @@ def test_save_attraction(client):
 
     assert response.status_code == 201
     assert response_data["saved_place_id"] == 20
+    assert mock_post.call_args.kwargs["json"] == {
+        "user_id": 7,
+        "attraction_id": 1,
+        "notes": "Morning visit"
+    }
+
+
+def test_save_attraction_requires_attraction_id(client):
+    with patch.object(
+        backend_app.requests,
+        "get",
+        return_value=verified_session_response()
+    ):
+        response = client.post(
+            "/api/saved-places",
+            headers=AUTH_HEADERS,
+            json={"notes": "Morning visit"}
+        )
+
+    assert response.status_code == 400
+    assert response.get_json()["fields"] == ["attraction_id"]
 
 
 def test_update_saved_attraction(client):
-    with patch.object(
-        backend_app.requests,
-        "put",
-        return_value=FakeResponse({
-            "message": "Saved place updated successfully",
-            "saved_place_id": 20
-        })
+    with (
+        patch.object(
+            backend_app.requests,
+            "get",
+            return_value=verified_session_response()
+        ),
+        patch.object(
+            backend_app.requests,
+            "put",
+            return_value=FakeResponse({
+                "message": "Saved place updated successfully",
+                "saved_place_id": 20
+            })
+        ) as mock_put
     ):
         response = client.put(
             "/api/saved-places/20",
+            headers=AUTH_HEADERS,
             json={
-                "journey_id": "PYTEST-01",
-                "attraction_id": 1,
                 "notes": "Visit in the afternoon"
             }
         )
@@ -397,20 +446,64 @@ def test_update_saved_attraction(client):
 
     assert response.status_code == 200
     assert response_data["saved_place_id"] == 20
+    assert mock_put.call_args.kwargs["json"] == {
+        "user_id": 7,
+        "notes": "Visit in the afternoon"
+    }
 
 
 def test_delete_saved_attraction(client):
-    with patch.object(
-        backend_app.requests,
-        "delete",
-        return_value=FakeResponse({
-            "message": "Saved place deleted successfully",
-            "saved_place_id": 20
-        })
+    with (
+        patch.object(
+            backend_app.requests,
+            "get",
+            return_value=verified_session_response()
+        ),
+        patch.object(
+            backend_app.requests,
+            "delete",
+            return_value=FakeResponse({
+                "message": "Saved place deleted successfully",
+                "saved_place_id": 20
+            })
+        ) as mock_delete
     ):
-        response = client.delete("/api/saved-places/20")
+        response = client.delete(
+            "/api/saved-places/20",
+            headers=AUTH_HEADERS
+        )
 
     response_data = response.get_json()
 
     assert response.status_code == 200
     assert response_data["saved_place_id"] == 20
+    assert mock_delete.call_args.kwargs["params"] == {
+        "user_id": 7
+    }
+
+
+def test_saved_places_require_authentication(client):
+    response = client.get("/api/saved-places")
+
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "Authentication required"
+
+
+def test_saved_places_reject_invalid_session(client):
+    with patch.object(
+        backend_app.requests,
+        "get",
+        return_value=FakeResponse(
+            {"error": "Invalid or expired session"},
+            401
+        )
+    ):
+        response = client.get(
+            "/api/saved-places",
+            headers={"Authorization": "Bearer expired-token"}
+        )
+
+    assert response.status_code == 401
+    assert response.get_json()["error"] == (
+        "Invalid or expired session"
+    )

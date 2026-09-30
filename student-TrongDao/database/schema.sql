@@ -37,12 +37,15 @@ CREATE TABLE IF NOT EXISTS recommendation_requests(
 
 CREATE TABLE IF NOT EXISTS saved_places(
     saved_place_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    journey_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
     attraction_id INTEGER NOT NULL REFERENCES places(attraction_id) ON DELETE CASCADE,
     notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (journey_id, attraction_id)  
+    UNIQUE(user_id, attraction_id)
 );
+
+CREATE INDEX IF NOT EXISTS index_saved_places_user
+    ON saved_places(user_id);
 
 CREATE INDEX IF NOT EXISTS index_places_city
     ON places(city);
@@ -52,10 +55,3 @@ CREATE INDEX IF NOT EXISTS index_places_category
 
 CREATE INDEX IF NOT EXISTS index_recommendation_requests_journey
     ON recommendation_requests(journey_id);
-
-CREATE INDEX IF NOT EXISTS index_saved_places_journey
-    ON saved_places(journey_id);
-
-
-
-

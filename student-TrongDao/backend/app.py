@@ -19,6 +19,11 @@ DATABASE_API_URL = os.getenv(
     "http://localhost:5404"
 )
 
+AUTH_SERVICE_URL = os.getenv(
+    "AUTH_SERVICE_URL",
+    "http://localhost:5000"
+)
+
 
 OLLAMA_API_URL = os.getenv(
     "OLLAMA_API_URL",
@@ -36,6 +41,59 @@ OLLAMA_REVIEW_MODEL = os.getenv(
     "OLLAMA_REVIEW_MODEL",
     "llama3.1:8b"
 )
+
+
+def get_current_user_id():
+    """Resolve the caller's bearer token through the shared auth service."""
+    auth_header = request.headers.get("Authorization", "")
+
+    if not auth_header.startswith("Bearer "):
+        return None, (
+            jsonify({"error": "Authentication required"}),
+            401
+        )
+
+    token = auth_header[7:].strip()
+
+    if not token:
+        return None, (
+            jsonify({"error": "Authentication required"}),
+            401
+        )
+
+    try:
+        response = requests.get(
+            f"{AUTH_SERVICE_URL}/api/verify-session",
+            params={"token": token},
+            timeout=5
+        )
+    except requests.RequestException:
+        return None, (
+            jsonify({"error": "Login service is unavailable"}),
+            503
+        )
+
+    if response.status_code != 200:
+        return None, (
+            jsonify({"error": "Invalid or expired session"}),
+            401
+        )
+
+    try:
+        user_id = int(response.json()["user_id"])
+    except (KeyError, TypeError, ValueError):
+        return None, (
+            jsonify({"error": "Login service returned invalid data"}),
+            503
+        )
+
+    if user_id <= 0:
+        return None, (
+            jsonify({"error": "Login service returned invalid data"}),
+            503
+        )
+
+    return user_id, None
 
 
 def call_ollama(system_prompt, user_prompt, model):
@@ -510,17 +568,15 @@ def create_recommendations():
 
 @app.get("/api/saved-places")
 def get_saved_places():
-    journey_id = request.args.get("journey_id")
+    user_id, auth_error = get_current_user_id()
 
-    if not journey_id:
-        return jsonify({
-            "error": "journey_id is required"
-        }), 400
+    if auth_error is not None:
+        return auth_error
 
     try:
         response = requests.get(
             f"{DATABASE_API_URL}/saved-places",
-            params={"journey_id": journey_id},
+            params={"user_id": user_id},
             timeout=5
         )
 
@@ -535,11 +591,15 @@ def get_saved_places():
 
 @app.post("/api/saved-places")
 def save_attraction():
+    user_id, auth_error = get_current_user_id()
+
+    if auth_error is not None:
+        return auth_error
+
     data = request.get_json(silent=True) or {}
 
     required_fields = [
-        "attraction_id",
-        "journey_id"
+        "attraction_id"
         ]
 
     missing_fields = []
@@ -558,7 +618,7 @@ def save_attraction():
         response = requests.post(
             f"{DATABASE_API_URL}/saved-places",
             json={
-                "journey_id": data["journey_id"],
+                "user_id": user_id,
                 "attraction_id": data["attraction_id"],
                 "notes": data.get("notes", "")
             },
@@ -576,33 +636,21 @@ def save_attraction():
     
 @app.put("/api/saved-places/<int:saved_place_id>")
 def update_saved_place(saved_place_id):
+    user_id, auth_error = get_current_user_id()
+
+    if auth_error is not None:
+        return auth_error
+
     data = request.get_json(silent=True) or {}
-
-    required_fields = [
-        "attraction_id",
-        "journey_id"
-    ]
-
-    missing_fields = []
-    
-    for field in required_fields:
-        if field not in data or data[field] in (None, ""):
-            missing_fields.append(field)
-        
-    if missing_fields:
-        return jsonify({
-            "error": "Missing required fields",
-            "fields": missing_fields
-        }), 400
 
     try:
         response = requests.put(
             f"{DATABASE_API_URL}/saved-places/{saved_place_id}",
             json={
-                "journey_id": data["journey_id"],
-                "attraction_id": data["attraction_id"],
+                "user_id": user_id,
                 "notes": data.get("notes", "")
-            }
+            },
+            timeout=5
         )
 
         return jsonify(response.json()), response.status_code
@@ -616,9 +664,15 @@ def update_saved_place(saved_place_id):
 
 @app.delete("/api/saved-places/<int:saved_place_id>")
 def delete_saved_place(saved_place_id):
+    user_id, auth_error = get_current_user_id()
+
+    if auth_error is not None:
+        return auth_error
+
     try:
         response = requests.delete(
             f"{DATABASE_API_URL}/saved-places/{saved_place_id}",
+            params={"user_id": user_id},
             timeout= 5
         )
 
