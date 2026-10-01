@@ -51,12 +51,6 @@ jobs:
             student-RenzoRobin/database/app.py
 
       - name: Run backend and database tests
-        # MCP and RAG integration is retained in the codebase but disabled
-        # here: the shared MCP/RAG servers are non-containerised and local
-        # only, so they are not reachable from the CI runner. Explicitly
-        # setting these ensures any test touching /mcp/* or /rag/* routes
-        # gets the intended "mode disabled" (403) response rather than a
-        # network failure or timeout against a host that doesn't exist here.
         env:
           MCP_ENABLED: "false"
           RAG_ENABLED: "false"

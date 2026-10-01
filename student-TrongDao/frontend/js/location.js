@@ -40,6 +40,20 @@ const savedPlacesSection = document.getElementById(
 );
 
 
+async function savedPlaceAuthHeaders(extraHeaders = {}) {
+  if (window.jbSessionReady) {
+    await window.jbSessionReady;
+  }
+
+  const token = localStorage.getItem("jb_token") || "";
+
+  return {
+    ...extraHeaders,
+    "Authorization": `Bearer ${token}`
+  };
+}
+
+
 recommendationForm.addEventListener("submit", async function (event) {
   event.preventDefault();
 
@@ -125,8 +139,7 @@ recommendationForm.addEventListener("submit", async function (event) {
     displayAiResponse(responseData);
     
     displayRecommendations(
-      responseData.recommendations,
-      requestData.journey_id
+      responseData.recommendations
     );
 
 
@@ -204,7 +217,7 @@ function displayAiResponse(responseData) {
     responseData.ai_review || "Llama review unavailable.";
 }
 
-function displayRecommendations(recommendations, journeyId) {
+function displayRecommendations(recommendations) {
   recommendationResults.replaceChildren();
 
   if (recommendations.length === 0) {
@@ -266,7 +279,6 @@ function displayRecommendations(recommendations, journeyId) {
 
     saveButton.addEventListener("click", function () {
       saveAttraction(
-        journeyId,
         place.attraction_id,
         saveButton
       );
@@ -292,7 +304,6 @@ function displayRecommendations(recommendations, journeyId) {
 
 
 async function saveAttraction(
-  journeyId,
   attractionId,
   saveButton
 ) {
@@ -300,13 +311,14 @@ async function saveAttraction(
   saveButton.textContent = "Saving...";
 
   try {
+    const headers = await savedPlaceAuthHeaders({
+      "Content-Type": "application/json"
+    });
+
     const response = await fetch(`${API_BASE_URL}/api/saved-places`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers,
       body: JSON.stringify({
-        journey_id: journeyId,
         attraction_id: attractionId,
         notes: ""
       })
@@ -331,34 +343,23 @@ async function saveAttraction(
 }
 
 loadSavedPlacesButton.addEventListener("click", function () {
-  const journeyId = document.getElementById(
-    "journey-id"
-  ).value.trim();
-
-  if (!journeyId) {
-    formMessage.textContent =
-      "Enter a Journey ID before loading saved attractions.";
-
-    return;
-  }
-
   savedPlacesSection.hidden = false;
   scrollToSection(savedPlacesSection);
-  loadSavedPlaces(journeyId);
+  loadSavedPlaces();
 });
 
 
-async function loadSavedPlaces(journeyId) {
+async function loadSavedPlaces() {
   showResultsMessage(
     savedPlacesResults,
     "Loading saved attractions..."
   );
 
   try {
+    const headers = await savedPlaceAuthHeaders();
     const response = await fetch(
-        `${API_BASE_URL}/api/saved-places?journey_id=${
-        encodeURIComponent(journeyId)
-        }`
+      `${API_BASE_URL}/api/saved-places`,
+      { headers }
     );
 
     const responseData = await response.json();
@@ -384,7 +385,7 @@ function displaySavedPlaces(savedPlaces) {
   if (savedPlaces.length === 0) {
     showResultsMessage(
       savedPlacesResults,
-      "No attractions have been saved for this journey."
+      "No attractions have been saved yet."
     );
 
     return;
@@ -474,16 +475,16 @@ async function updateSavedPlace(
   statusMessage.textContent = "";
 
   try {
+    const headers = await savedPlaceAuthHeaders({
+      "Content-Type": "application/json"
+    });
+
     const response = await fetch(
       `${API_BASE_URL}/api/saved-places/${savedPlace.saved_place_id}`,
       {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers,
         body: JSON.stringify({
-          journey_id: savedPlace.journey_id,
-          attraction_id: savedPlace.attraction_id,
           notes: newNotes
         })
       }
@@ -517,7 +518,7 @@ async function deleteSavedPlace(
   statusMessage
 ) {
   const confirmed = window.confirm(
-    `Remove ${savedPlace.attraction_name} from this journey?`
+    `Remove ${savedPlace.attraction_name} from saved attractions?`
   );
 
   if (!confirmed) {
@@ -529,10 +530,13 @@ async function deleteSavedPlace(
   statusMessage.textContent = "";
 
   try {
+    const headers = await savedPlaceAuthHeaders();
+
     const response = await fetch(
       `${API_BASE_URL}/api/saved-places/${savedPlace.saved_place_id}`,
       {
-        method: "DELETE"
+        method: "DELETE",
+        headers
       }
     );
 
@@ -550,7 +554,7 @@ async function deleteSavedPlace(
     if (savedPlacesResults.children.length === 0) {
       showResultsMessage(
         savedPlacesResults,
-        "No attractions have been saved for this journey."
+        "No attractions have been saved yet."
       );
     }
 

@@ -2,6 +2,16 @@ from flask import Flask, jsonify, render_template, request
 
 from agentic_loop import run_budget_agent
 
+from mcp_client import (
+    get_budget_summary_via_mcp,
+    get_budget_expenses_via_mcp,
+)
+
+from rag_client import (
+    query_rag,
+    check_rag_health,
+)
+
 from database_client import (
     get_expenses as db_get_expenses,
     get_expense as db_get_expense,
@@ -119,6 +129,7 @@ def validate_budget_data(data):
         total_budget = float(total_budget)
         min_price = float(min_price)
         max_price = float(max_price)
+
     except (TypeError, ValueError):
         return None, "Budget values must be numbers"
 
@@ -350,6 +361,124 @@ def get_budget_summary():
     except Exception as error:
         return jsonify({
             "error": "Unable to calculate budget summary",
+            "details": str(error)
+        }), 503
+
+
+# =========================================================
+# Shared MCP Integration
+# =========================================================
+
+@app.route("/api/mcp/budget-summary", methods=["GET"])
+def mcp_budget_summary():
+    """
+    Retrieve the Budget Tracker summary through
+    the group's shared MCP server.
+    """
+
+    try:
+        result = get_budget_summary_via_mcp()
+
+        return jsonify({
+            "source": "shared-mcp-server",
+            "tool": "budget_summary",
+            "result": result
+        }), 200
+
+    except Exception as error:
+        return jsonify({
+            "error": "Unable to retrieve budget summary through MCP",
+            "details": str(error)
+        }), 503
+
+
+@app.route("/api/mcp/expenses", methods=["GET"])
+def mcp_budget_expenses():
+    """
+    Retrieve Budget Tracker expenses through
+    the group's shared MCP server.
+    """
+
+    try:
+        result = get_budget_expenses_via_mcp()
+
+        return jsonify({
+            "source": "shared-mcp-server",
+            "tool": "budget_expenses",
+            "result": result
+        }), 200
+
+    except Exception as error:
+        return jsonify({
+            "error": "Unable to retrieve expenses through MCP",
+            "details": str(error)
+        }), 503
+
+
+# =========================================================
+# Shared RAG Integration
+# =========================================================
+
+@app.route("/api/rag/health", methods=["GET"])
+def rag_health():
+    """
+    Check whether the group's shared local RAG server
+    is available to the Budget Tracker backend.
+    """
+
+    try:
+        result = check_rag_health()
+
+        return jsonify({
+            "source": "shared-rag-server",
+            "result": result
+        }), 200
+
+    except Exception as error:
+        return jsonify({
+            "error": "Shared RAG server unavailable",
+            "details": str(error)
+        }), 503
+
+
+@app.route("/api/rag/query", methods=["POST"])
+def rag_query():
+    """
+    Send a question from the Budget Tracker to the
+    group's shared RAG server.
+
+    The RAG response contains:
+    - answer
+    - source citation
+    - confidence category
+    - retrieved context
+    """
+
+    data = request.get_json(silent=True) or {}
+
+    question = str(
+        data.get(
+            "question",
+            ""
+        )
+    ).strip()
+
+    if not question:
+        return jsonify({
+            "error": "Question is required"
+        }), 400
+
+    try:
+        result = query_rag(question)
+
+        return jsonify({
+            "source": "shared-rag-server",
+            "result": result
+        }), 200
+
+    except Exception as error:
+        return jsonify({
+            "error": "Unable to query shared RAG server",
             "details": str(error)
         }), 503
 
