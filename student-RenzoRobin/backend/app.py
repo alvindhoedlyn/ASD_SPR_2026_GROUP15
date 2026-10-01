@@ -3,6 +3,7 @@ import requests
 from openai import OpenAI
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from mcp_client import call_mcp_tool, MCPClientError
 
 app = Flask(__name__)
 CORS(app)
@@ -480,49 +481,67 @@ def mcp_disabled_response():
     return jsonify({"error": "MCP mode is disabled"}), 403
  
  
+# ============================================================
+# REPLACEMENT for the MCP routes in student-RenzoRobin/backend/app.py
+#
+# This REPLACES the earlier mcp_accommodations_by_city() and
+# mcp_accommodation_details() functions (the ones that called db_get()
+# directly). Those bypassed the MCP server entirely — this version makes
+# a real call to it over the network, using the mcp_client helper.
+#
+# WHERE TO PASTE:
+#   1. Add `from mcp_client import call_mcp_tool, MCPClientError` near
+#      your other imports at the top of app.py.
+#   2. Replace the two existing @app.route("/mcp/...") functions with
+#      the versions below. Keep mcp_mode_is_enabled() and
+#      mcp_disabled_response() as they are — unchanged.
+# ============================================================
+
+# --- add near your other imports ---
+# from mcp_client import call_mcp_tool, MCPClientError
+
+
 @app.route("/mcp/accommodations-by-city", methods=["POST"])
 def mcp_accommodations_by_city():
     if not mcp_mode_is_enabled(request):
         return mcp_disabled_response()
- 
+
     data = request.get_json(silent=True) or request.form
     city_area = (data.get("city_area") or "").strip()
     if not city_area:
         return jsonify({"error": "city_area is required"}), 400
- 
-    body, status = db_get("/accommodations", params={"city": city_area})
+
+    try:
+        result = call_mcp_tool("accommodations_by_city", {"city_area": city_area})
+    except MCPClientError as exc:
+        return jsonify({"error": "MCP tool error", "detail": str(exc)}), 502
+    except Exception as exc:
+        return jsonify({"error": "MCP service unavailable", "detail": str(exc)}), 502
+
     return jsonify({
         "tool": "accommodations_by_city",
         "input": {"city_area": city_area},
-        "result": body,
-    }), status
- 
- 
+        "result": result,
+    }), 200
+
+
 @app.route("/mcp/accommodation-details/<int:accommodation_id>", methods=["POST"])
 def mcp_accommodation_details(accommodation_id):
     if not mcp_mode_is_enabled(request):
         return mcp_disabled_response()
- 
-    details, status = db_get(f"/accommodations/{accommodation_id}")
-    if status >= 400:
-        return jsonify({
-            "tool": "accommodation_details",
-            "input": {"accommodation_id": accommodation_id},
-            "result": details,
-        }), status
- 
-    rooms, rooms_status = db_get(f"/accommodations/{accommodation_id}/rooms")
-    if rooms_status >= 400:
-        rooms = []
- 
-    if isinstance(details, dict):
-        details["rooms"] = rooms
- 
+
+    try:
+        result = call_mcp_tool("accommodation_details", {"accommodation_id": accommodation_id})
+    except MCPClientError as exc:
+        return jsonify({"error": "MCP tool error", "detail": str(exc)}), 502
+    except Exception as exc:
+        return jsonify({"error": "MCP service unavailable", "detail": str(exc)}), 502
+
     return jsonify({
         "tool": "accommodation_details",
         "input": {"accommodation_id": accommodation_id},
-        "result": details,
-    }), status
+        "result": result,
+    }), 200
 
 def rag_mode_is_enabled(req):
     if not RAG_ENABLED:
