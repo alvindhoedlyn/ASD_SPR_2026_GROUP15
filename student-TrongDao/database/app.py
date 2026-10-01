@@ -68,7 +68,6 @@ def get_positive_user_id(value):
 
 def get_missing_recommendation_fields(data):
     required_fields = [
-        "journey_id",
         "destination_city",
         "arrival_date",
         "departure_date",
@@ -387,7 +386,6 @@ def add_recommendation_request():
         cursor = conn.execute(
             """
             INSERT INTO recommendation_requests (
-            journey_id,
             destination_city,
             arrival_date, 
             departure_date,
@@ -398,10 +396,9 @@ def add_recommendation_request():
             accessibility_needs,
             status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, 
-            (data["journey_id"],
-             data["destination_city"],
+            (data["destination_city"],
              data["arrival_date"],
              data["departure_date"],
              data["interests"],
@@ -450,8 +447,7 @@ def update_recommendation_request(request_id):
         cursor = conn.execute(
             """
             UPDATE recommendation_requests
-            SET journey_id = ?,
-                destination_city = ?,
+            SET destination_city = ?,
                 arrival_date = ?, 
                 departure_date = ?,
                 interests = ?,
@@ -462,7 +458,6 @@ def update_recommendation_request(request_id):
                 status = ?
             WHERE request_id = ?
             """, (
-                data["journey_id"],
                 data["destination_city"],
                 data["arrival_date"],
                 data["departure_date"],

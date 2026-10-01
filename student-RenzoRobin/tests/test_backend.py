@@ -1,15 +1,25 @@
 import importlib.util
 import os
+import sys
 import types
 from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
-_APP_PATH = os.path.join(os.path.dirname(__file__), "..", "backend", "app.py")
+_BACKEND_DIR = os.path.join(os.path.dirname(__file__), "..", "backend")
+_APP_PATH = os.path.join(_BACKEND_DIR, "app.py")
 
 
 def _load_backend_app():
+    # app.py has its own local import ("from mcp_client import ..."),
+    # which only resolves if its own directory is on sys.path first —
+    # exec_module() alone does NOT add it automatically (unlike running
+    # `python app.py` directly, where Python does this for you).
+    backend_dir_abs = os.path.abspath(_BACKEND_DIR)
+    if backend_dir_abs not in sys.path:
+        sys.path.insert(0, backend_dir_abs)
+
     spec = importlib.util.spec_from_file_location("renzorobin_backend_app", _APP_PATH)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

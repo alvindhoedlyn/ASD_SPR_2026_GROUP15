@@ -75,7 +75,6 @@ recommendationForm.addEventListener("submit", async function (event) {
   }
 
   const requestData = {
-    journey_id: document.getElementById("journey-id").value,
     destination_city: document.getElementById(
       "destination-city"
     ).value,
@@ -562,5 +561,244 @@ async function deleteSavedPlace(
     deleteButton.disabled = false;
     deleteButton.textContent = "Remove";
     statusMessage.textContent = error.message;
+  }
+}
+
+const mcpForm = document.getElementById("mcp-form");
+const mcpMode = document.getElementById("mcp-mode");
+const mcpStatus = document.getElementById("mcp-status");
+const mcpResult = document.getElementById("mcp-result");
+const mcpSummary = document.getElementById("mcp-summary");
+const mcpAttractions = document.getElementById(
+  "mcp-attractions"
+);
+
+const ragForm = document.getElementById("rag-form");
+const ragMode = document.getElementById("rag-mode");
+const ragStatus = document.getElementById("rag-status");
+const ragResult = document.getElementById("rag-result");
+const ragAnswer = document.getElementById("rag-answer");
+const ragConfidence = document.getElementById(
+  "rag-confidence"
+);
+const ragCitations = document.getElementById(
+  "rag-citations"
+);
+
+
+mcpForm.addEventListener("submit", async function (event) {
+  event.preventDefault();
+
+  mcpResult.hidden = true;
+  mcpAttractions.replaceChildren();
+
+  if (!mcpMode.checked) {
+    mcpStatus.textContent = "MCP Mode is disabled.";
+    return;
+  }
+
+  const city = document.getElementById(
+    "mcp-city"
+  ).value.trim();
+
+  const category = document.getElementById(
+    "mcp-category"
+  ).value;
+
+  const argumentsData = {
+    city
+  };
+
+  if (category) {
+    argumentsData.category = category;
+  }
+
+  mcpStatus.textContent = "Running MCP tool...";
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/mcp/call`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-MCP-Mode": "on"
+        },
+        body: JSON.stringify({
+          tool: "attractions_by_city",
+          arguments: argumentsData
+        })
+      }
+    );
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        responseData.error ||
+        "The MCP tool could not be executed."
+      );
+    }
+
+    const toolResult = responseData.result || {};
+    const structuredResult =
+      toolResult.structuredContent;
+
+    if (!structuredResult) {
+      throw new Error(
+        "The MCP server returned no structured result."
+      );
+    }
+
+    displayMcpAttractions(structuredResult);
+
+    mcpStatus.textContent =
+      "MCP tool executed successfully.";
+
+    mcpResult.hidden = false;
+
+  } catch (error) {
+    mcpStatus.textContent = error.message;
+  }
+});
+
+
+function displayMcpAttractions(result) {
+  const attractions = result.attractions || [];
+
+  mcpSummary.textContent =
+    `${result.count || attractions.length} attraction(s) ` +
+    `returned for ${result.city}.`;
+
+  mcpAttractions.replaceChildren();
+
+  if (attractions.length === 0) {
+    showResultsMessage(
+      mcpAttractions,
+      "No matching attractions were returned."
+    );
+
+    return;
+  }
+
+  for (const attraction of attractions) {
+    const card = document.createElement("article");
+
+    const heading = document.createElement("h4");
+    heading.textContent = attraction.attraction_name;
+
+    const category = document.createElement("p");
+    category.textContent =
+      `Category: ${attraction.category}`;
+
+    const cost = document.createElement("p");
+    cost.textContent =
+      `Estimated cost: ${attraction.currency} ` +
+      `$${attraction.estimated_cost}`;
+
+    const accessibility = document.createElement("p");
+    accessibility.textContent =
+      `Accessibility: ` +
+      `${attraction.accessibility_information}`;
+
+    card.append(
+      heading,
+      category,
+      cost,
+      accessibility
+    );
+
+    mcpAttractions.appendChild(card);
+  }
+}
+
+
+ragForm.addEventListener("submit", async function (event) {
+  event.preventDefault();
+
+  ragResult.hidden = true;
+  ragCitations.replaceChildren();
+
+  if (!ragMode.checked) {
+    ragStatus.textContent = "RAG Mode is disabled.";
+    return;
+  }
+
+  const query = document.getElementById(
+    "rag-query"
+  ).value.trim();
+
+  ragStatus.textContent = "Retrieving grounded context...";
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/rag/answer`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-RAG-Mode": "on"
+        },
+        body: JSON.stringify({
+          query,
+          k: 5
+        })
+      }
+    );
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        responseData.error ||
+        "The RAG question could not be answered."
+      );
+    }
+
+    displayRagResponse(responseData);
+
+    if (responseData.status === "insufficient_context") {
+      ragStatus.textContent =
+        "RAG correctly returned insufficient context.";
+    } else {
+      ragStatus.textContent =
+        "Grounded RAG response received.";
+    }
+
+    ragResult.hidden = false;
+
+  } catch (error) {
+    ragStatus.textContent = error.message;
+  }
+});
+
+
+function displayRagResponse(responseData) {
+  ragAnswer.textContent = responseData.answer;
+  ragConfidence.textContent =
+    responseData.confidence_category;
+
+  ragCitations.replaceChildren();
+
+  const citations = responseData.citations || [];
+
+  if (citations.length === 0) {
+    const item = document.createElement("li");
+    item.textContent =
+      "No source was cited because relevant context was unavailable.";
+
+    ragCitations.appendChild(item);
+    return;
+  }
+
+  for (const citation of citations) {
+    const item = document.createElement("li");
+
+    item.textContent =
+      `${citation.source_id} — ` +
+      `${citation.chunk_id} ` +
+      `(${citation.authority_tier})`;
+
+    ragCitations.appendChild(item);
   }
 }

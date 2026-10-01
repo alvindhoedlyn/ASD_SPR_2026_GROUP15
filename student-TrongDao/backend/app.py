@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timezone
 from flask_cors import CORS
 from flask import Flask, render_template, jsonify, request
+from mcp_client import call_mcp_tool
 
 app = Flask(
     __name__,
@@ -43,9 +44,36 @@ OLLAMA_REVIEW_MODEL = os.getenv(
 )
 
 
+MCP_REQUEST_TIMEOUT = int(
+    os.getenv("MCP_REQUEST_TIMEOUT", "30")
+)
+
+
+ALLOWED_MCP_TOOLS = {
+    "attractions_by_city",
+    "attraction_details"
+}
+
+
 RAG_REQUEST_TIMEOUT = int(
     os.getenv("RAG_REQUEST_TIMEOUT", "30")
 )
+
+def mcp_mode_is_enabled(current_request):
+    if not MCP_ENABLED:
+        return False
+
+    header_value = current_request.headers.get(
+        "X-MCP-Mode",
+        "on"
+    )
+
+    return header_value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on"
+    }
 
 
 def rag_mode_is_enabled(current_request):
@@ -99,6 +127,104 @@ def call_rag_service(path, payload):
         }, 502
 
     return response_data, response.status_code
+
+
+@app.post("/api/mcp/call")
+def call_attraction_mcp_tool():
+    if not mcp_mode_is_enabled(request):
+        return jsonify({
+            "error": "MCP mode is disabled"
+        }), 403
+
+    if not MCP_SERVER_URL:
+        return jsonify({
+            "error": "MCP server is not configured"
+        }), 503
+
+    data = request.get_json(silent=True) or {}
+
+    tool_name = str(data.get("tool", "")).strip()
+    arguments = data.get("arguments", {})
+
+    if tool_name not in ALLOWED_MCP_TOOLS:
+        return jsonify({
+            "error": "MCP tool is not allowed",
+            "allowed_tools": sorted(ALLOWED_MCP_TOOLS)
+        }), 400
+
+    if not isinstance(arguments, dict):
+        return jsonify({
+            "error": "arguments must be an object"
+        }), 400
+
+    if tool_name == "attractions_by_city":
+        city = str(arguments.get("city", "")).strip()
+
+        if not city:
+            return jsonify({
+                "error": "city is required"
+            }), 400
+
+        cleaned_arguments = {
+            "city": city
+        }
+
+        category = arguments.get("category")
+
+        if category is not None:
+            category = str(category).strip()
+
+            if category:
+                cleaned_arguments["category"] = category
+
+    else:
+        try:
+            attraction_id = int(
+                arguments.get("attraction_id")
+            )
+        except (TypeError, ValueError):
+            return jsonify({
+                "error": (
+                    "attraction_id must be a positive integer"
+                )
+            }), 400
+
+        if attraction_id <= 0:
+            return jsonify({
+                "error": (
+                    "attraction_id must be a positive integer"
+                )
+            }), 400
+
+        cleaned_arguments = {
+            "attraction_id": attraction_id
+        }
+
+    try:
+        result = call_mcp_tool(
+            MCP_SERVER_URL,
+            tool_name,
+            cleaned_arguments,
+            MCP_REQUEST_TIMEOUT
+        )
+    except Exception as error:
+        return jsonify({
+            "error": "MCP server request failed",
+            "details": str(error)
+        }), 502
+
+    if result.get("isError"):
+        return jsonify({
+            "error": "MCP tool execution failed",
+            "tool": tool_name,
+            "result": result
+        }), 502
+
+    return jsonify({
+        "status": "success",
+        "tool": tool_name,
+        "result": result
+    }), 200
 
 
 def get_current_user_id():
@@ -206,10 +332,9 @@ def call_ollama(system_prompt, user_prompt, model):
     return response_data["message"]["content"]
 
 
-def record_workflow_step(workflow_log, journey_id, phase, status, details):
+def record_workflow_step(workflow_log, phase, status, details):
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "journey_id": journey_id,
         "phase": phase,
         "status": status,
         "details": details
@@ -377,7 +502,6 @@ def create_recommendations():
     data = request.get_json(silent=True) or {}
 
     required_fields = [
-        "journey_id",
         "destination_city",
         "arrival_date",
         "departure_date",
@@ -525,7 +649,6 @@ def create_recommendations():
         if ai_mode:
             record_workflow_step(
                 workflow_log,
-                data["journey_id"],
                 "PLAN",
                 "completed",
                 (
@@ -536,7 +659,6 @@ def create_recommendations():
 
             record_workflow_step(
                 workflow_log,
-                data["journey_id"],
                 "ACT",
                 "completed",
                 (
@@ -557,7 +679,6 @@ def create_recommendations():
 
                     record_workflow_step(
                         workflow_log,
-                        data["journey_id"],
                         "OBSERVE",
                         "completed",
                         (
@@ -574,7 +695,6 @@ def create_recommendations():
 
                     record_workflow_step(
                         workflow_log,
-                        data["journey_id"],
                         "OBSERVE",
                         "failed",
                         f"Qwen request failed: {error}"
@@ -592,7 +712,6 @@ def create_recommendations():
 
                         record_workflow_step(
                             workflow_log,
-                            data["journey_id"],
                             "REVIEW",
                             "completed",
                             (
@@ -609,7 +728,6 @@ def create_recommendations():
 
                         record_workflow_step(
                             workflow_log,
-                            data["journey_id"],
                             "REVIEW",
                             "failed",
                             f"Llama review failed: {error}"
@@ -618,7 +736,6 @@ def create_recommendations():
             else:
                 record_workflow_step(
                     workflow_log,
-                    data["journey_id"],
                     "OBSERVE",
                     "completed",
                     "No attractions matched the traveller preferences."
@@ -644,14 +761,12 @@ def create_recommendations():
 
             record_workflow_step(
                 workflow_log,
-                data["journey_id"],
                 "ADAPT",
                 "completed",
                 adapt_details
             )
 
         request_record = {
-            "journey_id": data["journey_id"],
             "destination_city": data["destination_city"],
             "arrival_date": data["arrival_date"],
             "departure_date": data["departure_date"],
@@ -676,7 +791,6 @@ def create_recommendations():
 
         return jsonify({
             "request_id": saved_request["request_id"],
-            "journey_id": data["journey_id"],
             "mode": "ai" if ai_mode else "data",
             "implementation_model": (
                 OLLAMA_MODEL if ai_mode else None

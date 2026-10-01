@@ -67,6 +67,11 @@ from tools_location import (
     attraction_details as get_attraction_details,
 )
 
+from tools_flights import (
+    get_flight_details,
+    recommend_flights as run_flight_recommendation,
+)
+
 
 # =========================================================
 # AVAILABLE TOOLS
@@ -84,6 +89,8 @@ AVAILABLE_TOOLS = [
 
     "attractions_by_city",      # student-4 / TrongPhucDao
     "attraction_details",       # student-4 / TrongPhucDao
+    "recommend_flights",        # student-5 / YajunNing
+    "flight_details",           # student-5 / YajunNing
 ]
 
 
@@ -213,6 +220,36 @@ def attraction_details(
     return get_attraction_details(
         attraction_id
     )
+
+
+# =========================================================
+# FLIGHT TOOL SET - YajunNing
+# =========================================================
+
+@mcp.tool(name="recommend_flights")
+def recommend_flights_tool(
+    origin: str,
+    destination: str,
+    departure_date: str,
+    max_budget: float,
+    preference: str = "best_overall",
+    return_date: str = "",
+):
+    """Recommend bounded catalogue flights using traveller search criteria."""
+    return run_flight_recommendation(
+        origin=origin,
+        destination=destination,
+        departure_date=departure_date,
+        max_budget=max_budget,
+        preference=preference,
+        return_date=return_date,
+    )
+
+
+@mcp.tool(name="flight_details")
+def flight_details_tool(flight_id: int):
+    """Return one read-only catalogue record for a selected flight."""
+    return get_flight_details(flight_id)
 
 
 # =========================================================

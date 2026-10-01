@@ -8,6 +8,8 @@ from agentic_loop import run_flight_agent
 from database_client import database_request
 from flights import build_grounded_fallback
 from llm_client import generate_ai_explanation
+from mcp_client import call_mcp_tool, mcp_enabled, mcp_server_url
+from rag_client import ask_rag, rag_enabled, rag_service_url
 
 app = Flask(__name__)
 
@@ -24,7 +26,14 @@ def home():
 
 @app.route("/health")
 def health():
-    return {"status": "ok", "student": "5"}
+    return {
+        "status": "ok",
+        "student": "5",
+        "release_1": {
+            "mcp_enabled": mcp_enabled(),
+            "rag_enabled": rag_enabled(),
+        },
+    }
 
 
 ALLOWED_PREFERENCES = {"best_overall", "cheapest", "fastest", "fewest_stops"}
@@ -166,6 +175,102 @@ def create_flight_search():
             "explanation": ai_explanation,
         },
     })
+
+
+@app.get("/api/release1/status")
+def release_1_status():
+    """Expose connection configuration without leaking credentials."""
+    return jsonify({
+        "feature": "Flight Recommender",
+        "mcp": {
+            "enabled": mcp_enabled(),
+            "endpoint": mcp_server_url(),
+            "tool": "recommend_flights",
+        },
+        "rag": {
+            "enabled": rag_enabled(),
+            "endpoint": rag_service_url(),
+            "grounding_source": "Approved Flight Recommender knowledge document",
+        },
+        "execution_boundary": "MCP, RAG and AI Mode run locally outside Docker Compose",
+    })
+
+
+@app.post("/api/mcp/recommend-flights")
+def mcp_recommend_flights():
+    if not mcp_enabled():
+        return jsonify({"status": "disabled", "error": "MCP mode is disabled for this environment"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    validation_error = _validate_search(payload)
+    if validation_error:
+        return jsonify({"status": "error", "error": validation_error}), 400
+
+    arguments = {
+        "origin": str(payload["origin"]).strip(),
+        "destination": str(payload["destination"]).strip(),
+        "departure_date": payload["departure_date"],
+        "return_date": payload.get("return_date") or "",
+        "max_budget": float(payload["max_budget"]),
+        "preference": payload["preference"],
+    }
+    try:
+        result = call_mcp_tool("recommend_flights", arguments)
+    except Exception as exc:
+        return jsonify({
+            "status": "error",
+            "error": "Shared local MCP server is unavailable",
+            "detail": str(exc),
+        }), 503
+    return jsonify(result)
+
+
+@app.post("/api/mcp/flight-details")
+def mcp_flight_details():
+    if not mcp_enabled():
+        return jsonify({"status": "disabled", "error": "MCP mode is disabled for this environment"}), 503
+    payload = request.get_json(silent=True) or {}
+    try:
+        flight_id = int(payload.get("flight_id"))
+        if flight_id <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "error": "flight_id must be a positive integer"}), 400
+    try:
+        return jsonify(call_mcp_tool("flight_details", {"flight_id": flight_id}))
+    except Exception as exc:
+        return jsonify({
+            "status": "error",
+            "error": "Shared local MCP server is unavailable",
+            "detail": str(exc),
+        }), 503
+
+
+@app.post("/api/rag/answer")
+def rag_answer():
+    if not rag_enabled():
+        return jsonify({"status": "disabled", "error": "RAG mode is disabled for this environment"}), 503
+    payload = request.get_json(silent=True) or {}
+    query = str(payload.get("query", "")).strip()
+    if not query:
+        return jsonify({"status": "error", "error": "query is required"}), 400
+    try:
+        k = min(10, max(1, int(payload.get("k", 5))))
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "error": "k must be an integer from 1 to 10"}), 400
+    try:
+        result = ask_rag(query, k=k)
+    except requests.RequestException as exc:
+        return jsonify({
+            "status": "error",
+            "error": "Shared local RAG server is unavailable",
+            "detail": str(exc),
+        }), 503
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 503
+
+    status_code = 200 if result.get("status") in {"success", "insufficient_context"} else 502
+    return jsonify(result), status_code
 
 
 def proxy_database_request(method, path, params=None, json_body=None):

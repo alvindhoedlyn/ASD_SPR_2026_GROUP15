@@ -16,9 +16,8 @@
   href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600&display=swap"
   rel="stylesheet"
 >
-<link rel="stylesheet" href="/css/location.css?v=20260903-2">
-<script src="http://localhost:3000/js/main.js" defer></script>
-<script src="/js/location.js?v=20260903-2" defer></script>
+<link rel="stylesheet" href="/css/location.css?v=20261001-1">
+<script src="/js/location.js?v=20261001-2" defer></script>
 </head>
 
 <body>
@@ -46,17 +45,6 @@
       </div>
 
       <form id="recommendation-form">
-        <div>
-          <label for="journey-id">Journey ID</label>
-          <input
-            type="text"
-            id="journey-id"
-            name="journey_id"
-            placeholder="For example: TRIP-01"
-            required
-          >
-        </div>
-
         <div>
           <label for="destination-city">Destination city</label>
           <input
@@ -277,6 +265,114 @@
       <h2>Saved Attractions</h2>
 
       <div id="saved-places-results"></div>
+    </section>
+
+    <section id="release-one-section">
+      <h2>MCP and RAG Services</h2>
+
+      <p class="section-introduction">
+        Use the shared local MCP and RAG services through the
+        Attraction Recommender backend.
+      </p>
+
+      <div class="release-one-grid">
+        <article class="release-one-card">
+          <h3>MCP Attraction Search</h3>
+
+          <label class="mode-toggle" for="mcp-mode">
+            <input
+              type="checkbox"
+              id="mcp-mode"
+              checked
+            >
+            MCP Mode enabled
+          </label>
+
+          <form id="mcp-form">
+            <div>
+              <label for="mcp-city">City</label>
+              <input
+                type="text"
+                id="mcp-city"
+                value="Sydney"
+                required
+              >
+            </div>
+
+            <div>
+              <label for="mcp-category">Category</label>
+              <select id="mcp-category">
+                <option value="">All categories</option>
+                <option value="nature">Nature</option>
+                <option value="history">History</option>
+                <option value="art">Art</option>
+                <option value="landmark">Landmark</option>
+                <option value="beach">Beach</option>
+                <option value="wildlife">Wildlife</option>
+                <option value="entertainment">
+                  Entertainment
+                </option>
+              </select>
+            </div>
+
+            <button type="submit">
+              Run MCP tool
+            </button>
+          </form>
+
+          <p id="mcp-status" role="status"></p>
+
+          <div id="mcp-result" hidden>
+            <h4>Tool result</h4>
+            <p id="mcp-summary"></p>
+            <div id="mcp-attractions"></div>
+          </div>
+        </article>
+
+        <article class="release-one-card">
+          <h3>RAG Attraction Questions</h3>
+
+          <label class="mode-toggle" for="rag-mode">
+            <input
+              type="checkbox"
+              id="rag-mode"
+              checked
+            >
+            RAG Mode enabled
+          </label>
+
+          <form id="rag-form">
+            <div>
+              <label for="rag-query">Question</label>
+              <input
+                type="text"
+                id="rag-query"
+                value="What accessibility information is available for the Sydney Opera House?"
+                required
+              >
+            </div>
+
+            <button type="submit">
+              Ask RAG
+            </button>
+          </form>
+
+          <p id="rag-status" role="status"></p>
+
+          <div id="rag-result" hidden>
+            <h4>Grounded answer</h4>
+            <p id="rag-answer"></p>
+
+            <p>
+              <strong>Confidence:</strong>
+              <span id="rag-confidence"></span>
+            </p>
+
+            <h4>Sources</h4>
+            <ul id="rag-citations"></ul>
+          </div>
+        </article>
+      </div>
     </section>
   </main>
 </body>

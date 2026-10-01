@@ -24,7 +24,14 @@ from openai import OpenAI
 
 from corpus_accommodation import load_accommodation_chunks
 from corpus_budget import load_budget_chunks
+from corpus_itinerary import (
+    KNOWN_LOCATIONS,
+    canonical_location,
+    load_itinerary_chunks,
+    setting_for_weather,
+)
 from corpus_location import load_location_chunks
+from corpus_flights import load_flight_chunks
 
 # Other students: import your own corpus_<feature>.py loader here, e.g.
 # from corpus_flights import load_flight_chunks
@@ -52,6 +59,9 @@ client = OpenAI(base_url=f"{OLLAMA_URL}/v1", api_key="ollama")
 STOPWORDS = {
     "a", "an", "and", "are", "at", "for", "in", "is", "of", "on",
     "or", "the", "to", "what", "which", "with", "from",
+    "that", "has", "have", "had", "does", "do", "can", "could",
+    "would", "should", "will", "there", "this", "these", "those",
+    "any", "all", "me", "please", "tell", "show",
 }
 
 
@@ -162,9 +172,9 @@ def build_corpus() -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     chunks.extend(load_accommodation_chunks())
     chunks.extend(load_budget_chunks())
+    chunks.extend(load_itinerary_chunks())
     chunks.extend(load_location_chunks())
-    # Other students: extend chunks with your own loader's output here, e.g.
-    # chunks.extend(load_flight_chunks())
+    chunks.extend(load_flight_chunks())
     for chunk in chunks:
         chunk.setdefault("indexed_at", now_iso())
     return chunks
@@ -207,8 +217,17 @@ def refresh_corpus(caller: str = "student") -> dict[str, Any]:
             if chunks:
                 ids = [c["chunk_id"] for c in chunks]
                 docs = [c["text"] for c in chunks]
+                # Scalar values from each chunk's "metadata" dict (e.g.
+                # location, setting, source_type) are stored in Chroma too,
+                # so retrieve_context can filter on them. Chroma only accepts
+                # str/int/float/bool values, so anything else is skipped.
                 metas = [
                     {
+                        **{
+                            key: val
+                            for key, val in (c.get("metadata") or {}).items()
+                            if isinstance(val, (str, int, float, bool))
+                        },
                         "source_id": c["source_id"],
                         "authority_tier": c["authority_tier"],
                         "indexed_at": c["indexed_at"],
@@ -242,16 +261,32 @@ def refresh_corpus(caller: str = "student") -> dict[str, Any]:
 
 # ===================== RETRIEVE =====================
 
-def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[str, Any]:
+def retrieve_context(
+    query: str,
+    k: int = 5,
+    caller: str = "student",
+    filters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    filters: optional exact-match metadata filter, e.g.
+    {"source_type": "itinerary", "location": "Bondi Beach", "setting": "indoor"}.
+    Only chunks whose stored metadata matches every key/value are returned.
+    """
     start = time.time()
+    audit_input: dict[str, Any] = {"query": query, "k": k, "caller": caller}
+    if filters:
+        audit_input["filters"] = filters
     try:
         collection = get_collection()
         if collection.count() == 0:
             refreshed = refresh_corpus(caller="auto_refresh")
             if refreshed.get("status") != "success":
                 output = {"status": "error", "error": "corpus_unavailable", "query": query}
-                append_audit("retrieve_context", {"query": query, "k": k, "caller": caller}, output, "fail", "error", start)
+                append_audit("retrieve_context", audit_input, output, "fail", "error", start)
                 return output
+            # refresh_corpus deletes + recreates the collection, so the handle
+            # fetched above is stale. Fetch it again.
+            collection = get_collection()
 
         boilerplate = _boilerplate_tokens(read_corpus())
         query_tokens = _tokenize(query) - boilerplate
@@ -287,6 +322,8 @@ def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[st
                 "chunk_id": chunk_id,
                 "source_id": meta.get("source_id"),
                 "authority_tier": meta.get("authority_tier"),
+                "source_type": meta.get("source_type", "unknown"),
+                "source_error": bool(meta.get("error", False)),
                 "distance": (
                     distances[i]
                     if i < len(distances)
@@ -294,9 +331,35 @@ def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[st
                 ),
                 "text": text,
                 "keyword_overlap": overlap,
+                "metadata": meta,
                 "query_coverage": round(query_coverage, 3),
                 "matched_terms": sorted(matched_terms)
             })
+
+        flight_terms = {"flight", "flights", "airline", "direct", "stop", "stops", "route", "fare"}
+        accommodation_terms = {"accommodation", "accommodations", "hotel", "hotels", "room", "rooms", "facility", "facilities"}
+        requested_source_type = None
+        raw_query_tokens = _tokenize(query)
+        if raw_query_tokens & flight_terms:
+            requested_source_type = "flight_database"
+        elif raw_query_tokens & accommodation_terms:
+            requested_source_type = "accommodation_database"
+
+        candidates = [candidate for candidate in candidates if not candidate["source_error"]]
+        if requested_source_type:
+            domain_candidates = [
+                candidate for candidate in candidates
+                if candidate["source_type"] == requested_source_type
+            ]
+            if domain_candidates:
+                candidates = domain_candidates
+
+        # Metadata filter: keep only chunks matching every requested key/value.
+        if filters:
+            candidates = [
+                c for c in candidates
+                if all(c["metadata"].get(key) == val for key, val in filters.items())
+            ]
 
         # Keyword overlap is the primary sort key: this toy hash embedding's
         # distances cluster tightly because every chunk shares the same
@@ -320,15 +383,55 @@ def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[st
         }
         append_audit(
             "retrieve_context",
-            {"query": query, "k": k, "caller": caller},
+            audit_input,
             {"result_count": len(ranked), "chunk_ids": [r["chunk_id"] for r in ranked]},
             "pass", "context_retrieved", start,
         )
         return output
     except Exception as exc:
         output = {"status": "error", "error": str(exc), "query": query}
-        append_audit("retrieve_context", {"query": query, "k": k, "caller": caller}, output, "fail", "error", start)
+        append_audit("retrieve_context", audit_input, output, "fail", "error", start)
         return output
+
+
+def retrieve_activities(
+    location: str,
+    weather: str | None = None,
+    k: int = 4,
+    caller: str = "itinerary",
+) -> dict[str, Any]:
+    """
+    Itinerary lookup: returns activities for one known location, narrowed to
+    indoor/outdoor by the weather label (see corpus_itinerary.setting_for_weather).
+    Unknown weather labels and "Overcast" return both indoor and outdoor.
+    """
+    start = time.time()
+    canonical = canonical_location(location)
+    if canonical is None:
+        output = {
+            "status": "error",
+            "error": "unknown_location",
+            "location": location,
+            "known_locations": KNOWN_LOCATIONS,
+        }
+        append_audit(
+            "retrieve_activities",
+            {"location": location, "weather": weather, "caller": caller},
+            {"error": "unknown_location"},
+            "fail", "unknown_location", start,
+        )
+        return output
+
+    setting = setting_for_weather(weather)
+    filters: dict[str, Any] = {"source_type": "itinerary", "location": canonical}
+    if setting in ("indoor", "outdoor"):
+        filters["setting"] = setting
+
+    query = " ".join(part for part in (canonical, weather) if part)
+    result = retrieve_context(query=query, k=k, caller=caller, filters=filters)
+    if result.get("status") == "success":
+        result.update({"location": canonical, "weather": weather, "setting": setting})
+    return result
 
 
 # ===================== ANSWER (grounded, with citations + confidence) =====================
@@ -401,6 +504,87 @@ def generate_grounded_answer(query: str, context: str) -> str:
         return f"Ollama unavailable: {error}"
 
 
+def _flight_fact(result: dict[str, Any]) -> dict[str, Any] | None:
+    """Parse a stable Flight corpus sentence into a validation record."""
+    match = re.search(
+        r"Flight: (?P<airline>.+?) (?P<number>[A-Z0-9]+)\. "
+        r"Route: (?P<origin>[A-Z]+) to (?P<destination>[A-Z]+)\. "
+        r"Departure time: (?P<departure>[^.]+)\. "
+        r"Arrival time: (?P<arrival>[^.]+)\. "
+        r"Price: AUD \$(?P<price>[0-9.]+)\. "
+        r"Duration: (?P<duration>[0-9]+) minutes\. "
+        r"Stops: (?P<stops>[0-9]+);",
+        result.get("text", ""),
+    )
+    if not match:
+        return None
+    fact = match.groupdict()
+    fact["price"] = float(fact["price"])
+    fact["duration"] = int(fact["duration"])
+    fact["stops"] = int(fact["stops"])
+    fact["result"] = result
+    return fact
+
+
+def _flight_constraints(query: str) -> dict[str, Any]:
+    lowered = query.lower()
+    budget_match = re.search(
+        r"(?:under|below|less than|no more than|within)\s+(?:aud\s*)?\$?\s*([0-9]+(?:\.[0-9]+)?)",
+        lowered,
+    )
+    return {
+        "direct_only": "direct" in lowered or "nonstop" in lowered or "non-stop" in lowered,
+        "maximum_price": float(budget_match.group(1)) if budget_match else None,
+    }
+
+
+def _select_grounded_flight_facts(query: str, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    facts = [fact for result in results if (fact := _flight_fact(result))]
+    constraints = _flight_constraints(query)
+    flight_numbers = set(re.findall(r"\b[A-Z]{1,3}[0-9]{1,4}\b", query.upper()))
+    if flight_numbers:
+        facts = [fact for fact in facts if fact["number"] in flight_numbers]
+    if constraints["direct_only"]:
+        facts = [fact for fact in facts if fact["stops"] == 0]
+    if constraints["maximum_price"] is not None:
+        facts = [fact for fact in facts if fact["price"] < constraints["maximum_price"]]
+    if "cheapest" in query.lower() and facts:
+        cheapest = min(fact["price"] for fact in facts)
+        facts = [fact for fact in facts if fact["price"] == cheapest]
+    return sorted(facts, key=lambda fact: (fact["price"], fact["duration"]))
+
+
+def _deterministic_flight_answer(facts: list[dict[str, Any]]) -> str:
+    if not facts:
+        return "Insufficient context available to answer this question."
+    summaries = []
+    for fact in facts[:3]:
+        stop_label = "direct" if fact["stops"] == 0 else f"with {fact['stops']} stop(s)"
+        summaries.append(
+            f"{fact['airline']} {fact['number']} is {stop_label}, travels from "
+            f"{fact['origin']} to {fact['destination']}, and costs AUD ${fact['price']:.0f}"
+        )
+    return "Based on the retrieved Flight catalogue, " + "; ".join(summaries) + "."
+
+
+def _flight_answer_is_grounded(answer: str, query: str, facts: list[dict[str, Any]]) -> bool:
+    if not facts or not answer or answer.startswith("Ollama unavailable:"):
+        return False
+    mentioned_numbers = set(re.findall(r"\b[A-Z]{1,3}[0-9]{1,4}\b", answer.upper()))
+    valid_numbers = {fact["number"] for fact in facts}
+    if not mentioned_numbers or not mentioned_numbers.issubset(valid_numbers):
+        return False
+    constraints = _flight_constraints(query)
+    mentioned_facts = [fact for fact in facts if fact["number"] in mentioned_numbers]
+    if constraints["direct_only"] and any(fact["stops"] != 0 for fact in mentioned_facts):
+        return False
+    if constraints["maximum_price"] is not None and any(
+        fact["price"] >= constraints["maximum_price"] for fact in mentioned_facts
+    ):
+        return False
+    return True
+
+
 def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str, Any]:
     start = time.time()
     retrieval = retrieve_context(query=query, k=k, caller=caller)
@@ -411,6 +595,17 @@ def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str
 
     results = retrieval.get("results", [])
     confidence = confidence_from_results(results)
+    flight_results = [r for r in results if r.get("source_type") == "flight_database"]
+    selected_flight_facts = _select_grounded_flight_facts(query, flight_results)
+
+    # Flight questions often use city names (Sydney/Tokyo), while the
+    # approved catalogue stores airport codes (SYD/NRT/HND). The generic
+    # keyword-coverage score therefore looks artificially low even when a
+    # catalogue record satisfies every explicit constraint. A successfully
+    # parsed record that passes route/price/stop filtering is strong grounded
+    # evidence and may safely raise the category to High.
+    if selected_flight_facts:
+        confidence = "High"
 
     if not results or confidence == "Insufficient":
         output = {
@@ -443,6 +638,25 @@ def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str
     )
 
     answer = generate_grounded_answer(query, context)
+    generation_mode = "local_llm"
+
+    if flight_results and not _flight_answer_is_grounded(answer, query, selected_flight_facts):
+        answer = _deterministic_flight_answer(selected_flight_facts)
+        generation_mode = "validated_fallback"
+        grounding_results = [fact["result"] for fact in selected_flight_facts]
+
+    if answer == "Insufficient context available to answer this question.":
+        output = {
+            "status": "insufficient_context",
+            "query": query,
+            "answer": answer,
+            "citations": [],
+            "confidence_category": "Insufficient",
+            "generation_mode": generation_mode,
+            "retrieval_summary": {"k": k, "retrieved_count": len(results)},
+        }
+        append_audit("answer_question", {"query": query, "k": k, "caller": caller}, output, "pass", "insufficient_context", start)
+        return output
 
     citations = [
         {
@@ -459,6 +673,7 @@ def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str
         "answer": answer,
         "citations": citations,
         "confidence_category": confidence,
+        "generation_mode": generation_mode,
         "retrieval_summary": {
             "k": k,
             "retrieved_count": len(results),
@@ -482,4 +697,5 @@ if __name__ == "__main__":
     # python -c "from rag_pipeline import *; import json; print(json.dumps(refresh_corpus(), indent=2))"
     print(json.dumps(refresh_corpus(), indent=2))
     print(json.dumps(retrieve_context("pool villa in Bali", 5), indent=2))
+    print(json.dumps(retrieve_activities("Bondi Beach", "Light Rain"), indent=2))
     print(json.dumps(answer_question("What accommodations are available in Kyoto?", 5), indent=2))

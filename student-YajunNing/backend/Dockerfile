@@ -10,7 +10,9 @@ COPY agentic_loop.py .
 COPY database_client.py .
 COPY flights.py .
 COPY llm_client.py .
+COPY mcp_client.py .
 COPY prompt_loader.py .
+COPY rag_client.py .
 COPY prompts ./prompts
 
 EXPOSE 5005

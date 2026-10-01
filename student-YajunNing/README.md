@@ -69,3 +69,54 @@ on first start.
 Both the shared `client` and `admin` demo accounts can access the Flight Recommender. Neither role
 is given a catalogue-price editing screen: flight data is treated as provider-owned, while the
 user-owned saved-flight shortlist is the feature's CRUD resource.
+
+## Release 1: local MCP and grounded RAG
+
+Release 1 preserves all Release 0 search, AI-Mode, agentic-loop, login, and saved-flight CRUD
+behaviour. It adds two explicit frontend interactions that always pass through the Flight backend:
+
+- **MCP recommendation:** the frontend calls `POST /api/mcp/recommend-flights`; the backend invokes
+  the registered `recommend_flights` tool on the shared local MCP server; the tool calls the bounded
+  Flight recommendation API and returns a structured result.
+- **Grounded RAG question:** the frontend calls `POST /api/rag/answer`; the backend calls the shared
+  shared local RAG server at port `5100`; the RAG corpus retrieves approved Flight catalogue context and returns an answer with
+  source citations and a confidence category. Unsupported questions return `insufficient_context`.
+
+The approved Flight knowledge is stored in `ai-services/rag-server/knowledge/flights.md`. The shared
+RAG server retrieves only local project documents and instructs Ollama not to use outside knowledge
+or invent facts. Flight answers are also checked against parsed catalogue constraints (flight number,
+price, stops, and budget). If a local-model answer conflicts with those facts, the service replaces it
+with a deterministic answer built from the retrieved record. If no relevant context is available, it
+returns an insufficient-context result with no citations.
+
+### Execution boundary
+
+The frontend, backend, and database remain containerised. Ollama/AI-Mode, the MCP server, the RAG
+server, and the shared agentic loop run locally and are deliberately absent from Docker Compose.
+From a backend container, the local services are reached through `host.docker.internal`:
+
+- MCP: `http://host.docker.internal:5200/mcp`
+- RAG: `http://host.docker.internal:5100`
+- Ollama: `http://host.docker.internal:11434/v1`
+
+### Integrated startup order
+
+Run the following from the repository root, using separate terminals where indicated:
+
+1. Start Ollama locally with `ollama serve` and make sure `qwen2.5:0.5b` is available.
+2. Start the containerised application with `docker compose up -d --build`.
+3. In `ai-services/mcp-server`, install its requirements and run `python server.py`.
+4. In `ai-services/rag-server`, install its requirements and run `python rag_http_server.py`.
+5. Open the shared homepage at `http://localhost:3000`, sign in, and open Flight Recommender, or
+   open the feature directly at `http://localhost:3005`.
+
+Run `python student-YajunNing/scripts/validate_release1.py` to print a compact MCP/RAG validation
+record suitable for terminal evidence. The frontend's **Release 1 intelligence** panel provides
+the required UI evidence.
+
+### CI/CD behaviour
+
+`.github/workflows/student-5-ci.yml` runs the Student 5 unit tests, validates the Student 5 Compose
+file, and builds all three images. It sets `MCP_ENABLED=false` and `RAG_ENABLED=false`, so CI does
+not depend on non-containerised local services while the production integration code remains in
+the feature.

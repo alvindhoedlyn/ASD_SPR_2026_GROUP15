@@ -1,4 +1,4 @@
-﻿"""
+"""
 Release 1 Shared Agentic Loop Validation
 
 Adds two local, non-containerised validation modes to the shared agentic loop:
@@ -234,7 +234,7 @@ def run_rag_validation() -> bool:
     try:
         result = post_json(
             f"{RAG_SERVER_URL}/answer",
-            {"query": query, "k": 5, "caller": "agentic-loop-validation"},
+            {"query": query, "k": 5, "caller": "shared-agentic-loop"},
         )
 
         print_stage(mode, "OBSERVE", "Received RAG response")

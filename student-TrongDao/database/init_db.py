@@ -19,7 +19,7 @@ PLACES = [
         "Sydney Opera House",
         "Sydney",
         "Australia",
-        "landmark",
+        "Landmark",
         151.2153,
         -33.8568,
         45.00,
@@ -35,7 +35,7 @@ PLACES = [
         "Royal Botanic Garden",
         "Sydney",
         "Australia",
-        "nature",
+        "Nature",
         151.2167,
         -33.8642,
         0.00,
@@ -51,7 +51,7 @@ PLACES = [
         "The Rocks",
         "Sydney",
         "Australia",
-        "history",
+        "History",
         151.2065,
         -33.8599,
         0.00,
@@ -67,7 +67,7 @@ PLACES = [
         "Art Gallery of New South Wales",
         "Sydney",
         "Australia",
-        "art",
+        "Art",
         151.2173,
         -33.8688,
         0.00,
@@ -83,7 +83,7 @@ PLACES = [
         "Darling Harbour",
         "Sydney",
         "Australia",
-        "entertainment",
+        "Entertainment",
         151.1999,
         -33.8749,
         20.00,
@@ -99,7 +99,7 @@ PLACES = [
         "SEA LIFE Sydney Aquarium",
         "Sydney",
         "Australia",
-        "wildlife",
+        "Wildlife",
         151.2022,
         -33.8696,
         55.00,
@@ -115,7 +115,7 @@ PLACES = [
         "Taronga Zoo",
         "Sydney",
         "Australia",
-        "wildlife",
+        "Wildlife",
         151.2411,
         -33.8430,
         51.00,
@@ -131,7 +131,7 @@ PLACES = [
         "Bondi Beach",
         "Sydney",
         "Australia",
-        "beach",
+        "Beach",
         151.2743,
         -33.8908,
         0.00,
@@ -147,7 +147,7 @@ PLACES = [
         "Manly Beach",
         "Sydney",
         "Australia",
-        "beach",
+        "Beach",
         151.2875,
         -33.7963,
         10.00,
@@ -163,7 +163,7 @@ PLACES = [
         "Barangaroo Reserve",
         "Sydney",
         "Australia",
-        "nature",
+        "Nature",
         151.2016,
         -33.8572,
         0.00,
@@ -180,7 +180,6 @@ PLACES = [
 
 RECOMMENDATION_REQUESTS = [
     (
-        "DEMO-01",
         "Sydney",
         "2026-09-01",
         "2026-09-05",
@@ -192,7 +191,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-02",
         "Sydney",
         "2026-09-02",
         "2026-09-06",
@@ -204,7 +202,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-03",
         "Sydney",
         "2026-09-03",
         "2026-09-07",
@@ -216,7 +213,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-04",
         "Sydney",
         "2026-09-04",
         "2026-09-08",
@@ -228,7 +224,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-05",
         "Sydney",
         "2026-09-05",
         "2026-09-09",
@@ -240,7 +235,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-06",
         "Sydney",
         "2026-09-06",
         "2026-09-10",
@@ -252,7 +246,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-07",
         "Sydney",
         "2026-09-07",
         "2026-09-11",
@@ -264,7 +257,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-08",
         "Sydney",
         "2026-09-08",
         "2026-09-12",
@@ -276,7 +268,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-09",
         "Sydney",
         "2026-09-09",
         "2026-09-13",
@@ -288,7 +279,6 @@ RECOMMENDATION_REQUESTS = [
         "completed"
     ),
     (
-        "DEMO-10",
         "Sydney",
         "2026-09-10",
         "2026-09-14",
@@ -391,6 +381,85 @@ def migrate_saved_places(connection):
     )
 
 
+def migrate_recommendation_requests(connection):
+    """Remove the obsolete journey identifier while preserving requests."""
+    table = connection.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name = 'recommendation_requests'
+        """
+    ).fetchone()
+
+    if table is None:
+        return
+
+    columns = {
+        row[1]
+        for row in connection.execute(
+            "PRAGMA table_info(recommendation_requests)"
+        ).fetchall()
+    }
+
+    if "journey_id" not in columns:
+        return
+
+    connection.executescript(
+        """
+        ALTER TABLE recommendation_requests
+            RENAME TO recommendation_requests_legacy;
+
+        CREATE TABLE recommendation_requests(
+            request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            destination_city TEXT NOT NULL,
+            arrival_date DATE NOT NULL,
+            departure_date DATE NOT NULL,
+            interests TEXT NOT NULL,
+            weather_preferences TEXT NOT NULL,
+            crowd_tolerance TEXT NOT NULL
+                CHECK(crowd_tolerance IN ('low', 'medium', 'high')),
+            budget_range TEXT NOT NULL
+                CHECK(budget_range IN ('free', 'low', 'medium', 'high')),
+            accessibility_needs TEXT NOT NULL DEFAULT 'None',
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending', 'completed', 'failed')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CHECK(arrival_date <= departure_date)
+        );
+
+        INSERT INTO recommendation_requests (
+            request_id,
+            destination_city,
+            arrival_date,
+            departure_date,
+            interests,
+            weather_preferences,
+            crowd_tolerance,
+            budget_range,
+            accessibility_needs,
+            status,
+            created_at
+        )
+        SELECT
+            request_id,
+            destination_city,
+            arrival_date,
+            departure_date,
+            interests,
+            weather_preferences,
+            crowd_tolerance,
+            budget_range,
+            accessibility_needs,
+            status,
+            created_at
+        FROM recommendation_requests_legacy
+        ORDER BY request_id;
+
+        DROP TABLE recommendation_requests_legacy;
+        """
+    )
+
+
 def initialise_database(reset=False):
     connection = create_connection()
 
@@ -405,6 +474,7 @@ def initialise_database(reset=False):
             )
 
         migrate_saved_places(connection)
+        migrate_recommendation_requests(connection)
 
         schema = SCHEMA_PATH.read_text(encoding="utf-8")
         connection.executescript(schema)
@@ -445,7 +515,6 @@ def initialise_database(reset=False):
             connection.executemany(
                 """
                 INSERT INTO recommendation_requests (
-                    journey_id,
                     destination_city,
                     arrival_date,
                     departure_date,
@@ -456,7 +525,7 @@ def initialise_database(reset=False):
                     accessibility_needs,
                     status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 RECOMMENDATION_REQUESTS
             )
