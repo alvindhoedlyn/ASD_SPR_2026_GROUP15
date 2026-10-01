@@ -503,6 +503,97 @@ Grounded answer:
     return answer
 
 
+def extract_flight_facts(retrieved_chunks):
+    """Extract stable, checkable flight facts from approved Flight knowledge."""
+
+    facts = []
+    seen_numbers = set()
+    pattern = re.compile(
+        r"(?P<airline>[A-Za-z][A-Za-z ]*?) flight "
+        r"(?P<number>[A-Z]{1,3}[0-9]{1,4}) travels from "
+        r"(?P<origin_city>.+?) \((?P<origin>[A-Z]{3})\) to "
+        r"(?P<destination_city>.+?) \((?P<destination>[A-Z]{3})\)\. "
+        r"It departs at (?P<departure>[0-9:]+), arrives at "
+        r"(?P<arrival>[0-9:]+), costs AUD (?P<price>[0-9.]+), "
+        r"takes (?P<duration>[0-9]+) minutes, and has "
+        r"(?P<stops>zero|[0-9]+) stops?\.",
+        re.IGNORECASE,
+    )
+
+    for chunk in retrieved_chunks:
+        compact_text = re.sub(r"\s+", " ", chunk.get("text", "")).strip()
+        for match in pattern.finditer(compact_text):
+            fact = match.groupdict()
+            number = fact["number"].upper()
+            if number in seen_numbers:
+                continue
+            seen_numbers.add(number)
+            fact["number"] = number
+            fact["airline"] = fact["airline"].strip()
+            fact["price"] = float(fact["price"])
+            fact["duration"] = int(fact["duration"])
+            fact["stops"] = 0 if fact["stops"].lower() == "zero" else int(fact["stops"])
+            fact["chunk"] = chunk
+            facts.append(fact)
+
+    return facts
+
+
+def select_flight_facts(question, facts):
+    """Apply explicit user constraints to retrieved Flight facts."""
+
+    lowered = question.lower()
+    selected = list(facts)
+    requested_numbers = set(re.findall(r"\b[A-Z]{1,3}[0-9]{1,4}\b", question.upper()))
+    budget_match = re.search(
+        r"(?:under|below|less than|no more than|within)\s+"
+        r"(?:aud\s*)?\$?\s*([0-9]+(?:\.[0-9]+)?)",
+        lowered,
+    )
+
+    if requested_numbers:
+        selected = [fact for fact in selected if fact["number"] in requested_numbers]
+    if "direct" in lowered or "nonstop" in lowered or "non-stop" in lowered:
+        selected = [fact for fact in selected if fact["stops"] == 0]
+    if budget_match:
+        maximum_price = float(budget_match.group(1))
+        selected = [fact for fact in selected if fact["price"] < maximum_price]
+    if "cheapest" in lowered and selected:
+        cheapest_price = min(fact["price"] for fact in selected)
+        selected = [fact for fact in selected if fact["price"] == cheapest_price]
+
+    return sorted(selected, key=lambda fact: (fact["price"], fact["duration"]))
+
+
+def flight_answer_is_grounded(answer, selected_facts):
+    """Reject model output that names a flight outside the validated result set."""
+
+    if not selected_facts or not answer:
+        return False
+    mentioned_numbers = set(re.findall(r"\b[A-Z]{1,3}[0-9]{1,4}\b", answer.upper()))
+    valid_numbers = {fact["number"] for fact in selected_facts}
+    if not mentioned_numbers or not mentioned_numbers.issubset(valid_numbers):
+        return False
+    return all(
+        str(int(fact["price"])) in answer
+        for fact in selected_facts
+        if fact["number"] in mentioned_numbers
+    )
+
+
+def deterministic_flight_answer(selected_facts):
+    """Build a safe fallback exclusively from parsed approved Flight facts."""
+
+    summaries = []
+    for fact in selected_facts[:3]:
+        stop_label = "direct" if fact["stops"] == 0 else f"has {fact['stops']} stop(s)"
+        summaries.append(
+            f"{fact['airline']} {fact['number']} is {stop_label}, travels from "
+            f"{fact['origin']} to {fact['destination']}, and costs AUD {fact['price']:.0f}"
+        )
+    return "Based on the approved Flight catalogue, " + "; ".join(summaries) + "."
+
+
 # =========================================================
 # Grounded Answer Construction
 # =========================================================
@@ -573,6 +664,53 @@ def build_answer(question, retrieved_chunks):
         retrieved_chunks,
     )
 
+    generation_mode = "local_llm"
+    flight_chunks = [
+        chunk for chunk in retrieved_chunks
+        if chunk.get("source") == "flights.md"
+    ]
+    selected_facts = select_flight_facts(
+        question,
+        extract_flight_facts(flight_chunks),
+    )
+    has_flight_constraints = bool(
+        re.search(
+            r"\b(flight|direct|nonstop|non-stop|cheapest|under|below|less than)\b",
+            question,
+            re.IGNORECASE,
+        )
+    )
+
+    if flight_chunks and has_flight_constraints:
+        if not selected_facts:
+            return {
+                "answer": (
+                    "Insufficient context: no flight in the approved catalogue "
+                    "satisfies the requested constraints."
+                ),
+                "sources": [],
+                "confidence": "insufficient",
+                "retrieved_context": retrieved_chunks,
+                "model": OLLAMA_MODEL,
+                "generation_mode": "validated_fallback",
+            }
+        if not flight_answer_is_grounded(answer, selected_facts):
+            answer = deterministic_flight_answer(selected_facts)
+            generation_mode = "validated_fallback"
+            selected_numbers = {fact["number"] for fact in selected_facts}
+            retrieved_chunks = [
+                chunk for chunk in flight_chunks
+                if any(number in chunk.get("text", "") for number in selected_numbers)
+            ]
+            sources = []
+            for chunk in retrieved_chunks:
+                citation = {
+                    "document": chunk["source"],
+                    "section": chunk["heading"],
+                }
+                if citation not in sources:
+                    sources.append(citation)
+
     if answer.strip().upper() == "INSUFFICIENT_CONTEXT":
 
         return {
@@ -586,6 +724,7 @@ def build_answer(question, retrieved_chunks):
             "confidence": "insufficient",
             "retrieved_context": retrieved_chunks,
             "model": OLLAMA_MODEL,
+            "generation_mode": generation_mode,
         }
 
     return {
@@ -594,6 +733,7 @@ def build_answer(question, retrieved_chunks):
         "confidence": confidence,
         "retrieved_context": retrieved_chunks,
         "model": OLLAMA_MODEL,
+        "generation_mode": generation_mode,
     }
 
 
@@ -693,6 +833,10 @@ def query_rag():
         "model": result[
             "model"
         ],
+        "generation_mode": result.get(
+            "generation_mode",
+            "not_applicable",
+        ),
         "service": "journeybuddy-shared-rag",
     }), 200
 

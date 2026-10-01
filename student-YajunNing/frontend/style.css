@@ -289,6 +289,143 @@ h1 {
   margin-top: 28px;
 }
 
+.release1-card {
+  margin-top: 28px;
+  padding: 30px;
+  background: linear-gradient(145deg, #ffffff, #f3f7f6);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 14px 36px rgba(16, 36, 60, 0.06);
+}
+
+.release1-heading-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.local-service-badge,
+.confidence-badge {
+  display: inline-flex;
+  width: max-content;
+  padding: 7px 11px;
+  color: var(--teal-deep);
+  background: #e4f3ee;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.release1-copy {
+  max-width: 820px;
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.65;
+}
+
+.release1-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.intelligence-panel {
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #d7e0de;
+  border-radius: 15px;
+}
+
+.intelligence-kicker {
+  color: var(--teal-deep);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.intelligence-panel h3 {
+  margin: 8px 0 6px;
+  font-size: 18px;
+}
+
+.intelligence-panel > p {
+  min-height: 44px;
+  margin: 0 0 16px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.intelligence-button {
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.rag-question-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.rag-question-form input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid #cfd8d6;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.intelligence-result {
+  min-height: 92px;
+  margin-top: 14px;
+  padding: 14px;
+  color: #33423f;
+  background: #f6f8f8;
+  border: 1px solid #dde5e3;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.intelligence-result.is-error {
+  color: #8d2d21;
+  background: #fff4f1;
+  border-color: #f0c7be;
+}
+
+.intelligence-result p,
+.intelligence-result ul {
+  margin: 8px 0 0;
+}
+
+.intelligence-result ul {
+  padding-left: 18px;
+}
+
+.citation-line {
+  color: #68736f;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.confidence-badge.is-high {
+  color: #0b634d;
+}
+
+.confidence-badge.is-medium {
+  color: #805600;
+  background: #fff2ce;
+}
+
+.confidence-badge.is-insufficient {
+  color: #7a3428;
+  background: #fde7e2;
+}
+
 h2 {
   margin: 0;
   font-size: 26px;
@@ -1365,6 +1502,10 @@ button:focus-visible {
   .calendar-months {
     grid-template-columns: 1fr;
   }
+
+  .release1-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1378,8 +1519,18 @@ button:focus-visible {
 
   .search-card,
   .results-card,
-  .saved-flights-card {
+  .saved-flights-card,
+  .release1-card {
     padding: 22px;
+  }
+
+  .release1-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rag-question-form {
+    grid-template-columns: 1fr;
   }
 
   .flight-hero {

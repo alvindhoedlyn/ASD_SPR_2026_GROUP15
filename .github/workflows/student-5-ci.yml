@@ -4,18 +4,25 @@ on:
   push:
     paths:
       - 'student-YajunNing/**'
+      - 'ai-services/mcp-server/**'
+      - 'ai-services/rag-server/**'
       - '.github/workflows/student-5-ci.yml'
       - 'docker-compose.yml'
   pull_request:
     branches: [main]
     paths:
       - 'student-YajunNing/**'
+      - 'ai-services/mcp-server/**'
+      - 'ai-services/rag-server/**'
       - '.github/workflows/student-5-ci.yml'
       - 'docker-compose.yml'
 
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    env:
+      MCP_ENABLED: "false"
+      RAG_ENABLED: "false"
 
     steps:
       - name: Checkout repository
@@ -35,6 +42,14 @@ jobs:
       - name: Run Flight Recommender tests
         working-directory: student-YajunNing
         run: python -m unittest discover -s tests -v
+
+      - name: Validate Flight MCP and RAG integration syntax
+        run: |
+          python -m py_compile ai-services/mcp-server/server.py
+          python -m py_compile ai-services/mcp-server/tools_flights.py
+          python -m py_compile ai-services/rag-server/server.py
+          python -m py_compile ai-services/rag-server/rag_pipeline.py
+          python -m py_compile ai-services/rag-server/corpus_flights.py
 
       - name: Validate Student 5 Docker Compose
         run: docker compose -f student-YajunNing/docker-compose.yml config --quiet
