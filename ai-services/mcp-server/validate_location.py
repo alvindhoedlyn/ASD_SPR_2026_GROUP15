@@ -8,7 +8,7 @@ import os
 
 from mcp import ClientSession
 from mcp.client.streamable_http import (
-    streamablehttp_client
+    streamable_http_client
 )
 
 
@@ -19,7 +19,7 @@ MCP_SERVER_URL = os.getenv(
 
 
 async def main():
-    async with streamablehttp_client(
+    async with streamable_http_client(
         MCP_SERVER_URL
     ) as (
         read_stream,
