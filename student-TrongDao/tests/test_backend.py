@@ -699,3 +699,140 @@ def test_rag_answer_preserves_insufficient_context(client):
     assert response.get_json()["confidence_category"] == (
         "Insufficient"
     )
+
+def test_mcp_call_is_disabled_during_ci(client):
+    with (
+        patch.object(backend_app, "MCP_ENABLED", False),
+        patch.object(
+            backend_app,
+            "call_mcp_tool"
+        ) as mock_call
+    ):
+        response = client.post(
+            "/api/mcp/call",
+            json={
+                "tool": "attractions_by_city",
+                "arguments": {
+                    "city": "Sydney"
+                }
+            }
+        )
+
+    assert response.status_code == 403
+    assert response.get_json()["error"] == (
+        "MCP mode is disabled"
+    )
+
+    mock_call.assert_not_called()
+
+
+def test_mcp_call_rejects_unapproved_tool(client):
+    with (
+        patch.object(backend_app, "MCP_ENABLED", True),
+        patch.object(
+            backend_app,
+            "MCP_SERVER_URL",
+            "http://mcp-server.test/mcp"
+        )
+    ):
+        response = client.post(
+            "/api/mcp/call",
+            json={
+                "tool": "generate_trip_itinerary",
+                "arguments": {}
+            }
+        )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == (
+        "MCP tool is not allowed"
+    )
+
+
+def test_mcp_city_tool_requires_city(client):
+    with (
+        patch.object(backend_app, "MCP_ENABLED", True),
+        patch.object(
+            backend_app,
+            "MCP_SERVER_URL",
+            "http://mcp-server.test/mcp"
+        )
+    ):
+        response = client.post(
+            "/api/mcp/call",
+            json={
+                "tool": "attractions_by_city",
+                "arguments": {}
+            }
+        )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == (
+        "city is required"
+    )
+
+
+def test_mcp_call_returns_structured_result(client):
+    mcp_result = {
+        "content": [
+            {
+                "type": "text",
+                "text": "{\"count\": 1}"
+            }
+        ],
+        "structuredContent": {
+            "city": "Sydney",
+            "category": "nature",
+            "count": 1,
+            "attractions": [
+                {
+                    "attraction_id": 2,
+                    "attraction_name": (
+                        "Royal Botanic Garden"
+                    )
+                }
+            ]
+        },
+        "isError": False
+    }
+
+    with (
+        patch.object(backend_app, "MCP_ENABLED", True),
+        patch.object(
+            backend_app,
+            "MCP_SERVER_URL",
+            "http://mcp-server.test/mcp"
+        ),
+        patch.object(
+            backend_app,
+            "call_mcp_tool",
+            return_value=mcp_result
+        ) as mock_call
+    ):
+        response = client.post(
+            "/api/mcp/call",
+            json={
+                "tool": "attractions_by_city",
+                "arguments": {
+                    "city": "Sydney",
+                    "category": "nature"
+                }
+            }
+        )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "status": "success",
+        "tool": "attractions_by_city",
+        "result": mcp_result
+    }
+
+    mock_call.assert_called_once_with(
+        "http://mcp-server.test/mcp",
+        "attractions_by_city",
+        {
+            "city": "Sydney",
+            "category": "nature"
+        },
+        backend_app.MCP_REQUEST_TIMEOUT
+    )

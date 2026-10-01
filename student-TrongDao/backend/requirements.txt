@@ -3,3 +3,4 @@ requests
 openai
 pytest
 flask-cors
+mcp<2
