@@ -271,7 +271,7 @@ services:
       MCP_ENABLED: "true"
       MCP_SERVER_URL: http://host.docker.internal:5200/mcp
       RAG_ENABLED: "true"
-      RAG_SERVICE_URL: http://host.docker.internal:8100
+      RAG_SERVICE_URL: http://host.docker.internal:5100
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
