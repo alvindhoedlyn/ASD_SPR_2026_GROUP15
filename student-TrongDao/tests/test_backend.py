@@ -83,7 +83,6 @@ def verified_session_response(user_id=7):
 
 def recommendation_request(ai_mode=False):
     return {
-        "journey_id": "PYTEST-01",
         "destination_city": "Sydney",
         "arrival_date": "2026-09-10",
         "departure_date": "2026-09-15",
@@ -114,9 +113,7 @@ def test_health_endpoint(client):
 def test_missing_recommendation_fields(client):
     response = client.post(
         "/api/recommendations",
-        json={
-            "journey_id": "PYTEST-01"
-        }
+        json={}
     )
 
     response_data = response.get_json()

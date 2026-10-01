@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS places (
 
 CREATE TABLE IF NOT EXISTS recommendation_requests(
     request_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    journey_id TEXT NOT NULL,
     destination_city TEXT NOT NULL,
     arrival_date DATE NOT NULL, 
     departure_date DATE NOT NULL,
@@ -52,6 +51,3 @@ CREATE INDEX IF NOT EXISTS index_places_city
 
 CREATE INDEX IF NOT EXISTS index_places_category
     ON places(category);
-
-CREATE INDEX IF NOT EXISTS index_recommendation_requests_journey
-    ON recommendation_requests(journey_id);

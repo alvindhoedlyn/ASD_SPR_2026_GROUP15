@@ -75,7 +75,6 @@ recommendationForm.addEventListener("submit", async function (event) {
   }
 
   const requestData = {
-    journey_id: document.getElementById("journey-id").value,
     destination_city: document.getElementById(
       "destination-city"
     ).value,

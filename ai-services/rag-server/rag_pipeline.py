@@ -593,6 +593,17 @@ def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str
 
     results = retrieval.get("results", [])
     confidence = confidence_from_results(results)
+    flight_results = [r for r in results if r.get("source_type") == "flight_database"]
+    selected_flight_facts = _select_grounded_flight_facts(query, flight_results)
+
+    # Flight questions often use city names (Sydney/Tokyo), while the
+    # approved catalogue stores airport codes (SYD/NRT/HND). The generic
+    # keyword-coverage score therefore looks artificially low even when a
+    # catalogue record satisfies every explicit constraint. A successfully
+    # parsed record that passes route/price/stop filtering is strong grounded
+    # evidence and may safely raise the category to High.
+    if selected_flight_facts:
+        confidence = "High"
 
     if not results or confidence == "Insufficient":
         output = {
@@ -627,8 +638,6 @@ def answer_question(query: str, k: int = 5, caller: str = "student") -> dict[str
     answer = generate_grounded_answer(query, context)
     generation_mode = "local_llm"
 
-    flight_results = [r for r in results if r.get("source_type") == "flight_database"]
-    selected_flight_facts = _select_grounded_flight_facts(query, flight_results)
     if flight_results and not _flight_answer_is_grounded(answer, query, selected_flight_facts):
         answer = _deterministic_flight_answer(selected_flight_facts)
         generation_mode = "validated_fallback"

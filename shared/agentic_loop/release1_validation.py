@@ -8,7 +8,7 @@ Adds two local, non-containerised validation modes to the shared agentic loop:
 
 The validator runs directly on the host machine and connects to:
 - Shared MCP Server: http://localhost:5200/mcp
-- Shared RAG Server: http://localhost:8100
+- Shared RAG Server: http://localhost:5100
 
 Usage:
     python shared/agentic_loop/release1_validation.py --mode mcp
@@ -28,7 +28,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 
 MCP_SERVER_URL = "http://localhost:5200/mcp"
-RAG_SERVER_URL = "http://localhost:8100"
+RAG_SERVER_URL = "http://localhost:5100"
 
 
 def print_stage(mode: str, stage: str, message: str) -> None:
@@ -233,16 +233,16 @@ def run_rag_validation() -> bool:
 
     try:
         result = post_json(
-            f"{RAG_SERVER_URL}/query",
-            {"question": query},
+            f"{RAG_SERVER_URL}/answer",
+            {"query": query, "k": 5, "caller": "shared-agentic-loop"},
         )
 
         print_stage(mode, "OBSERVE", "Received RAG response")
         print_json(result)
 
         answer = result.get("answer")
-        confidence = result.get("confidence")
-        sources = result.get("sources")
+        confidence = result.get("confidence_category")
+        sources = result.get("citations")
 
         if not isinstance(answer, str) or not answer.strip():
             print_stage(

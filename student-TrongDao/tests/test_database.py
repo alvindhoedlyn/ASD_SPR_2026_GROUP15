@@ -32,7 +32,6 @@ PLACE_DATA = {
 
 
 REQUEST_DATA = {
-    "journey_id": "DATABASE-TEST-01",
     "destination_city": "Sydney",
     "arrival_date": "2026-09-10",
     "departure_date": "2026-09-15",
@@ -108,6 +107,84 @@ def test_saved_place_migration_adds_account_ownership():
             VALUES (1, 10, 'Duplicate for same account')
             """
         )
+
+    connection.close()
+
+
+def test_recommendation_request_migration_removes_journey_id():
+    specification = importlib.util.spec_from_file_location(
+        "location_init_db_recommendation_migration_test",
+        DATABASE_DIRECTORY / "init_db.py"
+    )
+    init_db = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(init_db)
+
+    connection = sqlite3.connect(":memory:")
+    connection.execute(
+        """
+        CREATE TABLE recommendation_requests(
+            request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            journey_id TEXT NOT NULL,
+            destination_city TEXT NOT NULL,
+            arrival_date DATE NOT NULL,
+            departure_date DATE NOT NULL,
+            interests TEXT NOT NULL,
+            weather_preferences TEXT NOT NULL,
+            crowd_tolerance TEXT NOT NULL,
+            budget_range TEXT NOT NULL,
+            accessibility_needs TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO recommendation_requests (
+            journey_id,
+            destination_city,
+            arrival_date,
+            departure_date,
+            interests,
+            weather_preferences,
+            crowd_tolerance,
+            budget_range,
+            accessibility_needs,
+            status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "LEGACY-01",
+            "Sydney",
+            "2026-09-10",
+            "2026-09-15",
+            "nature",
+            "outdoor",
+            "medium",
+            "low",
+            "None",
+            "completed"
+        )
+    )
+
+    init_db.migrate_recommendation_requests(connection)
+
+    columns = {
+        row[1]
+        for row in connection.execute(
+            "PRAGMA table_info(recommendation_requests)"
+        ).fetchall()
+    }
+    migrated_record = connection.execute(
+        """
+        SELECT request_id, destination_city, status
+        FROM recommendation_requests
+        """
+    ).fetchone()
+
+    assert "journey_id" not in columns
+    assert migrated_record == (1, "Sydney", "completed")
 
     connection.close()
 
@@ -236,10 +313,7 @@ def test_recommendation_request_crud(client):
     )
 
     assert read_response.status_code == 200
-    assert (
-        read_response.get_json()["journey_id"]
-        == "DATABASE-TEST-01"
-    )
+    assert "journey_id" not in read_response.get_json()
 
     updated_request = REQUEST_DATA.copy()
     updated_request["status"] = "failed"

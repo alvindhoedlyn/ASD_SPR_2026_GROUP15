@@ -332,10 +332,9 @@ def call_ollama(system_prompt, user_prompt, model):
     return response_data["message"]["content"]
 
 
-def record_workflow_step(workflow_log, journey_id, phase, status, details):
+def record_workflow_step(workflow_log, phase, status, details):
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "journey_id": journey_id,
         "phase": phase,
         "status": status,
         "details": details
@@ -503,7 +502,6 @@ def create_recommendations():
     data = request.get_json(silent=True) or {}
 
     required_fields = [
-        "journey_id",
         "destination_city",
         "arrival_date",
         "departure_date",
@@ -651,7 +649,6 @@ def create_recommendations():
         if ai_mode:
             record_workflow_step(
                 workflow_log,
-                data["journey_id"],
                 "PLAN",
                 "completed",
                 (
@@ -662,7 +659,6 @@ def create_recommendations():
 
             record_workflow_step(
                 workflow_log,
-                data["journey_id"],
                 "ACT",
                 "completed",
                 (
@@ -683,7 +679,6 @@ def create_recommendations():
 
                     record_workflow_step(
                         workflow_log,
-                        data["journey_id"],
                         "OBSERVE",
                         "completed",
                         (
@@ -700,7 +695,6 @@ def create_recommendations():
 
                     record_workflow_step(
                         workflow_log,
-                        data["journey_id"],
                         "OBSERVE",
                         "failed",
                         f"Qwen request failed: {error}"
@@ -718,7 +712,6 @@ def create_recommendations():
 
                         record_workflow_step(
                             workflow_log,
-                            data["journey_id"],
                             "REVIEW",
                             "completed",
                             (
@@ -735,7 +728,6 @@ def create_recommendations():
 
                         record_workflow_step(
                             workflow_log,
-                            data["journey_id"],
                             "REVIEW",
                             "failed",
                             f"Llama review failed: {error}"
@@ -744,7 +736,6 @@ def create_recommendations():
             else:
                 record_workflow_step(
                     workflow_log,
-                    data["journey_id"],
                     "OBSERVE",
                     "completed",
                     "No attractions matched the traveller preferences."
@@ -770,14 +761,12 @@ def create_recommendations():
 
             record_workflow_step(
                 workflow_log,
-                data["journey_id"],
                 "ADAPT",
                 "completed",
                 adapt_details
             )
 
         request_record = {
-            "journey_id": data["journey_id"],
             "destination_city": data["destination_city"],
             "arrival_date": data["arrival_date"],
             "departure_date": data["departure_date"],
@@ -802,7 +791,6 @@ def create_recommendations():
 
         return jsonify({
             "request_id": saved_request["request_id"],
-            "journey_id": data["journey_id"],
             "mode": "ai" if ai_mode else "data",
             "implementation_model": (
                 OLLAMA_MODEL if ai_mode else None
