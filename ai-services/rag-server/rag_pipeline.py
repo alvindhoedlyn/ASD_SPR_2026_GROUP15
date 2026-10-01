@@ -23,6 +23,7 @@ import chromadb
 from openai import OpenAI
 
 from corpus_accommodation import load_accommodation_chunks
+from corpus_budget import load_budget_chunks
 from corpus_location import load_location_chunks
 
 # Other students: import your own corpus_<feature>.py loader here, e.g.
@@ -160,6 +161,7 @@ def append_audit(tool_name, tool_input, tool_output, validation_status, outcome,
 def build_corpus() -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     chunks.extend(load_accommodation_chunks())
+    chunks.extend(load_budget_chunks())
     chunks.extend(load_location_chunks())
     # Other students: extend chunks with your own loader's output here, e.g.
     # chunks.extend(load_flight_chunks())
