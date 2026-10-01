@@ -136,6 +136,49 @@
       </div>
     </section>
 
+    <section class="release1-card" aria-labelledby="release1-heading">
+      <div class="release1-heading-row">
+        <div>
+          <p class="eyebrow">Release 1 intelligence</p>
+          <h2 id="release1-heading">Use shared MCP and grounded RAG</h2>
+        </div>
+        <span class="local-service-badge">Runs locally</span>
+      </div>
+      <p class="release1-copy">
+        Both requests travel from this frontend through the Flight backend. MCP executes a registered flight tool;
+        RAG answers only from retrieved catalogue records and returns citations plus confidence.
+      </p>
+
+      <div class="release1-grid">
+        <article class="intelligence-panel">
+          <span class="intelligence-kicker">MCP tool</span>
+          <h3>Run the flight recommendation tool</h3>
+          <p>Uses the trip details above and returns a structured, auditable tool result.</p>
+          <button id="run-mcp-recommendation" class="primary-button intelligence-button" type="button">
+            Run MCP recommendation
+          </button>
+          <div id="mcp-result" class="intelligence-result" role="status" aria-live="polite">
+            Complete the flight search fields, then run the registered tool.
+          </div>
+        </article>
+
+        <article class="intelligence-panel">
+          <span class="intelligence-kicker">Grounded RAG</span>
+          <h3>Ask about the flight catalogue</h3>
+          <p>The answer must include catalogue citations and a confidence category.</p>
+          <form id="rag-question-form" class="rag-question-form">
+            <label class="sr-only" for="rag-question">Question about catalogue flights</label>
+            <input id="rag-question" type="text"
+              value="Which direct Sydney to Tokyo flight costs less than AUD 700?" required>
+            <button class="primary-button intelligence-button" type="submit">Ask RAG</button>
+          </form>
+          <div id="rag-result" class="intelligence-result" role="status" aria-live="polite">
+            Ask a question to retrieve grounded flight context.
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section id="trust-section" class="trust-section" aria-labelledby="trust-heading">
       <div class="trust-inner">
         <div class="trust-heading-row">
@@ -265,6 +308,11 @@
     const savedFlightsList = document.getElementById("saved-flights-list");
     const savedFlightsMessage = document.getElementById("saved-flights-message");
     const refreshSavedFlightsButton = document.getElementById("refresh-saved-flights");
+    const mcpButton = document.getElementById("run-mcp-recommendation");
+    const mcpResult = document.getElementById("mcp-result");
+    const ragForm = document.getElementById("rag-question-form");
+    const ragQuestion = document.getElementById("rag-question");
+    const ragResult = document.getElementById("rag-result");
     let savedFlightKeys = new Set();
     let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let selectingDate = "departure";
@@ -887,6 +935,105 @@
         showSavedFlightsMessage(error.message, true);
       }
     }
+
+    function release1SearchPayload() {
+      const payload = Object.fromEntries(new FormData(searchForm));
+      delete payload.trip_type;
+      payload.max_budget = Number(payload.max_budget);
+      payload.return_date = payload.return_date || "";
+      return payload;
+    }
+
+    function showIntelligenceError(container, message) {
+      container.className = "intelligence-result is-error";
+      container.replaceChildren();
+      const strong = document.createElement("strong");
+      strong.textContent = "Request unavailable";
+      const copy = document.createElement("p");
+      copy.textContent = message;
+      container.append(strong, copy);
+    }
+
+    mcpButton.addEventListener("click", async () => {
+      const payload = release1SearchPayload();
+      if (!payload.origin || !payload.destination || !payload.departure_date || !payload.max_budget) {
+        showIntelligenceError(mcpResult, "Complete origin, destination, dates and budget first.");
+        return;
+      }
+      mcpButton.disabled = true;
+      mcpButton.textContent = "Calling local MCP...";
+      mcpResult.className = "intelligence-result";
+      mcpResult.textContent = "Executing the registered recommend_flights tool...";
+      try {
+        const response = await fetch("/api/mcp/recommend-flights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok || data.status === "error") throw new Error(data.error || data.detail || "MCP request failed");
+
+        const toolEnvelope = data.result && data.result.result ? data.result : data;
+        const flightResponse = toolEnvelope.result || data.result || {};
+        const recommendations = flightResponse.recommendations || [];
+        mcpResult.replaceChildren();
+        const title = document.createElement("strong");
+        title.textContent = `MCP success · ${recommendations.length} result${recommendations.length === 1 ? "" : "s"}`;
+        const list = document.createElement("ul");
+        recommendations.slice(0, 3).forEach((flight) => {
+          const item = document.createElement("li");
+          item.textContent = `${flight.airline} ${flight.flight_number} · AUD $${flight.price_aud} · ${flight.stops === 0 ? "Direct" : `${flight.stops} stop`}`;
+          list.appendChild(item);
+        });
+        if (!recommendations.length) {
+          const item = document.createElement("li");
+          item.textContent = flightResponse.message || "The tool returned no catalogue match.";
+          list.appendChild(item);
+        }
+        mcpResult.append(title, list);
+      } catch (error) {
+        showIntelligenceError(mcpResult, error.message);
+      } finally {
+        mcpButton.disabled = false;
+        mcpButton.textContent = "Run MCP recommendation";
+      }
+    });
+
+    ragForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = ragForm.querySelector("button[type='submit']");
+      button.disabled = true;
+      button.textContent = "Retrieving context...";
+      ragResult.className = "intelligence-result";
+      ragResult.textContent = "Searching the shared local corpus...";
+      try {
+        const response = await fetch("/api/rag/answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: ragQuestion.value, k: 5 }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || data.detail || "RAG request failed");
+
+        ragResult.replaceChildren();
+        const badge = document.createElement("span");
+        badge.className = `confidence-badge is-${String(data.confidence_category || "insufficient").toLowerCase()}`;
+        badge.textContent = `Confidence: ${data.confidence_category || "Insufficient"}`;
+        const answer = document.createElement("p");
+        answer.textContent = data.answer || "Insufficient context available to answer this question.";
+        const citations = document.createElement("p");
+        citations.className = "citation-line";
+        citations.textContent = data.citations?.length
+          ? `Sources: ${data.citations.map((citation) => citation.source_id).join(" · ")}`
+          : "Sources: none — insufficient context was returned safely.";
+        ragResult.append(badge, answer, citations);
+      } catch (error) {
+        showIntelligenceError(ragResult, error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Ask RAG";
+      }
+    });
 
     searchForm.addEventListener("submit", async (event) => {
       event.preventDefault();
