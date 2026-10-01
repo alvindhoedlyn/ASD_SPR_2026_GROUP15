@@ -79,7 +79,7 @@ behaviour. It adds two explicit frontend interactions that always pass through t
   the registered `recommend_flights` tool on the shared local MCP server; the tool calls the bounded
   Flight recommendation API and returns a structured result.
 - **Grounded RAG question:** the frontend calls `POST /api/rag/answer`; the backend calls the shared
-  local RAG server at port `8100`; the RAG corpus retrieves approved Flight catalogue context and returns an answer with
+  shared local RAG server at port `5100`; the RAG corpus retrieves approved Flight catalogue context and returns an answer with
   source citations and a confidence category. Unsupported questions return `insufficient_context`.
 
 The approved Flight knowledge is stored in `ai-services/rag-server/knowledge/flights.md`. The shared
@@ -96,7 +96,7 @@ server, and the shared agentic loop run locally and are deliberately absent from
 From a backend container, the local services are reached through `host.docker.internal`:
 
 - MCP: `http://host.docker.internal:5200/mcp`
-- RAG: `http://host.docker.internal:8100`
+- RAG: `http://host.docker.internal:5100`
 - Ollama: `http://host.docker.internal:11434/v1`
 
 ### Integrated startup order
@@ -106,7 +106,7 @@ Run the following from the repository root, using separate terminals where indic
 1. Start Ollama locally with `ollama serve` and make sure `qwen2.5:0.5b` is available.
 2. Start the containerised application with `docker compose up -d --build`.
 3. In `ai-services/mcp-server`, install its requirements and run `python server.py`.
-4. In `ai-services/rag-server`, install its requirements and run `python server.py`.
+4. In `ai-services/rag-server`, install its requirements and run `python rag_http_server.py`.
 5. Open the shared homepage at `http://localhost:3000`, sign in, and open Flight Recommender, or
    open the feature directly at `http://localhost:3005`.
 

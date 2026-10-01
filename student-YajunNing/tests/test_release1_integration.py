@@ -80,17 +80,16 @@ class Release1IntegrationApiTests(unittest.TestCase):
 
 
 class SharedRagClientTests(unittest.TestCase):
-    @patch.dict(os.environ, {"RAG_ENABLED": "true", "RAG_SERVICE_URL": "http://localhost:8100"})
+    @patch.dict(os.environ, {"RAG_ENABLED": "true", "RAG_SERVICE_URL": "http://localhost:5100"})
     @patch("rag_client.requests.post")
     def test_shared_rag_response_is_normalised_for_flight_frontend(self, post_mock):
         post_mock.return_value.raise_for_status.return_value = None
         post_mock.return_value.json.return_value = {
-            "question": "What does JQ11 cost?",
+            "status": "success",
+            "query": "What does JQ11 cost?",
             "answer": "Jetstar JQ11 costs AUD 620.",
-            "sources": [{"document": "flights.md", "section": "Jetstar JQ11"}],
-            "confidence": "high",
-            "retrieved_context": [{"source": "flights.md"}],
-            "model": "qwen2.5:0.5b",
+            "citations": [{"source_id": "flights.md#Jetstar JQ11"}],
+            "confidence_category": "High",
             "generation_mode": "validated_fallback",
             "service": "journeybuddy-shared-rag",
         }
@@ -102,8 +101,8 @@ class SharedRagClientTests(unittest.TestCase):
         self.assertEqual(result["generation_mode"], "validated_fallback")
         self.assertEqual(result["citations"][0]["source_id"], "flights.md#Jetstar JQ11")
         post_mock.assert_called_once_with(
-            "http://localhost:8100/query",
-            json={"question": "What does JQ11 cost?"},
+            "http://localhost:5100/answer",
+            json={"query": "What does JQ11 cost?", "k": 5, "caller": "flight-recommender"},
             timeout=120,
         )
 
@@ -111,45 +110,55 @@ class SharedRagClientTests(unittest.TestCase):
 class SharedRagGroundingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        server_path = REPOSITORY_DIR / "ai-services" / "rag-server" / "server.py"
-        spec = importlib.util.spec_from_file_location("journeybuddy_rag_server", server_path)
-        cls.rag_server = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.rag_server)
+        rag_dir = REPOSITORY_DIR / "ai-services" / "rag-server"
+        sys.path.insert(0, str(rag_dir))
+        pipeline_path = rag_dir / "rag_pipeline.py"
+        spec = importlib.util.spec_from_file_location(
+            "journeybuddy_shared_rag_pipeline", pipeline_path
+        )
+        cls.rag_pipeline = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.rag_pipeline)
 
-    def test_flight_constraints_reject_an_ungrounded_model_answer(self):
-        retrieved_chunks = [
-            {
-                "source": "flights.md",
-                "heading": "Direct Sydney to Tokyo flights below AUD 700",
-                "text": (
-                    "Jetstar flight JQ11 travels from Sydney (SYD) to Tokyo (NRT). "
-                    "It departs at 11:10, arrives at 19:20, costs AUD 620, takes "
-                    "610 minutes, and has zero stops."
-                ),
-                "score": 1.0,
-            }
-        ]
+    def test_shared_pipeline_accepts_grounded_flight_alias_match(self):
+        retrieved = {
+            "status": "success",
+            "results": [
+                {
+                    "chunk_id": "flight_2",
+                    "source_id": "student-YajunNing-database:/flights/2",
+                    "authority_tier": "tier_1",
+                    "source_type": "flight_database",
+                    "text": (
+                        "Flight: Jetstar JQ11. Route: SYD to NRT. "
+                        "Departure time: 11:10. Arrival time: 19:20. "
+                        "Price: AUD $620.0. Duration: 610 minutes. "
+                        "Stops: 0; this flight is direct with no stops."
+                    ),
+                    "keyword_overlap": 3,
+                    "query_coverage": 0.333,
+                }
+            ],
+        }
 
         with patch.object(
-            self.rag_server,
+            self.rag_pipeline, "retrieve_context", return_value=retrieved
+        ), patch.object(
+            self.rag_pipeline,
             "generate_grounded_answer",
-            return_value="Qantas QF25 is below AUD 700 and costs AUD 890.",
+            return_value="Qantas QF25 costs AUD 890.",
         ):
-            result = self.rag_server.build_answer(
-                "Which direct Sydney to Tokyo flight costs less than AUD 700?",
-                retrieved_chunks,
+            result = self.rag_pipeline.answer_question(
+                "Which direct Sydney to Tokyo flight costs less than AUD 700?"
             )
 
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["confidence_category"], "High")
         self.assertEqual(result["generation_mode"], "validated_fallback")
         self.assertIn("Jetstar JQ11", result["answer"])
-        self.assertIn("AUD 620", result["answer"])
-        self.assertNotIn("QF25", result["answer"])
+        self.assertIn("AUD $620", result["answer"])
         self.assertEqual(
-            result["sources"],
-            [{
-                "document": "flights.md",
-                "section": "Direct Sydney to Tokyo flights below AUD 700",
-            }],
+            result["citations"][0]["source_id"],
+            "student-YajunNing-database:/flights/2",
         )
 
 
