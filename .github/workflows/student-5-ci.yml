@@ -47,7 +47,7 @@ jobs:
         run: |
           python -m py_compile ai-services/mcp-server/server.py
           python -m py_compile ai-services/mcp-server/tools_flights.py
-          python -m py_compile ai-services/rag-server/server.py
+          python -m py_compile ai-services/rag-server/rag_http_server.py
           python -m py_compile ai-services/rag-server/rag_pipeline.py
           python -m py_compile ai-services/rag-server/corpus_flights.py
 
