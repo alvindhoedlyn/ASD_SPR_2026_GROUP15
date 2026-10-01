@@ -17,7 +17,11 @@ PROMPT_PATH = os.path.join(BASE_DIR, "..", "prompts", "plan_suggestions.txt")
 DB_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://student-AlvindhoEdlyn-database:6001")
 SHARED_API_URL = os.getenv("SHARED_API_URL", "http://shared-backend:5000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
+
 MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "http://host.docker.internal:5100").rstrip("/")
+RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 
 if not OLLAMA_BASE_URL.endswith("/v1"):
     OLLAMA_BASE_URL += "/v1"
@@ -311,6 +315,47 @@ def create_trip(journey_id, duration, preferences, user_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def rag_mode_is_enabled(req):
+    """Mirrors mcp_mode_is_enabled: env switch plus the X-RAG-Mode header sent by rag_script.js."""
+    if not RAG_ENABLED:
+        return False
+    return req.headers.get("X-RAG-Mode", "on").strip().lower() in ("1", "true", "yes", "on")
+ 
+ 
+def rag_request_guard():
+    """
+    Shared gate for every /rag/* route: RAG mode must be on and the caller must
+    have a valid session. Returns (user_id, None) on success, or (None, error)
+    in the same shape as get_current_user_id() - callers `return err` when set.
+    """
+    if not rag_mode_is_enabled(request):
+        return None, (jsonify({"status": "error", "error": "RAG mode is disabled"}), 403)
+    return get_current_user_id()
+ 
+ 
+def forward_to_rag(path, payload, timeout):
+    """POST payload to the local RAG service and relay its JSON body + status code unchanged."""
+    try:
+        resp = requests.post(f"{RAG_SERVICE_URL}{path}", json=payload, timeout=timeout)
+    except requests.exceptions.RequestException as e:
+        return jsonify({"status": "error", "error": f"RAG service unreachable: {str(e)}"}), 502
+ 
+    try:
+        body = resp.json()
+    except ValueError:
+        return jsonify({"status": "error", "error": "RAG service returned an invalid response"}), 502
+    return jsonify(body), resp.status_code
+ 
+ 
+def parse_k(raw, default, maximum):
+    """Client-supplied k, clamped to 1..maximum. Returns None if it isn't a number."""
+    if raw is None:
+        return default
+    try:
+        return max(1, min(int(raw), maximum))
+    except (TypeError, ValueError):
+        return None
+    
 # ----- ROUTES -----
 
 @app.route("/")
@@ -687,7 +732,8 @@ def delete_trip(trip_id):
         return jsonify({"error": f"Database service unreachable: {str(e)}"}), 502
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+    
+# MCP Mirror Routes
 @app.route("/mcp/tools", methods=["GET"])
 def mcp_list_tools():
     if not mcp_mode_is_enabled(request):
@@ -728,6 +774,59 @@ def mcp_generate_trip_itinerary():
                   "preferences": preferences},
         "result": resp.get_json(),
     }), status
+
+# RAG Mirror Routes
+@app.route("/rag/refresh", methods=["POST"])
+def rag_refresh():
+    user_id, err = rag_request_guard()
+    if err:
+        return err
+ 
+    # caller is set server-side from the verified session: the audit log should
+    # not trust a browser-supplied value (same reasoning as get_current_user_id).
+    return forward_to_rag("/refresh", {"caller": f"user-{user_id}"}, timeout=45)
+ 
+ 
+@app.route("/rag/retrieve", methods=["POST"])
+def rag_retrieve():
+    user_id, err = rag_request_guard()
+    if err:
+        return err
+ 
+    data = request.get_json(silent=True) or {}
+    query = str(data.get("query") or "").strip()
+    if not query:
+        return jsonify({"status": "error", "error": "query is required"}), 400
+ 
+    k = parse_k(data.get("k"), default=5, maximum=20)
+    if k is None:
+        return jsonify({"status": "error", "error": "k must be a number"}), 400
+ 
+    return forward_to_rag("/retrieve", {"query": query, "k": k, "caller": f"user-{user_id}"}, timeout=30)
+ 
+ 
+@app.route("/rag/activities", methods=["POST"])
+def rag_activities():
+    user_id, err = rag_request_guard()
+    if err:
+        return err
+ 
+    data = request.get_json(silent=True) or {}
+    location = str(data.get("location") or "").strip()
+    if not location:
+        return jsonify({"status": "error", "error": "location is required"}), 400
+ 
+    k = parse_k(data.get("k"), default=4, maximum=10)
+    if k is None:
+        return jsonify({"status": "error", "error": "k must be a number"}), 400
+ 
+    payload = {
+        "location": location,
+        "weather": str(data.get("weather") or "").strip(),
+        "k": k,
+        "caller": f"user-{user_id}",
+    }
+    return forward_to_rag("/activities", payload, timeout=30)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)
