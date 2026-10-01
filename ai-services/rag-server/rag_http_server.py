@@ -6,6 +6,13 @@ from any student backend's port — student-RenzoRobin's backend already
 uses 5003, so this avoids that collision; adjust PORT if it collides with
 anything else on your machine).
 
+Endpoints:
+    GET  /health
+    POST /refresh     {"caller": "..."}
+    POST /retrieve    {"query": "...", "k": 5, "caller": "..."}
+    POST /activities  {"location": "Bondi Beach", "weather": "Light Rain", "k": 4, "caller": "..."}
+    POST /answer      {"query": "...", "k": 5, "caller": "..."}
+
 Run:
     cd ai-services/rag-server
     python rag_http_server.py
@@ -15,7 +22,7 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from rag_pipeline import answer_question, refresh_corpus, retrieve_context
+from rag_pipeline import answer_question, refresh_corpus, retrieve_activities, retrieve_context
 
 
 class RAGHandler(BaseHTTPRequestHandler):
@@ -71,6 +78,24 @@ class RAGHandler(BaseHTTPRequestHandler):
                 caller = (payload.get("caller") or "student").strip() or "student"
                 result = retrieve_context(query=query, k=k, caller=caller)
                 self._send_json(200 if result.get("status") == "success" else 500, result)
+                return
+
+            if self.path == "/activities":
+                location = (payload.get("location") or "").strip()
+                if not location:
+                    self._send_json(400, {"status": "error", "error": "location is required"})
+                    return
+                weather = (payload.get("weather") or "").strip() or None
+                k = int(payload.get("k", 4))
+                caller = (payload.get("caller") or "itinerary").strip() or "itinerary"
+                result = retrieve_activities(location=location, weather=weather, k=k, caller=caller)
+                if result.get("status") == "success":
+                    status_code = 200
+                elif result.get("error") == "unknown_location":
+                    status_code = 404
+                else:
+                    status_code = 500
+                self._send_json(status_code, result)
                 return
 
             if self.path == "/answer":

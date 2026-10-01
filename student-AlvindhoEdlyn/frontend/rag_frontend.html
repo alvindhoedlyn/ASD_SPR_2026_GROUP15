@@ -14,7 +14,7 @@
     <div class="brand">
         <a href="http://localhost:3000">JourneyBuddy</a>
     </div>
-    
+
     <!-- Navigation Links -->
     <nav class="nav-menu">
         <a href="/" class="nav-link-btn">Itinerary</a>
@@ -26,6 +26,47 @@
         <span>Welcome!</span>
     </div>
 </header>
+
 <main>
-    <p>RAG</p>
+  <h1 class="title">RAG Assistant</h1>
+
+  <div class="mcp-bar">
+    <span id="ragStatus" class="mcp-status off">RAG mode off</span>
+    <label class="mcp-switch">
+      <input type="checkbox" id="ragToggle" role="switch">
+      RAG mode
+    </label>
+    <button type="button" id="ragRefresh" class="btn mcp-run" hidden>Refresh corpus</button>
+  </div>
+
+  <p id="ragOffNote" class="mcp-off-note">Turn on RAG mode to ask questions against the travel knowledge base.</p>
+
+  <section id="ragPanel" hidden>
+    <div class="plan-frame">
+      <div class="mcp-tool">
+        <h2>Ask a question</h2>
+        <p class="mcp-desc">Retrieves the top 5 most relevant context chunks for your question (accommodations and itinerary activities).</p>
+
+        <div class="mcp-fields">
+          <label class="mcp-field" style="flex: 1; min-width: 280px;">
+            Question *
+            <input type="text" id="ragQuestion" placeholder="e.g. What can I do in Bondi Beach if it's raining?">
+          </label>
+        </div>
+
+        <button type="button" id="ragSearchBtn" class="btn mcp-run">Search</button>
+
+        <pre id="ragOut" class="mcp-out"></pre>
+        <div id="ragMeta" class="mcp-meta"></div>
+      </div>
+    </div>
+
+    <h2 class="mcp-log-title">Call log</h2>
+    <ul id="ragLog" class="mcp-log"><li>No calls yet.</li></ul>
+  </section>
 </main>
+
+<script src="http://localhost:3000/js/main.js"></script>
+<script src="js/rag_script.js"></script>
+</body>
+</html>

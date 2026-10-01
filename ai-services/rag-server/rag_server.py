@@ -12,11 +12,12 @@ from mcp.server.fastmcp import FastMCP
 from rag_pipeline import (
     answer_question as answer_question_impl,
     refresh_corpus as refresh_corpus_impl,
+    retrieve_activities as retrieve_activities_impl,
     retrieve_context as retrieve_context_impl,
 )
 
 mcp = FastMCP("Group Travel App RAG MCP")
-AVAILABLE_TOOLS = ["refresh_corpus", "retrieve_context", "answer_question"]
+AVAILABLE_TOOLS = ["refresh_corpus", "retrieve_context", "retrieve_activities", "answer_question"]
 
 
 @mcp.tool()
@@ -27,6 +28,11 @@ def refresh_corpus(caller: str = "student"):
 @mcp.tool()
 def retrieve_context(query: str, k: int = 5, caller: str = "student"):
     return retrieve_context_impl(query=query, k=k, caller=caller)
+
+
+@mcp.tool()
+def retrieve_activities(location: str, weather: str | None = None, k: int = 4, caller: str = "student"):
+    return retrieve_activities_impl(location=location, weather=weather, k=k, caller=caller)
 
 
 @mcp.tool()

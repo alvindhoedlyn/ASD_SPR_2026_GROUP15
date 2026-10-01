@@ -23,6 +23,12 @@ import chromadb
 from openai import OpenAI
 
 from corpus_accommodation import load_accommodation_chunks
+from corpus_itinerary import (
+    KNOWN_LOCATIONS,
+    canonical_location,
+    load_itinerary_chunks,
+    setting_for_weather,
+)
 
 # Other students: import your own corpus_<feature>.py loader here, e.g.
 # from corpus_flights import load_flight_chunks
@@ -159,6 +165,7 @@ def append_audit(tool_name, tool_input, tool_output, validation_status, outcome,
 def build_corpus() -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     chunks.extend(load_accommodation_chunks())
+    chunks.extend(load_itinerary_chunks())
     # Other students: extend chunks with your own loader's output here, e.g.
     # chunks.extend(load_flight_chunks())
     for chunk in chunks:
@@ -203,8 +210,17 @@ def refresh_corpus(caller: str = "student") -> dict[str, Any]:
             if chunks:
                 ids = [c["chunk_id"] for c in chunks]
                 docs = [c["text"] for c in chunks]
+                # Scalar values from each chunk's "metadata" dict (e.g.
+                # location, setting, source_type) are stored in Chroma too,
+                # so retrieve_context can filter on them. Chroma only accepts
+                # str/int/float/bool values, so anything else is skipped.
                 metas = [
                     {
+                        **{
+                            key: val
+                            for key, val in (c.get("metadata") or {}).items()
+                            if isinstance(val, (str, int, float, bool))
+                        },
                         "source_id": c["source_id"],
                         "authority_tier": c["authority_tier"],
                         "indexed_at": c["indexed_at"],
@@ -238,16 +254,32 @@ def refresh_corpus(caller: str = "student") -> dict[str, Any]:
 
 # ===================== RETRIEVE =====================
 
-def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[str, Any]:
+def retrieve_context(
+    query: str,
+    k: int = 5,
+    caller: str = "student",
+    filters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    filters: optional exact-match metadata filter, e.g.
+    {"source_type": "itinerary", "location": "Bondi Beach", "setting": "indoor"}.
+    Only chunks whose stored metadata matches every key/value are returned.
+    """
     start = time.time()
+    audit_input: dict[str, Any] = {"query": query, "k": k, "caller": caller}
+    if filters:
+        audit_input["filters"] = filters
     try:
         collection = get_collection()
         if collection.count() == 0:
             refreshed = refresh_corpus(caller="auto_refresh")
             if refreshed.get("status") != "success":
                 output = {"status": "error", "error": "corpus_unavailable", "query": query}
-                append_audit("retrieve_context", {"query": query, "k": k, "caller": caller}, output, "fail", "error", start)
+                append_audit("retrieve_context", audit_input, output, "fail", "error", start)
                 return output
+            # refresh_corpus deletes + recreates the collection, so the handle
+            # fetched above is stale. Fetch it again.
+            collection = get_collection()
 
         boilerplate = _boilerplate_tokens(read_corpus())
         query_tokens = _tokenize(query) - boilerplate
@@ -279,7 +311,15 @@ def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[st
                 "distance": distances[i] if i < len(distances) else None,
                 "text": text,
                 "keyword_overlap": overlap,
+                "metadata": meta,
             })
+
+        # Metadata filter: keep only chunks matching every requested key/value.
+        if filters:
+            candidates = [
+                c for c in candidates
+                if all(c["metadata"].get(key) == val for key, val in filters.items())
+            ]
 
         # Keyword overlap is the primary sort key: this toy hash embedding's
         # distances cluster tightly because every chunk shares the same
@@ -303,15 +343,55 @@ def retrieve_context(query: str, k: int = 5, caller: str = "student") -> dict[st
         }
         append_audit(
             "retrieve_context",
-            {"query": query, "k": k, "caller": caller},
+            audit_input,
             {"result_count": len(ranked), "chunk_ids": [r["chunk_id"] for r in ranked]},
             "pass", "context_retrieved", start,
         )
         return output
     except Exception as exc:
         output = {"status": "error", "error": str(exc), "query": query}
-        append_audit("retrieve_context", {"query": query, "k": k, "caller": caller}, output, "fail", "error", start)
+        append_audit("retrieve_context", audit_input, output, "fail", "error", start)
         return output
+
+
+def retrieve_activities(
+    location: str,
+    weather: str | None = None,
+    k: int = 4,
+    caller: str = "itinerary",
+) -> dict[str, Any]:
+    """
+    Itinerary lookup: returns activities for one known location, narrowed to
+    indoor/outdoor by the weather label (see corpus_itinerary.setting_for_weather).
+    Unknown weather labels and "Overcast" return both indoor and outdoor.
+    """
+    start = time.time()
+    canonical = canonical_location(location)
+    if canonical is None:
+        output = {
+            "status": "error",
+            "error": "unknown_location",
+            "location": location,
+            "known_locations": KNOWN_LOCATIONS,
+        }
+        append_audit(
+            "retrieve_activities",
+            {"location": location, "weather": weather, "caller": caller},
+            {"error": "unknown_location"},
+            "fail", "unknown_location", start,
+        )
+        return output
+
+    setting = setting_for_weather(weather)
+    filters: dict[str, Any] = {"source_type": "itinerary", "location": canonical}
+    if setting in ("indoor", "outdoor"):
+        filters["setting"] = setting
+
+    query = " ".join(part for part in (canonical, weather) if part)
+    result = retrieve_context(query=query, k=k, caller=caller, filters=filters)
+    if result.get("status") == "success":
+        result.update({"location": canonical, "weather": weather, "setting": setting})
+    return result
 
 
 # ===================== ANSWER (grounded, with citations + confidence) =====================
@@ -437,4 +517,5 @@ if __name__ == "__main__":
     # python -c "from rag_pipeline import *; import json; print(json.dumps(refresh_corpus(), indent=2))"
     print(json.dumps(refresh_corpus(), indent=2))
     print(json.dumps(retrieve_context("pool villa in Bali", 5), indent=2))
+    print(json.dumps(retrieve_activities("Bondi Beach", "Light Rain"), indent=2))
     print(json.dumps(answer_question("What accommodations are available in Kyoto?", 5), indent=2))
