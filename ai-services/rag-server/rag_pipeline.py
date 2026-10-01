@@ -58,6 +58,9 @@ client = OpenAI(base_url=f"{OLLAMA_URL}/v1", api_key="ollama")
 STOPWORDS = {
     "a", "an", "and", "are", "at", "for", "in", "is", "of", "on",
     "or", "the", "to", "what", "which", "with", "from",
+    "that", "has", "have", "had", "does", "do", "can", "could",
+    "would", "should", "will", "there", "this", "these", "those",
+    "any", "all", "me", "please", "tell", "show",
 }
 
 

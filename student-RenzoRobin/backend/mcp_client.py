@@ -39,18 +39,32 @@ async def _call_tool_async(tool_name: str, arguments: dict):
                 raise MCPClientError(f"MCP tool '{tool_name}' returned an error: {detail}")
 
             # Prefer structuredContent (a typed dict) when the server provides
-            # it; otherwise fall back to parsing the text content block as
+            # it; otherwise fall back to parsing text content block(s) as
             # JSON, which is how FastMCP serialises plain Python return
-            # values (list/dict) when no output schema is declared.
+            # values when no output schema is declared. IMPORTANT: when a
+            # tool returns a list, FastMCP may emit ONE content block per
+            # list item rather than a single block containing the whole
+            # array — reading only content[0] would silently return just
+            # the first item and drop the rest, so every block is read.
             if result.structuredContent is not None:
                 return result.structuredContent
 
             if result.content:
-                text = result.content[0].text
-                try:
-                    return json.loads(text)
-                except (json.JSONDecodeError, TypeError):
-                    return text
+                texts = [block.text for block in result.content if hasattr(block, "text")]
+
+                if len(texts) == 1:
+                    try:
+                        return json.loads(texts[0])
+                    except (json.JSONDecodeError, TypeError):
+                        return texts[0]
+
+                parsed_items = []
+                for text in texts:
+                    try:
+                        parsed_items.append(json.loads(text))
+                    except (json.JSONDecodeError, TypeError):
+                        parsed_items.append(text)
+                return parsed_items
 
             return None
 
