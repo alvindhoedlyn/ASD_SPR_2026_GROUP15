@@ -43,5 +43,33 @@ def build_mode_config():
                 "review/review_prompt.txt",
             ),
             two_stage=True
+        ),
+
+        "mcp": ModeConfig(
+            key="mcp",
+            label="MCP Validation",
+            prompt_family="mcp",
+            implementation_prompts=(
+                "implementation/system_prompt.txt",
+                "implementation/task_prompt.txt"
+            ),
+            review_prompts=(
+                "review/review_prompt.txt",
+            ),
+            two_stage=True
+        ),
+
+        "rag": ModeConfig(
+            key="rag",
+            label="RAG Validation",
+            prompt_family="rag",
+            implementation_prompts=(
+                "implementation/system_prompt.txt",
+                "implementation/task_prompt.txt"
+            ),
+            review_prompts=(
+                "review/review_prompt.txt",
+            ),
+            two_stage=True
         )
     }

@@ -1,0 +1,9 @@
+Validate the Attraction Recommender MCP integration.
+
+Check whether:
+- The attraction backend can reach the shared local MCP server.
+- attractions_by_city returns filtered structured results.
+- attraction_details returns the requested attraction.
+- The evidence demonstrates valid tool outputs through the backend/API path.
+
+Provide one concise evidence-based assessment.

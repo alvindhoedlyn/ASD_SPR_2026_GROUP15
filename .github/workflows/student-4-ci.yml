@@ -63,6 +63,13 @@ jobs:
             student-TrongDao/database/app.py
           python -m py_compile \
             student-TrongDao/database/init_db.py
+          python -m py_compile \
+            student-TrongDao/agentic_loop/main.py \
+            student-TrongDao/agentic_loop/config/review_config.py \
+            student-TrongDao/agentic_loop/collectors/mcp_collector.py \
+            student-TrongDao/agentic_loop/collectors/rag_collector.py \
+            student-TrongDao/agentic_loop/pipelines/mcp_validation_pipeline.py \
+            student-TrongDao/agentic_loop/pipelines/rag_validation_pipeline.py
 
       - name: Initialise test database
         env:
@@ -75,6 +82,7 @@ jobs:
           python -m pytest \
             student-TrongDao/tests/test_backend.py \
             student-TrongDao/tests/test_database.py \
+            student-TrongDao/tests/test_agentic_loop.py \
             -v
 
   docker-build:
