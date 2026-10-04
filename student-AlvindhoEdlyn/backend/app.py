@@ -802,7 +802,7 @@ def rag_retrieve():
     if k is None:
         return jsonify({"status": "error", "error": "k must be a number"}), 400
  
-    return forward_to_rag("/retrieve", {"query": query, "k": k, "caller": f"user-{user_id}"}, timeout=30)
+    return forward_to_rag("/itinerary/search", {"query": query, "k": k, "caller": f"user-{user_id}"}, timeout=30)
  
  
 @app.route("/rag/activities", methods=["POST"])

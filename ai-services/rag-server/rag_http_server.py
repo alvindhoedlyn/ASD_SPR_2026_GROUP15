@@ -11,6 +11,9 @@ Endpoints:
     POST /refresh     {"caller": "..."}
     POST /retrieve    {"query": "...", "k": 5, "caller": "..."}
     POST /activities  {"location": "Bondi Beach", "weather": "Light Rain", "k": 4, "caller": "..."}
+    POST /itinerary/search  {"query": "what can I do at Bondi when it rains?", "caller": "..."}
+                      Always returns the top 5 most relevant itinerary results (k@5) plus
+                      precision_at_5. Any "k" in the request is ignored.
     POST /answer      {"query": "...", "k": 5, "caller": "..."}
 
 Run:
@@ -22,7 +25,13 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from rag_pipeline import answer_question, refresh_corpus, retrieve_activities, retrieve_context
+from rag_pipeline import (
+    answer_question,
+    refresh_corpus,
+    retrieve_activities,
+    retrieve_context,
+    search_itinerary,
+)
 
 
 class RAGHandler(BaseHTTPRequestHandler):
@@ -77,6 +86,17 @@ class RAGHandler(BaseHTTPRequestHandler):
                 k = int(payload.get("k", 5))
                 caller = (payload.get("caller") or "student").strip() or "student"
                 result = retrieve_context(query=query, k=k, caller=caller)
+                self._send_json(200 if result.get("status") == "success" else 500, result)
+                return
+
+            if self.path == "/itinerary/search":
+                query = (payload.get("query") or "").strip()
+                if not query:
+                    self._send_json(400, {"status": "error", "error": "query is required"})
+                    return
+                # k is fixed at 5 (k@5) inside search_itinerary; a client-supplied k is ignored.
+                caller = (payload.get("caller") or "itinerary").strip() or "itinerary"
+                result = search_itinerary(query=query, caller=caller)
                 self._send_json(200 if result.get("status") == "success" else 500, result)
                 return
 

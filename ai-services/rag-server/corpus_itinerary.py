@@ -664,6 +664,199 @@ def canonical_location(name: str | None) -> str | None:
     return _LOCATION_LOOKUP.get((name or "").strip().lower())
 
 
+# ===================== QUERY UNDERSTANDING =====================
+# Turns a free-text question ("what can I do at Bondi when it's raining?")
+# into structured filters (place + indoor/outdoor). Deterministic: no LLM and
+# no extra dependencies, so it is fast and gives the same answer every time.
+
+# Generic trailing words dropped to build short aliases ("Kakadu National Park" -> "kakadu").
+_ALIAS_SUFFIXES = ("national park", "museum", "markets", "market", "rainforest", "gorge", "beach", "island", "mountain")
+# Common alternative names people type.
+_EXTRA_ALIASES = {
+    "ayers rock": "Uluru",
+    "olgas": "Kata Tjuta",
+    "harbor bridge": "Harbour Bridge",
+    "12 apostles": "Twelve Apostles",
+    "barrier reef": "Great Barrier Reef",
+    "wineglass bay": "Freycinet National Park",
+    "mossman gorge": "Daintree Rainforest",
+}
+
+_INDOOR_WORDS = {"indoor", "indoors", "inside", "covered"}
+_OUTDOOR_WORDS = {"outdoor", "outdoors", "outside"}
+SETTING_WORDS = _INDOOR_WORDS | _OUTDOOR_WORDS  # these DO appear in chunk text ("Setting: indoor")
+# Weather words that are not exact WEATHER_POOL labels but imply a setting.
+_WET_OR_POOR_VIEW_WORDS = {
+    "rain", "rains", "rainy", "raining", "drizzle", "shower", "showers", "storm", "storms", "stormy",
+    "thunder", "lightning", "downpour", "monsoon", "wind", "windy", "gusty", "fog", "foggy", "mist", "misty",
+}
+_FINE_WEATHER_WORDS = {"sunny", "sunshine", "sun", "breezy", "breeze"}
+
+
+# Conversational filler that carries no search signal for itinerary questions.
+# Ignored when ranking so words like "near" or "things" (or the "s" left over from
+# "it's") can't create false matches against chunk text, and so they don't count
+# against query_coverage. Weather words are included too: they are applied as an
+# indoor/outdoor filter instead of being matched against text. Used ONLY by
+# itinerary search, so accommodation retrieval is unaffected.
+QUERY_FILLER = {
+    "i", "me", "my", "we", "us", "our", "you", "your", "it", "its", "s", "t", "ll", "m", "re", "ve", "d",
+    "do", "does", "did", "can", "could", "should", "would", "will", "want", "need", "like", "love", "get", "go",
+    "going", "see", "visit", "try", "find", "show", "tell", "give", "recommend", "suggest",
+    "thing", "things", "something", "anything", "stuff", "idea", "ideas", "option", "options",
+    "activity", "activities", "place", "places", "spot", "spots",
+    "good", "best", "great", "nice", "fun", "cool", "popular", "top",
+    "any", "some", "there", "here", "about", "when", "who", "how", "where", "why", "was", "be", "been",
+    "near", "nearby", "around", "close", "day", "days", "today", "tomorrow", "trip", "please", "just",
+    "really", "very", "also", "so", "not", "no", "but", "as", "by", "up", "than", "then", "too",
+    "if", "this", "that", "these", "those", "have", "has", "had", "am", "were", "may", "might", "must",
+    "while", "during", "after", "before", "over", "into", "out", "off", "all", "each", "every", "more",
+    "most", "much", "many", "other", "only", "ok", "okay", "plan", "planning", "look", "looking", "help",
+} | _WET_OR_POOR_VIEW_WORDS | _FINE_WEATHER_WORDS
+
+
+def _norm(text: str | None) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", (text or "").lower()))
+
+
+def _build_location_phrases() -> dict[str, str]:
+    phrases: dict[str, str] = {}
+    for name in ITINERARY_DATA:
+        phrases[_norm(name)] = name
+    for name in ITINERARY_DATA:
+        full = _norm(name)
+        for suffix in _ALIAS_SUFFIXES:
+            if full.endswith(" " + suffix):
+                short = full[: -len(suffix)].strip()
+                if short and short not in phrases:
+                    phrases[short] = name
+    phrases.update({k: v for k, v in _EXTRA_ALIASES.items() if v in ITINERARY_DATA})
+    return phrases
+
+
+_LOCATION_PHRASES = _build_location_phrases()
+_REGION_PHRASES = {_norm(info["region"]): info["region"] for info in ITINERARY_DATA.values()}
+
+
+def _extract(phrases: dict[str, str], text: str) -> tuple[list[str], str, list[str]]:
+    """
+    Find whole-word phrases (longest first) and remove them so shorter ones can't
+    re-match inside. Returns (canonical names found, remaining text, phrases consumed).
+    """
+    found: list[str] = []
+    used: list[str] = []
+    for phrase in sorted(phrases, key=len, reverse=True):
+        needle = f" {phrase} "
+        if needle in text:
+            if phrases[phrase] not in found:
+                found.append(phrases[phrase])
+            used.append(phrase)
+            text = text.replace(needle, " ")
+    return found, text, used
+
+
+def _single(values: set[str]) -> str | None:
+    return next(iter(values)) if len(values) == 1 else None
+
+
+def parse_itinerary_query(query: str) -> dict:
+    """
+    Returns {"locations": [...], "regions": [...], "setting": "indoor"|"outdoor"|None,
+    "place_words": [...]}  (place_words = the words of the place phrases that were matched).
+
+    - locations: known location names found in the question (full names or aliases).
+    - regions: only looked for when no location was found (e.g. "things to do in Sydney").
+    - setting: an explicit "indoor"/"outdoor" wins; otherwise inferred from weather
+      words ("raining" -> indoor, "sunny" -> outdoor). Overcast, mixed or conflicting
+      signals give None, which means "show both".
+    """
+    text = " " + _norm(query) + " "
+    locations, text, used = _extract(_LOCATION_PHRASES, text)
+    regions: list[str] = []
+    if not locations:
+        regions, text, used = _extract(_REGION_PHRASES, text)
+    place_words = sorted({word for phrase in used for word in phrase.split()})
+
+    tokens = set(text.split())
+    explicit: set[str] = set()
+    if tokens & _INDOOR_WORDS:
+        explicit.add("indoor")
+    if tokens & _OUTDOOR_WORDS:
+        explicit.add("outdoor")
+
+    weather: set[str] = set()
+    for label, setting in _WEATHER_TO_SETTING.items():  # exact labels such as "light rain"
+        if f" {label} " in text:
+            weather.add(setting)
+    if tokens & _WET_OR_POOR_VIEW_WORDS:
+        weather.add("indoor")
+    if tokens & _FINE_WEATHER_WORDS:
+        weather.add("outdoor")
+    weather.discard("any")
+
+    setting = _single(explicit) if explicit else _single(weather)
+    return {"locations": locations, "regions": regions, "setting": setting, "place_words": place_words}
+
+
+# ===================== RESULT GRADING (for top-5 / precision@5) =====================
+
+def grade_result(meta: dict, matched_terms, content_terms: set[str], parsed: dict):
+    """
+    Grades one itinerary chunk against what the question asked for.
+
+    A chunk is RELEVANT when it matches ALL of:
+      - place:   the named location (or named region)
+      - setting: the indoor/outdoor setting implied by the question's weather words
+      - content: at least one of the question's remaining content words (only if it has any)
+
+    Returns None if the chunk should be left out entirely; otherwise
+    (penalty, place_level, mismatch) where lower penalty = closer match and
+    `mismatch` lists what differs (empty list = relevant).
+
+    When a place is named, mismatches are soft: they only push a chunk lower, which
+    is how a top-5 list can be filled with the next-best options (same region, then
+    same state, or the other setting). With no place named, setting and content
+    mismatches are hard exclusions, so unrelated chunks are never used as filler.
+    """
+    setting = parsed.get("setting")
+    setting_ok = setting is None or meta.get("setting") == setting
+    content_ok = (not content_terms) or bool(set(matched_terms) & content_terms)
+
+    if parsed["locations"]:
+        regions = {ITINERARY_DATA[name]["region"] for name in parsed["locations"]}
+        states = {ITINERARY_DATA[name]["state"] for name in parsed["locations"]}
+        if meta.get("location") in parsed["locations"]:
+            place_level = 0
+        elif meta.get("region") in regions:
+            place_level = 1
+        elif meta.get("state") in states:
+            place_level = 2
+        else:
+            return None
+    elif parsed["regions"]:
+        states = {info["state"] for info in ITINERARY_DATA.values() if info["region"] in parsed["regions"]}
+        if meta.get("region") in parsed["regions"]:
+            place_level = 0
+        elif meta.get("state") in states:
+            place_level = 2
+        else:
+            return None
+    else:
+        if not (setting_ok and content_ok):
+            return None
+        place_level = 0
+
+    mismatch = []
+    if place_level:
+        mismatch.append("place")
+    if not setting_ok:
+        mismatch.append("setting")
+    if not content_ok:
+        mismatch.append("content")
+    penalty = place_level + 2 * (not setting_ok) + 2 * (not content_ok)
+    return penalty, place_level, mismatch
+
+
 # ===================== CHUNK LOADER =====================
 
 def _slug(text: str) -> str:

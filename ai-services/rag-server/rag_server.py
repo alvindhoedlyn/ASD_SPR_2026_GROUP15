@@ -14,10 +14,11 @@ from rag_pipeline import (
     refresh_corpus as refresh_corpus_impl,
     retrieve_activities as retrieve_activities_impl,
     retrieve_context as retrieve_context_impl,
+    search_itinerary as search_itinerary_impl,
 )
 
 mcp = FastMCP("Group Travel App RAG MCP")
-AVAILABLE_TOOLS = ["refresh_corpus", "retrieve_context", "retrieve_activities", "answer_question"]
+AVAILABLE_TOOLS = ["refresh_corpus", "retrieve_context", "retrieve_activities", "search_itinerary", "answer_question"]
 
 
 @mcp.tool()
@@ -33,6 +34,12 @@ def retrieve_context(query: str, k: int = 5, caller: str = "student"):
 @mcp.tool()
 def retrieve_activities(location: str, weather: str | None = None, k: int = 4, caller: str = "student"):
     return retrieve_activities_impl(location=location, weather=weather, k=k, caller=caller)
+
+
+@mcp.tool()
+def search_itinerary(query: str, caller: str = "student"):
+    # always the top 5 results (k@5) with precision_at_5
+    return search_itinerary_impl(query=query, caller=caller)
 
 
 @mcp.tool()
