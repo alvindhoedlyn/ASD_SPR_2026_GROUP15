@@ -7,7 +7,7 @@ import requests
 
 DATABASE_SERVICE_URL = os.getenv(
     "DATABASE_SERVICE_URL",
-    "http://localhost:5702"
+    "http://localhost:6002"
 )
 
 
