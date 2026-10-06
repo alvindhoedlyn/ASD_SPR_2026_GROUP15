@@ -17,7 +17,7 @@ CORS(app)
 
 DATABASE_API_URL = os.getenv(
     "DATABASE_API_URL",
-    "http://localhost:5404"
+    "http://localhost:6004"
 )
 
 AUTH_SERVICE_URL = os.getenv(

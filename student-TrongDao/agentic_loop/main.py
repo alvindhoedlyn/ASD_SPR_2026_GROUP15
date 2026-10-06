@@ -56,6 +56,20 @@ devops_collector = load_local_module(
     / "devops_collector.py"
 )
 
+mcp_collector = load_local_module(
+    "trongdao_mcp_collector",
+    AGENTIC_LOOP_DIR
+    / "collectors"
+    / "mcp_collector.py"
+)
+
+rag_collector = load_local_module(
+    "trongdao_rag_collector",
+    AGENTIC_LOOP_DIR
+    / "collectors"
+    / "rag_collector.py"
+)
+
 review_pipeline = load_local_module(
     "trongdao_review_pipeline",
     AGENTIC_LOOP_DIR
@@ -63,11 +77,36 @@ review_pipeline = load_local_module(
     / "review_pipeline.py"
 )
 
+mcp_validation_pipeline = load_local_module(
+    "trongdao_mcp_validation_pipeline",
+    AGENTIC_LOOP_DIR
+    / "pipelines"
+    / "mcp_validation_pipeline.py"
+)
+
+rag_validation_pipeline = load_local_module(
+    "trongdao_rag_validation_pipeline",
+    AGENTIC_LOOP_DIR
+    / "pipelines"
+    / "rag_validation_pipeline.py"
+)
+
 
 COLLECTORS = {
     "db": database_collector.collect,
     "endpoints": endpoints_collector.collect,
-    "devops": devops_collector.collect
+    "devops": devops_collector.collect,
+    "mcp": mcp_collector.collect,
+    "rag": rag_collector.collect
+}
+
+
+PIPELINES = {
+    "db": review_pipeline,
+    "endpoints": review_pipeline,
+    "devops": review_pipeline,
+    "mcp": mcp_validation_pipeline,
+    "rag": rag_validation_pipeline
 }
 
 
@@ -79,6 +118,7 @@ def run_review(
 ):
     mode = mode_config[mode_key]
     collector = COLLECTORS[mode_key]
+    pipeline = PIPELINES[mode_key]
 
     return run_mode(
         mode=mode,
@@ -88,10 +128,10 @@ def run_review(
         ai=ai_runner,
         collect_fn=collector,
         implementation_prompt_fn=(
-            review_pipeline.build_implementation_prompt
+            pipeline.build_implementation_prompt
         ),
         review_prompt_fn=(
-            review_pipeline.build_review_prompt
+            pipeline.build_review_prompt
         )
     )
 
@@ -131,6 +171,12 @@ def main():
         ),
         "DevOps": str(
             APP_DIR / "prompts" / "devops"
+        ),
+        "MCP": str(
+            APP_DIR / "prompts" / "mcp"
+        ),
+        "RAG": str(
+            APP_DIR / "prompts" / "rag"
         )
     })
 
@@ -139,7 +185,9 @@ def main():
             ("1", "Database"),
             ("2", "Endpoints"),
             ("3", "DevOps"),
-            ("4", "Run All")
+            ("4", "MCP"),
+            ("5", "RAG"),
+            ("6", "Run All")
         ])
 
         choice = input(
@@ -153,14 +201,18 @@ def main():
         choices = {
             "1": "db",
             "2": "endpoints",
-            "3": "devops"
+            "3": "devops",
+            "4": "mcp",
+            "5": "rag"
         }
 
-        if choice == "4":
+        if choice == "6":
             for mode_key in [
                 "db",
                 "endpoints",
-                "devops"
+                "devops",
+                "mcp",
+                "rag"
             ]:
                 result = run_review(
                     mode_key,
@@ -181,7 +233,7 @@ def main():
         if mode_key is None:
             print(
                 "Invalid choice. "
-                "Choose 0, 1, 2, 3, or 4."
+                "Choose 0, 1, 2, 3, 4, 5, or 6."
             )
             continue
 

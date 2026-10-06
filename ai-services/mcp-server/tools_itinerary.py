@@ -85,16 +85,10 @@ def generate_trip_itinerary(
     Output: JSON string - the created trip (trip_id, label, days[...]),
             or {"error": ...}
     """
-    try:
-        journey_id = int(journey_id)
-        duration = int(duration)
-    except (TypeError, ValueError):
-        return json.dumps({"error": "journey_id and duration must be integers"})
-
-    if journey_id < 1:
-        return json.dumps({"error": "journey_id must be at least 1"})
-    if duration < 1 or duration > 14:
-        return json.dumps({"error": "duration must be between 1 and 14"})
+    if journey_id is None:
+        return json.dumps({"error": "journey_id is required"})
+    if duration is None or int(duration) < 1:
+        return json.dumps({"error": "duration must be at least 1"})
 
     payload = {
         "journeyId": journey_id,

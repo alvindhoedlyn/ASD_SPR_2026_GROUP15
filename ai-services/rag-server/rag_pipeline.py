@@ -26,8 +26,12 @@ from corpus_accommodation import load_accommodation_chunks
 from corpus_budget import load_budget_chunks
 from corpus_itinerary import (
     KNOWN_LOCATIONS,
+    QUERY_FILLER,
+    SETTING_WORDS,
     canonical_location,
+    grade_result,
     load_itinerary_chunks,
+    parse_itinerary_query,
     setting_for_weather,
 )
 from corpus_location import load_location_chunks
@@ -62,6 +66,20 @@ STOPWORDS = {
     "that", "has", "have", "had", "does", "do", "can", "could",
     "would", "should", "will", "there", "this", "these", "those",
     "any", "all", "me", "please", "tell", "show",
+    "available",
+}
+
+# These terms describe facts the user is explicitly asking for. They can
+# appear in many records and therefore look like corpus-wide boilerplate, but
+# removing them would make a question such as "Opera House accessibility"
+# indistinguishable from a generic Opera House query.
+FACT_QUERY_TERMS = {
+    "accessibility",
+    "wheelchair",
+    "cost",
+    "price",
+    "duration",
+    "crowd",
 }
 
 
@@ -70,7 +88,12 @@ def _tokenize(text: str) -> set[str]:
     return {t for t in tokens if t not in STOPWORDS}
 
 
-def _boilerplate_tokens(chunks: list[dict[str, Any]], threshold: float = 0.6) -> set[str]:
+def _boilerplate_tokens(
+    chunks: list[dict[str, Any]],
+    threshold: float = 0.6,
+    min_group_size: int = 5,
+    source_type: str | None = None,
+) -> set[str]:
     """
     Words that appear in most chunks (like "accommodation", "located",
     "facilities" — all from this feature's fixed template wording) carry
@@ -80,17 +103,43 @@ def _boilerplate_tokens(chunks: list[dict[str, Any]], threshold: float = 0.6) ->
     dynamically from the actual corpus rather than hardcoded, so this
     keeps working once other students' chunks (different template
     wording) are added to the shared corpus.
+
+    Measured PER FEATURE (grouped by metadata.source_type) rather than over
+    the whole shared corpus. Otherwise a large feature (e.g. 150+ itinerary
+    chunks) would dilute another feature's template words below the threshold
+    and they would stop being treated as boilerplate. A token counts as
+    boilerplate if it is common within ANY sufficiently large feature group.
+    With a single group this is identical to measuring the whole corpus.
+
+    source_type: when a search is scoped to one feature, only that feature's
+    chunks are measured, so another feature's template words (e.g. "night" or
+    "price" from accommodation) don't get dropped from this feature's queries.
     """
-    doc_count = len(chunks)
-    if doc_count == 0:
-        return set()
+    if source_type:
+        chunks = [c for c in chunks if (c.get("metadata") or {}).get("source_type") == source_type]
 
-    doc_frequency: dict[str, int] = {}
+    groups: dict[str, list[dict[str, Any]]] = {}
     for chunk in chunks:
-        for token in _tokenize(chunk.get("text", "")):
-            doc_frequency[token] = doc_frequency.get(token, 0) + 1
+        key = (chunk.get("metadata") or {}).get("source_type") or "ungrouped"
+        groups.setdefault(key, []).append(chunk)
 
-    return {token for token, count in doc_frequency.items() if count / doc_count >= threshold}
+    if len(groups) == 1:
+        group_list = list(groups.values())
+    else:
+        # tiny groups (e.g. a one-chunk "database unavailable" diagnostic)
+        # would mark every one of their words as boilerplate, so skip them
+        group_list = [g for g in groups.values() if len(g) >= min_group_size]
+
+    boilerplate: set[str] = set()
+    for group_chunks in group_list:
+        doc_frequency: dict[str, int] = {}
+        for chunk in group_chunks:
+            for token in _tokenize(chunk.get("text", "")):
+                doc_frequency[token] = doc_frequency.get(token, 0) + 1
+        doc_count = len(group_chunks)
+        boilerplate |= {t for t, c in doc_frequency.items() if c / doc_count >= threshold}
+
+    return boilerplate
 
 
 
@@ -261,18 +310,40 @@ def refresh_corpus(caller: str = "student") -> dict[str, Any]:
 
 # ===================== RETRIEVE =====================
 
+def _matches_filters(meta: dict[str, Any], filters: dict[str, Any]) -> bool:
+    """Every filter key must match; a list/tuple/set value means "any of these"."""
+    for key, wanted in filters.items():
+        value = meta.get(key)
+        if isinstance(wanted, (list, tuple, set)):
+            if value not in wanted:
+                return False
+        elif value != wanted:
+            return False
+    return True
+
+
 def retrieve_context(
     query: str,
     k: int = 5,
     caller: str = "student",
     filters: dict[str, Any] | None = None,
+    ignore_terms: set[str] | None = None,
+    audit: bool = True,
 ) -> dict[str, Any]:
     """
     filters: optional exact-match metadata filter, e.g.
     {"source_type": "itinerary", "location": "Bondi Beach", "setting": "indoor"}.
     Only chunks whose stored metadata matches every key/value are returned.
+    A list value matches any of its items, e.g. {"location": ["Uluru", "Kata Tjuta"]}.
+    An explicit "source_type" filter also overrides the keyword-based domain
+    routing below (flight/accommodation words in the question).
+    ignore_terms: optional words to leave out of keyword scoring (e.g. conversational
+    filler). They are removed from the query tokens, so they also don't count against
+    query_coverage.
+    audit: set False when a caller (e.g. search_itinerary) writes its own audit entry.
     """
     start = time.time()
+    log = append_audit if audit else (lambda *args, **kwargs: None)
     audit_input: dict[str, Any] = {"query": query, "k": k, "caller": caller}
     if filters:
         audit_input["filters"] = filters
@@ -282,14 +353,20 @@ def retrieve_context(
             refreshed = refresh_corpus(caller="auto_refresh")
             if refreshed.get("status") != "success":
                 output = {"status": "error", "error": "corpus_unavailable", "query": query}
-                append_audit("retrieve_context", audit_input, output, "fail", "error", start)
+                log("retrieve_context", audit_input, output, "fail", "error", start)
                 return output
             # refresh_corpus deletes + recreates the collection, so the handle
             # fetched above is stale. Fetch it again.
             collection = get_collection()
 
-        boilerplate = _boilerplate_tokens(read_corpus())
-        query_tokens = _tokenize(query) - boilerplate
+        scope = filters.get("source_type") if filters else None
+        boilerplate = _boilerplate_tokens(
+            read_corpus(), source_type=scope if isinstance(scope, str) else None
+        )
+        raw_scoring_tokens = _tokenize(query) - (ignore_terms or set())
+        query_tokens = (
+            raw_scoring_tokens - boilerplate
+        ) | (raw_scoring_tokens & FACT_QUERY_TERMS)
         # Retrieve the WHOLE corpus as candidates, not just top-N by raw
         # vector distance. This corpus is small (tens of chunks), and the
         # hash-embedding's distances are noisy enough that a genuinely
@@ -309,7 +386,10 @@ def retrieve_context(
         for i, chunk_id in enumerate(ids):
             meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
             text = docs[i] if i < len(docs) else ""
-            candidate_tokens = _tokenize(text) - boilerplate
+            raw_candidate_tokens = _tokenize(text)
+            candidate_tokens = (
+                raw_candidate_tokens - boilerplate
+            ) | (raw_candidate_tokens & FACT_QUERY_TERMS)
             matched_terms = query_tokens & candidate_tokens
             overlap = len(matched_terms)
             query_coverage = (
@@ -344,6 +424,11 @@ def retrieve_context(
             requested_source_type = "flight_database"
         elif raw_query_tokens & accommodation_terms:
             requested_source_type = "accommodation_database"
+        # An explicit source_type filter (e.g. itinerary search) overrides the
+        # keyword guess above: words like "route", "direct" or "hotel" in an
+        # itinerary question must not redirect it to flights/accommodation.
+        if filters and "source_type" in filters:
+            requested_source_type = None
 
         candidates = [candidate for candidate in candidates if not candidate["source_error"]]
         if requested_source_type:
@@ -356,10 +441,7 @@ def retrieve_context(
 
         # Metadata filter: keep only chunks matching every requested key/value.
         if filters:
-            candidates = [
-                c for c in candidates
-                if all(c["metadata"].get(key) == val for key, val in filters.items())
-            ]
+            candidates = [c for c in candidates if _matches_filters(c["metadata"], filters)]
 
         # Keyword overlap is the primary sort key: this toy hash embedding's
         # distances cluster tightly because every chunk shares the same
@@ -381,7 +463,7 @@ def retrieve_context(
             "k": k,
             "results": ranked,
         }
-        append_audit(
+        log(
             "retrieve_context",
             audit_input,
             {"result_count": len(ranked), "chunk_ids": [r["chunk_id"] for r in ranked]},
@@ -390,7 +472,7 @@ def retrieve_context(
         return output
     except Exception as exc:
         output = {"status": "error", "error": str(exc), "query": query}
-        append_audit("retrieve_context", audit_input, output, "fail", "error", start)
+        log("retrieve_context", audit_input, output, "fail", "error", start)
         return output
 
 
@@ -432,6 +514,108 @@ def retrieve_activities(
     if result.get("status") == "success":
         result.update({"location": canonical, "weather": weather, "setting": setting})
     return result
+
+
+# ===================== ITINERARY SEARCH (always top-5, with precision@5) =====================
+
+TOP_K = 5  # k@5: this search always returns up to the 5 most relevant results, never a caller-chosen k
+
+
+def search_itinerary(query: str, caller: str = "itinerary") -> dict[str, Any]:
+    """
+    Free-text search over itinerary content ONLY (accommodation, flight and location
+    chunks are never returned). Always returns the top 5 most relevant results (k@5)
+    and reports precision@5.
+
+    How it works:
+      1. The question is read for a known place and for weather / indoor / outdoor
+         hints (corpus_itinerary.parse_itinerary_query).
+      2. Every itinerary chunk is graded against that (corpus_itinerary.grade_result).
+         A chunk is RELEVANT if it matches the place, the setting and the question's
+         remaining content words. Weaker matches (same region, same state, the other
+         setting) are used to fill the list up to 5 and are labelled in `mismatch`.
+         With no place named, weaker matches are never used as filler.
+      3. Results are ordered closest match first.
+
+    precision_at_5 = relevant results in the top 5 / 5. It is an automatic proxy (does
+    each result satisfy what the question asked for), not a human relevance judgement.
+    relevant_available is how many relevant chunks exist in the corpus for the
+    question, which caps the achievable precision (e.g. one place + weather has 2).
+    """
+    start = time.time()
+    audit_input = {"query": query, "k": TOP_K, "caller": caller}
+    parsed = parse_itinerary_query(query)
+
+    pool = retrieve_context(
+        query=query,
+        k=10**6,  # every itinerary chunk; trimmed to TOP_K after grading
+        caller=caller,
+        filters={"source_type": "itinerary"},
+        ignore_terms=QUERY_FILLER,
+        audit=False,
+    )
+    if pool.get("status") != "success":
+        append_audit("search_itinerary", audit_input, {"error": pool.get("error")}, "fail", "error", start)
+        return pool
+
+    boilerplate = _boilerplate_tokens(read_corpus(), source_type="itinerary")
+    content_terms = (
+        _tokenize(query) - boilerplate - QUERY_FILLER - SETTING_WORDS - set(parsed["place_words"])
+    )
+
+    searchable = bool(parsed["locations"] or parsed["regions"] or parsed["setting"] or content_terms)
+    graded = []
+    if searchable:
+        for cand in pool["results"]:
+            grade = grade_result(cand["metadata"], cand["matched_terms"], content_terms, parsed)
+            if grade is not None:
+                graded.append((grade, cand))
+
+    # Stable sort: within equal grades the pool's order (keyword overlap, then
+    # distance) is kept.
+    graded.sort(key=lambda item: (item[0][0], item[0][1]))
+
+    results = []
+    for rank, (grade, cand) in enumerate(graded[:TOP_K], start=1):
+        mismatch = grade[2]
+        cand["rank"] = rank
+        cand["relevant"] = not mismatch
+        cand["mismatch"] = mismatch
+        results.append(cand)
+
+    relevant_in_top = sum(1 for r in results if r["relevant"])
+    relevant_available = sum(1 for grade, _ in graded if not grade[2])
+
+    output: dict[str, Any] = {
+        "status": "success",
+        "query": query,
+        "caller": caller,
+        "k": TOP_K,
+        "results": results,
+        "precision_at_5": round(relevant_in_top / TOP_K, 2),
+        "relevant_in_top_5": relevant_in_top,
+        "relevant_available": relevant_available,
+        "interpreted": {key: parsed[key] for key in ("locations", "regions", "setting")},
+    }
+    if not searchable:
+        output["note"] = "No place, weather or searchable words found in the question."
+    elif not results:
+        output["note"] = "No itinerary entries relate to this question."
+    elif len(results) < TOP_K:
+        output["note"] = f"Only {len(results)} itinerary entries relate to this question."
+
+    append_audit(
+        "search_itinerary",
+        audit_input,
+        {
+            "result_count": len(results),
+            "chunk_ids": [r["chunk_id"] for r in results],
+            "precision_at_5": output["precision_at_5"],
+            "relevant_available": relevant_available,
+        },
+        "pass", "context_retrieved", start,
+    )
+    return output
 
 
 # ===================== ANSWER (grounded, with citations + confidence) =====================
@@ -698,4 +882,5 @@ if __name__ == "__main__":
     print(json.dumps(refresh_corpus(), indent=2))
     print(json.dumps(retrieve_context("pool villa in Bali", 5), indent=2))
     print(json.dumps(retrieve_activities("Bondi Beach", "Light Rain"), indent=2))
+    print(json.dumps(search_itinerary("What can I do at Bondi Beach when it's raining?"), indent=2))
     print(json.dumps(answer_question("What accommodations are available in Kyoto?", 5), indent=2))

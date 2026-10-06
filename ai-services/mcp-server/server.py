@@ -153,8 +153,8 @@ def available_journeys() -> str:
 def generate_trip_itinerary_tool(
     journey_id: int,
     duration: int,
+    token: str,
     preferences: str = "General exploration",
-    user_id: int = 1,
 ) -> str:
     """
     Generate and save an AI-written day-by-day trip itinerary.
@@ -167,18 +167,22 @@ def generate_trip_itinerary_tool(
         duration:
             Number of days for the trip (1-14).
 
+        token:
+            Session token for the user the trip should be saved under.
+            Log into the JourneyBuddy frontend and copy the token here -
+            the backend identifies the user from this token itself (the
+            same way the web frontend does), so no user_id is ever
+            accepted from the caller.
+
         preferences:
             Free-text traveller preferences,
             e.g. "food and museums".
-
-        user_id:
-            ID of the user the trip is saved for.
     """
     return generate_trip_itinerary(
         journey_id,
         duration,
+        token,
         preferences,
-        user_id,
     )
 
 

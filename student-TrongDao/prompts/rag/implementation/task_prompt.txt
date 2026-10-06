@@ -1,0 +1,10 @@
+Validate the Attraction Recommender RAG integration.
+
+Check whether:
+- A supported attraction question returns a grounded answer.
+- The response contains source citations and a confidence category.
+- Citation fields identify the source and chunk.
+- An unsupported question returns insufficient context without citations.
+- The evidence comes through the attraction backend/API path.
+
+Provide one concise evidence-based assessment.

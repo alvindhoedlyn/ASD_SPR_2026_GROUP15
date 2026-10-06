@@ -39,7 +39,7 @@ Each module's frontend depends on its backend, and each backend depends on its o
 | `student-AlvindhoEdlyn` (+ frontend/database) | Student module | 5001 / 3001 / 6001 |
 | `student-KeyuanGan-frontend` / `-backend` / `-database` | Student module | 3002 / 5002 / 5702 |
 | `student-RenzoRobin-frontend` / `-backend` / `-database` | Accommodation Recommender module | 3003 / 5003 / 6003 |
-| `student-TrongDao` (+ backend/database) | Location recommender module | 5004 / 5104 / 5404 |
+| `student-TrongDao` (+ backend/database) | Location recommender module | 3004 / 5004 / 6004 |
 | `student-YajunNing` (+ backend/database) | Flights module | 3005 / 5005 / 6005 |
 | `ai-mode` | Local LLM inference (Ollama) | 11434 |
 
@@ -81,7 +81,7 @@ Once all containers are running, the application is accessible via:
 |---|---|
 | Main platform | http://localhost:3000 |
 | Flight Recommender (YajunNing) | http://localhost:3005 |
-| Attractions Recommender (TrongDao) | http://localhost:5004 |
+| Attractions Recommender (TrongDao) | http://localhost:3004 |
 | Accommodation Recommender (RenzoRobin) | http://localhost:3003 |
 | Itinerary Planner (RenzoRobin) | http://localhost:3001 |
 | Itinerary Planner (RenzoRobin) | http://localhost:3002 |
