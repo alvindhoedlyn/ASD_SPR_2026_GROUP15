@@ -3,7 +3,7 @@ import os
 import requests
 
 
-DEFAULT_DATABASE_URL = "http://localhost:5404"
+DEFAULT_DATABASE_URL = "http://localhost:6004"
 
 
 def collect(app_dir, repo_root):

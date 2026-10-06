@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  `${window.location.protocol}//${window.location.hostname}:5104`;
+  `${window.location.protocol}//${window.location.hostname}:5004`;
 
 const aiResponse = document.getElementById("ai-response");
 

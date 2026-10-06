@@ -1,12 +1,19 @@
 """Tests for the attraction feature's Release 1 validation modes."""
 
 import importlib.util
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 
 STUDENT_DIR = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = STUDENT_DIR.parent
 AGENTIC_LOOP_DIR = STUDENT_DIR / "agentic_loop"
+
+# The agentic loop imports shared Release 1 modules from the repository root.
+# Add it explicitly because invoking the pytest executable does not always put
+# the current working directory on sys.path (unlike ``python -m pytest``).
+sys.path.insert(0, str(REPOSITORY_ROOT))
 
 
 def load_module(module_name, relative_path):
@@ -100,6 +107,63 @@ def test_devops_collector_enforces_local_release_one_services():
     assert "RAG disabled in CI: True" in evidence
     assert "Backend uses local MCP address: True" in evidence
     assert "Backend uses local RAG address: True" in evidence
+
+
+def test_standardised_feature_ports_are_consistent():
+    repository_root = STUDENT_DIR.parent
+    compose_text = (
+        repository_root / "docker-compose.yml"
+    ).read_text(encoding="utf-8")
+    dockerfile_text = (
+        STUDENT_DIR / "Dockerfile"
+    ).read_text(encoding="utf-8")
+    frontend_script = (
+        STUDENT_DIR / "frontend/js/location.js"
+    ).read_text(encoding="utf-8")
+    shared_frontend = (
+        repository_root / "shared/frontend/index.html"
+    ).read_text(encoding="utf-8")
+    mcp_location_tool = (
+        repository_root
+        / "ai-services/mcp-server/tools_location.py"
+    ).read_text(encoding="utf-8")
+    rag_location_loader = (
+        repository_root
+        / "ai-services/rag-server/corpus_location.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"3004:80"' in compose_text
+    assert '"5004:5004"' in compose_text
+    assert 'PORT: "5004"' in compose_text
+    assert (
+        "DATABASE_API_URL: "
+        "http://student-TrongDao-database:6004"
+    ) in compose_text
+    assert '"6004:6004"' in compose_text
+    assert 'PORT: "6004"' in compose_text
+
+    assert "ENV PORT=5004" in dockerfile_text
+    assert "EXPOSE 5004" in dockerfile_text
+    assert "ENV PORT=6004" in dockerfile_text
+    assert "EXPOSE 6004" in dockerfile_text
+
+    assert ":5004`" in frontend_script
+    assert "http://localhost:3004" in shared_frontend
+    assert "http://localhost:6004" in mcp_location_tool
+    assert "http://localhost:6004" in rag_location_loader
+
+    assert agentic_main.endpoints_collector.DEFAULT_BACKEND_URL == (
+        "http://localhost:5004"
+    )
+    assert agentic_main.mcp_collector.DEFAULT_BACKEND_URL == (
+        "http://localhost:5004"
+    )
+    assert agentic_main.rag_collector.DEFAULT_BACKEND_URL == (
+        "http://localhost:5004"
+    )
+    assert agentic_main.database_collector.DEFAULT_DATABASE_URL == (
+        "http://localhost:6004"
+    )
 
 
 def test_mcp_collector_validates_both_attraction_tools():

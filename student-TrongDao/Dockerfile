@@ -11,7 +11,7 @@ FROM python:3.12-slim AS backend
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=5000
+ENV PORT=5004
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ COPY frontend/ ./frontend/
 
 WORKDIR /app/backend
 
-EXPOSE 5000
+EXPOSE 5004
 
 CMD ["python", "app.py"]
 
@@ -35,7 +35,7 @@ FROM python:3.12-slim AS database
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=5000
+ENV PORT=6004
 ENV DATABASE_PATH=/app/database/data/location_recommender.db
 
 WORKDIR /app
@@ -49,6 +49,6 @@ COPY database/ ./database/
 
 WORKDIR /app/database
 
-EXPOSE 5000
+EXPOSE 6004
 
 CMD ["python", "app.py"]

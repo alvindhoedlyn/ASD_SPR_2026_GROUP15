@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 
 
-DEFAULT_BACKEND_URL = "http://localhost:5104"
+DEFAULT_BACKEND_URL = "http://localhost:5004"
 REQUEST_TIMEOUT = 180
 
 GROUNDED_QUERY = (

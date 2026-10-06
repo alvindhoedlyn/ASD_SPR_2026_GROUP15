@@ -10,7 +10,7 @@ import requests
 
 LOCATION_DB_URL = os.getenv(
     "LOCATION_DB_URL",
-    "http://localhost:5404"
+    "http://localhost:6004"
 )
 
 REQUEST_TIMEOUT = 10
