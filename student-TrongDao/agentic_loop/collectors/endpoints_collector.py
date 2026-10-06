@@ -4,7 +4,7 @@ import re
 import requests
 
 
-DEFAULT_BACKEND_URL = "http://localhost:5104"
+DEFAULT_BACKEND_URL = "http://localhost:5004"
 
 
 def collect(app_dir, repo_root):

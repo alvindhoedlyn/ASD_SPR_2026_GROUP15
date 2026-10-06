@@ -65,6 +65,20 @@ STOPWORDS = {
     "that", "has", "have", "had", "does", "do", "can", "could",
     "would", "should", "will", "there", "this", "these", "those",
     "any", "all", "me", "please", "tell", "show",
+    "available",
+}
+
+# These terms describe facts the user is explicitly asking for. They can
+# appear in many records and therefore look like corpus-wide boilerplate, but
+# removing them would make a question such as "Opera House accessibility"
+# indistinguishable from a generic Opera House query.
+FACT_QUERY_TERMS = {
+    "accessibility",
+    "wheelchair",
+    "cost",
+    "price",
+    "duration",
+    "crowd",
 }
 
 
@@ -347,7 +361,10 @@ def retrieve_context(
         boilerplate = _boilerplate_tokens(
             read_corpus(), source_type=scope if isinstance(scope, str) else None
         )
-        query_tokens = _tokenize(query) - boilerplate - (ignore_terms or set())
+        raw_scoring_tokens = _tokenize(query) - (ignore_terms or set())
+        query_tokens = (
+            raw_scoring_tokens - boilerplate
+        ) | (raw_scoring_tokens & FACT_QUERY_TERMS)
         # Retrieve the WHOLE corpus as candidates, not just top-N by raw
         # vector distance. This corpus is small (tens of chunks), and the
         # hash-embedding's distances are noisy enough that a genuinely
@@ -367,7 +384,10 @@ def retrieve_context(
         for i, chunk_id in enumerate(ids):
             meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
             text = docs[i] if i < len(docs) else ""
-            candidate_tokens = _tokenize(text) - boilerplate
+            raw_candidate_tokens = _tokenize(text)
+            candidate_tokens = (
+                raw_candidate_tokens - boilerplate
+            ) | (raw_candidate_tokens & FACT_QUERY_TERMS)
             matched_terms = query_tokens & candidate_tokens
             overlap = len(matched_terms)
             query_coverage = (

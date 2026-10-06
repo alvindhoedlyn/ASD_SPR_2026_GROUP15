@@ -1,7 +1,7 @@
 """
 MCP tool implementations for the Attraction Recommender feature.
 The shared MCP server runs locally. The containerised attraction database
-is available through its published host port 5404.
+is available through its published host port 6004.
 """
 
 import os
@@ -11,7 +11,7 @@ import requests
 
 LOCATION_DB_URL = os.getenv(
     "LOCATION_DB_URL",
-    "http://localhost:5404"
+    "http://localhost:6004"
 )
 
 REQUEST_TIMEOUT = 10
