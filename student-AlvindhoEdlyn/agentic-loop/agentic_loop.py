@@ -1,3 +1,4 @@
+import importlib.util
 import os
 from pathlib import Path
 import requests
@@ -29,17 +30,74 @@ PLAN = {
     ],
 }
 
+MCP_PLAN = {
+    "goal": "Validate MCP tool-call behavior for the Travel Itinerary Planner's MCP mirror routes",
+    "checks": [
+        "GET /mcp/tools",
+        "POST /mcp/available-journeys",
+        "POST /mcp/generate-trip-itinerary",
+    ],
+}
 
-# Backend running on local host port (Default: 6001 as defined in init_db.py)
+RAG_PLAN = {
+    "goal": "Validate RAG tool-call behavior for the Travel Itinerary Planner's RAG mirror routes",
+    "checks": [
+        "POST /rag/refresh",
+        "POST /rag/retrieve",
+        "POST /rag/activities",
+    ],
+}
+
+# Database service - the "Endpoint testing" flow talks directly to the DB
+# layer's own CRUD routes (bypasses the backend's auth/business logic).
 BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:6001")
-
 
 # Local Ollama endpoint
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 
-
 IMPLEMENTATION_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 REVIEW_MODEL = os.getenv("OLLAMA_REVIEW_MODEL", "llama3.1:8b")
+
+
+# ============================================================
+# LOAD THE MCP / RAG COLLECTORS + PIPELINES AS LOCAL MODULES
+# ============================================================
+# Same pattern RenzoRobin's agentic_loop/main.py uses to load its
+# collectors/pipelines: importlib.util against an explicit file path,
+# rather than a package-relative import. That keeps this script runnable
+# directly (python agentic_loop.py) without needing __init__.py files or
+# this folder to be on sys.path as a package.
+#
+# Matches the actual project layout:
+#   student-AlvindhoEdlyn/agentic-loop/collector/mcp_collector.py
+#   student-AlvindhoEdlyn/agentic-loop/collector/rag_collector.py
+#   student-AlvindhoEdlyn/agentic-loop/pipeline/mcp_pipeline.py
+#   student-AlvindhoEdlyn/agentic-loop/pipeline/rag_pipeline.py
+
+THIS_FILE = Path(__file__).resolve()
+AGENTIC_LOOP_DIR = THIS_FILE.parent
+REPO_ROOT = AGENTIC_LOOP_DIR.parent.parent  # student-AlvindhoEdlyn/.. -> repo root (ASD_SPR_2026_GROUP15)
+
+
+def _load_local_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+mcp_collector = _load_local_module(
+    "alvindhoedlyn_mcp_collector", AGENTIC_LOOP_DIR / "collector" / "mcp_collector.py"
+)
+rag_collector = _load_local_module(
+    "alvindhoedlyn_rag_collector", AGENTIC_LOOP_DIR / "collector" / "rag_collector.py"
+)
+mcp_pipeline = _load_local_module(
+    "alvindhoedlyn_mcp_pipeline", AGENTIC_LOOP_DIR / "pipeline" / "mcp_pipeline.py"
+)
+rag_pipeline = _load_local_module(
+    "alvindhoedlyn_rag_pipeline", AGENTIC_LOOP_DIR / "pipeline" / "rag_pipeline.py"
+)
 
 
 # ============================================================
@@ -309,6 +367,46 @@ def get_ai_mode_advice(observe_message):
     )
 
 
+# Fed into mcp_pipeline.build_implementation_prompt() as the task_prompt -
+# the pipeline wraps this with "Review Scope", "Observed Evidence" and the
+# reply-length instruction, so this only needs to state the task itself.
+MCP_TASK_PROMPT = (
+    "You are the AI-MODE agent for a Flask Travel Itinerary Planner App's MCP integration.\n\n"
+    "MCP Mirror Routes (on the Flask backend, not the stdio MCP server):\n"
+    "- GET /mcp/tools - lists available MCP tools\n"
+    "- POST /mcp/available-journeys - mirrors the available_journeys MCP tool\n"
+    "- POST /mcp/generate-trip-itinerary - mirrors the generate_trip_itinerary MCP tool "
+    "(requires a verified session - Authorization: Bearer <token>)\n\n"
+    "Task:\n"
+    "Review ONLY the MCP tool-call behavior: whether MCP mode gating, authentication, "
+    "and tool responses behaved correctly.\n\n"
+    "Rules:\n"
+    "- Do not invent new MCP tools or routes.\n"
+    "- Do not modify existing API contracts.\n"
+    "- Focus on MCP mode gating, auth handling, input validation, or response shape correctness.\n"
+    "- If the evidence shows no issues, respond with: 'No evidence-backed improvement identified.'\n"
+    "- Otherwise, return exactly two bullet points outlining specific code improvements."
+)
+
+# Fed into rag_pipeline.build_implementation_prompt() the same way.
+RAG_TASK_PROMPT = (
+    "You are the AI-MODE agent for a Flask Travel Itinerary Planner App's RAG integration.\n\n"
+    "RAG Mirror Routes (on the Flask backend, not rag_http_server.py directly):\n"
+    "- POST /rag/refresh - mirrors the refresh_corpus RAG tool (requires a verified session)\n"
+    "- POST /rag/retrieve - mirrors the retrieve_context RAG tool (requires a verified session)\n"
+    "- POST /rag/activities - mirrors the retrieve_activities RAG tool (requires a verified session)\n\n"
+    "Task:\n"
+    "Review ONLY the RAG tool-call behavior: whether RAG mode gating, authentication, "
+    "and tool responses behaved correctly.\n\n"
+    "Rules:\n"
+    "- Do not invent new RAG tools or routes.\n"
+    "- Do not modify existing API contracts.\n"
+    "- Focus on RAG mode gating, auth handling, input validation, or response shape correctness.\n"
+    "- If the evidence shows no issues, respond with: 'No evidence-backed improvement identified.'\n"
+    "- Otherwise, return exactly two bullet points outlining specific code improvements."
+)
+
+
 # ============================================================
 # ADAPT
 # ============================================================
@@ -327,6 +425,24 @@ def adapt(ok_journeys, ok_trips, live_results, advice_available):
     print("\nEndpoint evidence:")
     for result in live_results:
         print(f"  - {result}")
+
+
+def adapt_tool_mode(mode_label, ok, evidence, advice_available):
+    """Shared ADAPT step for the MCP and RAG tool-call modes - both collect
+    evidence as a single newline-joined string and both gate on backend
+    auth/mode checks, so one function covers both rather than duplicating
+    near-identical adapt_mcp()/adapt_rag() copies."""
+    print()
+    if not ok:
+        print(f"ADAPT: One or more {mode_label} checks failed — check {mode_label} mode, backend auth, or the mirror routes.")
+    elif not advice_available:
+        print("ADAPT: AI-Mode unavailable — check Ollama connection and models.")
+    else:
+        print(f"ADAPT: Review any AI suggestions for improving {mode_label} auth handling or input validation.")
+
+    print(f"\n{mode_label} tool evidence:")
+    for line in evidence.splitlines():
+        print(f"  - {line}")
 
 
 # ============================================================
@@ -361,14 +477,10 @@ def prompt_user_review():
 
 
 # ============================================================
-# MAIN LOOP
+# RUN: ENDPOINT TESTING (existing flow)
 # ============================================================
 
-def main():
-    print("=" * 70)
-    print("RELEASE 0 AGENTIC LOOP — Travel Itinerary Planner")
-    print("=" * 70)
-
+def run_endpoint_testing():
     print("\nPLAN")
     print(PLAN)
 
@@ -419,6 +531,161 @@ def main():
 
     print("\nLOOP COMPLETE")
     print(f"Final Outcome: {review_status}")
+
+
+# ============================================================
+# RUN: MCP TESTING (delegated to collector/mcp_collector.py + pipeline/mcp_pipeline.py)
+# ============================================================
+
+def run_mcp_testing():
+    print("\nPLAN")
+    print(MCP_PLAN)
+
+    print("\nACT")
+    print("Checking MCP mirror routes via mcp_collector...")
+
+    # OBSERVE - shared collector contract: collect() returns (ok: bool, evidence: str)
+    ok, evidence = mcp_collector.collect(AGENTIC_LOOP_DIR, REPO_ROOT)
+
+    print("\nOBSERVE")
+    for line in evidence.splitlines():
+        print(f"- {line}")
+
+    # AI-MODE AGENT - two-stage implementation + review via mcp_pipeline
+    print("\nAI-MODE AGENT (Implementation)")
+    print(f"Model: {IMPLEMENTATION_MODEL}")
+    print(f"Ollama URL: {OLLAMA_BASE_URL}")
+
+    implementation_prompt = mcp_pipeline.build_implementation_prompt(MCP_TASK_PROMPT, evidence)
+    implementation_output, impl_error = call_model(
+        IMPLEMENTATION_MODEL,
+        "You are a concise Flask/MCP code reviewer. Follow rules strictly.",
+        implementation_prompt,
+        max_tokens=150,
+    )
+
+    if implementation_output:
+        print(f"\n{implementation_output}")
+    else:
+        print(f"\n{impl_error}")
+
+    print("\nAI-MODE AGENT (Review)")
+    print(f"Model: {REVIEW_MODEL}")
+
+    if implementation_output:
+        review_prompt = mcp_pipeline.build_review_prompt(implementation_output, evidence)
+        review_output, review_error = call_model(
+            REVIEW_MODEL,
+            "You are a concise second-pass reviewer. Follow rules strictly.",
+            review_prompt,
+            max_tokens=100,
+        )
+        print(f"\n{review_output}" if review_output else f"\n{review_error}")
+    else:
+        print("\nSkipped - no implementation output to review.")
+
+    # ADAPT
+    adapt_tool_mode("MCP", ok, evidence, implementation_output is not None)
+
+    # USER REVIEW
+    review_status = prompt_user_review()
+
+    print("\nLOOP COMPLETE")
+    print(f"Final Outcome: {review_status}")
+
+
+# ============================================================
+# RUN: RAG TESTING (delegated to collector/rag_collector.py + pipeline/rag_pipeline.py)
+# ============================================================
+
+def run_rag_testing():
+    print("\nPLAN")
+    print(RAG_PLAN)
+
+    print("\nACT")
+    print("Checking RAG mirror routes via rag_collector...")
+
+    # OBSERVE - shared collector contract: collect() returns (ok: bool, evidence: str)
+    ok, evidence = rag_collector.collect(AGENTIC_LOOP_DIR, REPO_ROOT)
+
+    print("\nOBSERVE")
+    for line in evidence.splitlines():
+        print(f"- {line}")
+
+    # AI-MODE AGENT - two-stage implementation + review via rag_pipeline
+    print("\nAI-MODE AGENT (Implementation)")
+    print(f"Model: {IMPLEMENTATION_MODEL}")
+    print(f"Ollama URL: {OLLAMA_BASE_URL}")
+
+    implementation_prompt = rag_pipeline.build_implementation_prompt(RAG_TASK_PROMPT, evidence)
+    implementation_output, impl_error = call_model(
+        IMPLEMENTATION_MODEL,
+        "You are a concise Flask/RAG code reviewer. Follow rules strictly.",
+        implementation_prompt,
+        max_tokens=150,
+    )
+
+    if implementation_output:
+        print(f"\n{implementation_output}")
+    else:
+        print(f"\n{impl_error}")
+
+    print("\nAI-MODE AGENT (Review)")
+    print(f"Model: {REVIEW_MODEL}")
+
+    if implementation_output:
+        review_prompt = rag_pipeline.build_review_prompt(implementation_output, evidence)
+        review_output, review_error = call_model(
+            REVIEW_MODEL,
+            "You are a concise second-pass reviewer. Follow rules strictly.",
+            review_prompt,
+            max_tokens=100,
+        )
+        print(f"\n{review_output}" if review_output else f"\n{review_error}")
+    else:
+        print("\nSkipped - no implementation output to review.")
+
+    # ADAPT
+    adapt_tool_mode("RAG", ok, evidence, implementation_output is not None)
+
+    # USER REVIEW
+    review_status = prompt_user_review()
+
+    print("\nLOOP COMPLETE")
+    print(f"Final Outcome: {review_status}")
+
+
+# ============================================================
+# MAIN LOOP
+# ============================================================
+
+def main():
+    print("=" * 50)
+    print("RELEASE 1 AGENTIC LOOP — Travel Itinerary Planner")
+    print("=" * 50)
+
+    while True:
+        print("\n" + "=" * 50)
+        print("MAIN MENU")
+        print("=" * 50)
+        print("  1 - Endpoint testing (existing)")
+        print("  2 - MCP")
+        print("  3 - RAG")
+        print("  0 - Exit Loop")
+
+        choice = input("\nChoose an option: ").strip()
+
+        if choice == "0":
+            print("Loop closed.")
+            break
+        elif choice == "1":
+            run_endpoint_testing()
+        elif choice == "2":
+            run_mcp_testing()
+        elif choice == "3":
+            run_rag_testing()
+        else:
+            print("Invalid choice. Please enter 1, 2, 3, or 0.")
 
 
 if __name__ == "__main__":

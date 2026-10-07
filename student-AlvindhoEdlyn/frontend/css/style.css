@@ -1,19 +1,31 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap");
 :root {
-    --header-bg: #d4c6aa;
-    --page-bg: #ded4bc;
-    --card-frame: #1b4d3e;
-    --card-face: #f0eae1;
-    --ink: #241a12;
-    --line: #191008;
-    --panel-bg: #a9856a;
-    --panel-face: #e6d3b8;
-    --modal-bg: #6f4226;
-    --modal-face: #fff;
+    /* Palette from the sand / teal / coral theme */
+    --sand: #F4EFE6;
+    --sand-deep: #E9E1D2;
+    --ink: #26241F;
+    --ink-soft: #62594A;
+    --teal: #0F6E56;
+    --teal-deep: #085041;
+    --coral: #5e1916;
+    --coral-soft: #F0C4AE;
+    --line: #C9BFA9;
+
+    /* Existing variable names, remapped */
+    --header-bg: var(--sand-deep);
+    --page-bg: var(--sand);
+    --card-frame: var(--teal);
+    --card-face: #FFFFFF;
+    --panel-bg: #E3D9C6;
+    --panel-face: #FFFFFF;
+    --panel-header: var(--teal-deep);
+    --modal-bg: #EFE8DA;
+    --modal-face: #FFFFFF;
     --radius-lg: 18px;
     --radius-md: 12px;
     --border-w: 3px;
     --font-display: "Fraunces", serif;
-    --font-body: "Times New Roman", Times, serif;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 * {
@@ -26,7 +38,7 @@
 
 body {
     margin: 0;
-    font-family: "Times New Roman", Times, serif;
+    font-family: var(--font-body);
     color: var(--ink);
     background: var(--page-bg);
     min-height: 100vh;
@@ -53,6 +65,10 @@ header.app-header {
     text-decoration: none;
 }
 
+h1, h2, .brand, .brand a {
+    font-family: var(--font-display);
+}
+
 /* Navigation Menu */
 .app-header .nav-menu {
     display: flex;
@@ -64,7 +80,7 @@ header.app-header {
     text-decoration: none;
     padding: 8px 14px;
     background: var(--card-frame, #f0f0f0);
-    border: var(--border-w) solid var(--line);
+    border: var(--border-w) solid var(--teal-deep);
     border-radius: 8px;
     color: #fff;
     font-size: 0.95rem;
@@ -74,7 +90,7 @@ header.app-header {
 
 .nav-link-btn:hover {
     transform: translateY(-2px);
-    opacity: 0.9;
+    background: var(--teal-deep);
 }
 
 /* User Area & Avatar */
@@ -90,7 +106,7 @@ header.app-header {
     height: 46px;
     border-radius: 10px;
     background: var(--card-frame);
-    border: var(--border-w) solid var(--line);
+    border: var(--border-w) solid var(--teal-deep);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -128,7 +144,7 @@ h1.title {
 
 .plan-frame {
     background: var(--card-frame);
-    border: var(--border-w) solid var(--line);
+    border: var(--border-w) solid var(--teal-deep);
     border-radius: 26px;
     padding: 30px 20px;
     max-width: 1400px;
@@ -159,7 +175,7 @@ h1.title {
 
 .inset-card {
     background: var(--card-face);
-    border: 2px solid #b98a55;
+    border: 2px solid var(--line);
     border-radius: var(--radius-md);
     padding: 34px 42px;
     text-align: center;
@@ -176,10 +192,13 @@ h1.title {
 .inset-card p {
     margin: 0 0 22px;
     font-weight: 600;
+    color: var(--ink-soft);
 }
 
 .inset-card h2.underline {
     text-decoration: underline;
+    text-decoration-color: var(--coral);
+    text-underline-offset: 4px;
     margin-bottom: 22px;
 }
 
@@ -219,7 +238,7 @@ h1.title {
 .optional {
     font-weight: 500;
     font-style: italic;
-    color: #6b5844;
+    color: var(--ink-soft);
 }
 
 .field-row input[type="number"],
@@ -230,7 +249,8 @@ h1.title {
     font: inherit;
     font-weight: 700;
     width: 90px;
-    background: #fff;
+    background: var(--sand);
+    color: var(--ink);
 }
 
 .field-row select {
@@ -244,7 +264,16 @@ h1.title {
     padding: 10px;
     font: inherit;
     resize: vertical;
-    background: #fff;
+    background: var(--sand);
+    color: var(--ink);
+}
+
+.field-row input:focus-visible,
+.field-row select:focus-visible,
+.field-column textarea:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 1px;
+    border-color: var(--teal);
 }
 
 .form-card .btn {
@@ -286,12 +315,13 @@ a.btn {
     border-radius: var(--radius-md);
     padding: 18px 16px;
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .day-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15);
+    border-color: var(--coral);
+    box-shadow: 0 6px 0 rgba(38, 36, 31, 0.12);
 }
 
 .day-card:focus-visible {
@@ -309,7 +339,7 @@ a.btn {
     text-align: center;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #5a4632;
+    color: var(--ink-soft);
     margin-bottom: 14px;
     min-height: 1.2em;
 }
@@ -344,16 +374,17 @@ a.btn {
     font-size: 0.95rem;
     color: #fff;
     background: var(--card-frame);
-    border: var(--border-w) solid var(--line);
+    border: var(--border-w) solid var(--teal-deep);
     border-radius: 999px;
     padding: 14px 30px;
     cursor: pointer;
-    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 
 .btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+    background: var(--teal-deep);
+    box-shadow: 0 4px 0 rgba(38, 36, 31, 0.18);
 }
 
 .btn:active {
@@ -374,7 +405,12 @@ a.btn {
 }
 
 .btn-danger {
-    background: #a34a3a;
+    background: var(--coral);
+    border-color: #B3431F;
+}
+
+.btn-danger:hover {
+    background: #B3431F;
 }
 
 /* ---------- Trip navigator ---------- */
@@ -386,7 +422,7 @@ a.btn {
     max-width: 260px;
     margin: 22px auto 0;
     padding: 10px 22px;
-    border: 3px dashed #6b4226;
+    border: 3px dashed var(--teal);
     border-radius: 999px;
     font-weight: 800;
 }
@@ -395,7 +431,7 @@ a.btn {
     background: none;
     border: none;
     font-size: 1.1rem;
-    color: #6b4226;
+    color: var(--teal-deep);
     cursor: pointer;
     padding: 2px 6px;
 }
@@ -418,7 +454,7 @@ a.btn {
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(20, 12, 6, 0.45);
+    background: rgba(38, 36, 31, 0.45);
     display: none;
     align-items: center;
     justify-content: center;
@@ -440,7 +476,7 @@ a.btn {
     max-height: 90vh;
     padding: 30px 34px 34px;
     position: relative;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 20px 50px rgba(38, 36, 31, 0.3);
 }
 
 .day-modal .close-x {
@@ -479,12 +515,12 @@ a.btn {
     width: 100%;
     aspect-ratio: 1 / 1;
     border-radius: 12px;
-    background: linear-gradient(135deg, #f4a35e, #d97757);
+    background: linear-gradient(135deg, var(--coral-soft), #E39A7A);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 2.2rem;
-    color: rgba(255, 255, 255, 0.85);
+    color: rgba(255, 255, 255, 0.9);
     overflow: hidden;
 }
 
@@ -592,12 +628,14 @@ a.btn {
     border-radius: 10px;
     padding: 12px 14px;
     font: inherit;
-    background: #fff;
+    background: var(--sand);
+    color: var(--ink);
 }
 
 .chat-input-row input:focus-visible {
-    outline: 3px solid var(--ink);
+    outline: 2px solid var(--teal);
     outline-offset: 1px;
+    border-color: var(--teal);
 }
 
 .icon-btn {
@@ -613,8 +651,12 @@ a.btn {
 }
 
 .icon-btn.send {
-    background: #008080;
+    background: var(--teal);
     color: #fff;
+}
+
+.icon-btn.send:hover {
+    background: var(--teal-deep);
 }
 
 .icon-btn.attach {
@@ -622,45 +664,49 @@ a.btn {
     color: var(--ink);
     font-size: 1.3rem;
 }
-    /* Reuses the tokens and .btn / .plan-frame from css/style.css; only MCP-specific bits live here */
+
+/* ---------- MCP page ---------- */
+/* Reuses the tokens and .btn / .plan-frame above; only MCP-specific bits live here */
 .mcp-bar {
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; margin: 0 auto 24px; 
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; margin: 0 auto 24px;
 }
-    .mcp-switch { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; cursor: pointer; }
-    .mcp-switch input { width: 22px; height: 22px; accent-color: var(--card-frame); cursor: pointer; }
-    .mcp-status { padding: 8px 20px; border: 3px dashed #6b4226; border-radius: 999px; font-weight: 800; }
-    .mcp-status.ok { color: var(--card-frame); }
-    .mcp-status.warn { color: #8a5a1c; }
-    .mcp-status.err { color: #a34a3a; }
-    .mcp-status.off { color: #6b5844; }
+.mcp-switch { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; cursor: pointer; }
+.mcp-switch input { width: 22px; height: 22px; accent-color: var(--card-frame); cursor: pointer; }
+.mcp-status { padding: 8px 20px; border: 3px dashed var(--teal); border-radius: 999px; font-weight: 800; }
+.mcp-status.ok { color: var(--teal-deep); }
+.mcp-status.warn { color: #B5701F; }
+.mcp-status.err { color: #B3341C; }
+.mcp-status.off { color: var(--ink-soft); }
 
-    .mcp-off-note { max-width: 520px; margin: 0 auto; padding: 22px 28px; text-align: center; font-weight: 600;
-                    background: var(--card-face); border: 2px solid #b98a55; border-radius: var(--radius-md); }
+.mcp-off-note { max-width: 520px; margin: 0 auto; padding: 22px 28px; text-align: center; font-weight: 600;
+                background: var(--card-face); border: 2px solid var(--line); border-radius: var(--radius-md); }
 
-    .mcp-tool { background: var(--card-face); border: var(--border-w) solid var(--line); border-radius: var(--radius-md);
-                padding: 18px 22px; margin-bottom: 16px; }
-    .mcp-tool:last-child { margin-bottom: 0; }
-    .mcp-tool h2 { margin: 0 0 4px; font-size: 1.25rem; }
-    .mcp-desc { margin: 0 0 14px; font-weight: 600; color: #5a4632; font-size: .92rem; }
-    .mcp-fields { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
-    .mcp-field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; min-width: 160px; }
-    .mcp-field input[type="text"], .mcp-field input[type="number"] {
-        border: 2px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-weight: 700; background: #fff; }
-    .mcp-field input:focus-visible { outline: 3px solid var(--ink); outline-offset: 1px; }
-    .mcp-run { padding: 10px 24px; font-size: .9rem; }
+.mcp-tool { background: var(--card-face); border: var(--border-w) solid var(--line); border-radius: var(--radius-md);
+            padding: 18px 22px; margin-bottom: 16px; }
+.mcp-tool:last-child { margin-bottom: 0; }
+.mcp-tool h2 { margin: 0 0 4px; font-size: 1.25rem; }
+.mcp-desc { margin: 0 0 14px; font-weight: 600; color: var(--ink-soft); font-size: .92rem; }
+.mcp-fields { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+.mcp-field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; min-width: 160px; }
+.mcp-field input[type="text"], .mcp-field input[type="number"] {
+    border: 2px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-weight: 700;
+    background: var(--sand); color: var(--ink); }
+.mcp-field input:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; border-color: var(--teal); }
+.mcp-run { padding: 10px 24px; font-size: .9rem; }
 
-    .mcp-out { display: none; margin: 14px 0 0; padding: 12px 14px; background: #fff; border: 2px solid var(--line);
-               border-radius: 8px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word;
-               font: .85rem/1.4 ui-monospace, Consolas, monospace; }
-    .mcp-out.show { display: block; }
-    .mcp-out.error { border-color: #a34a3a; color: #a34a3a; }
-    .mcp-meta { margin-top: 6px; font-size: .8rem; font-weight: 600; color: #5a4632; }
+.mcp-out { display: none; margin: 14px 0 0; padding: 12px 14px; background: var(--sand); border: 2px solid var(--line);
+           border-radius: 8px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+           font: .85rem/1.4 ui-monospace, Consolas, monospace; }
+.mcp-out.show { display: block; }
+.mcp-out.error { border-color: var(--coral); color: #B3341C; }
+.mcp-meta { margin-top: 6px; font-size: .8rem; font-weight: 600; color: var(--ink-soft); }
 
-    .mcp-log-title { text-align: center; font-size: 1.6rem; margin: 34px 0 12px; }
-    .mcp-log { list-style: none; max-width: 1400px; margin: 0 auto; padding: 14px 20px; background: var(--panel-face);
-               border: var(--border-w) solid var(--line); border-radius: var(--radius-md);
-               font: 600 .85rem/1.5 ui-monospace, Consolas, monospace; }
-    .mcp-log li { padding: 3px 0; }
+.mcp-log-title { text-align: center; font-size: 1.6rem; margin: 34px 0 12px; }
+.mcp-log { list-style: none; max-width: 1400px; margin: 0 auto; padding: 14px 20px; background: var(--panel-face);
+           border: var(--border-w) solid var(--line); border-radius: var(--radius-md);
+           font: 600 .85rem/1.5 ui-monospace, Consolas, monospace; }
+.mcp-log li { padding: 3px 0; }
+
 @media (prefers-reduced-motion: reduce) {
 
     .day-card,
@@ -684,4 +730,3 @@ a.btn {
         font-size: 0.85rem;
     }
 }
-
