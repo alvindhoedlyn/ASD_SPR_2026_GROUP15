@@ -5,10 +5,18 @@ on:
     paths:
       - "student-AlvindhoEdlyn/**"
       - ".github/workflows/student-1-ci.yml"
+      - "ai-services/mcp-server/**"
+      - "ai-services/rag-server/**"
+      - "docker-compose.yml"
+
   pull_request:
     paths:
       - "student-AlvindhoEdlyn/**"
       - ".github/workflows/student-1-ci.yml"
+      - "ai-services/mcp-server/**"
+      - "ai-services/rag-server/**"
+      - "docker-compose.yml"
+
   workflow_dispatch:
 
 permissions:
