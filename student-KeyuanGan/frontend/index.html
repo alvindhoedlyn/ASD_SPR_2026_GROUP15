@@ -1370,6 +1370,54 @@
 
  
 
+    <!-- MCP Budget Summary -->
+    <section class="section ai-section">
+        <div class="ai-header">
+            <h3>MCP Budget Summary</h3>
+            <span class="ai-badge">Shared MCP</span>
+        </div>
+
+        <p class="section-description">
+            Budget information retrieved through the shared MCP server
+            using the Budget Tracker MCP tool.
+        </p>
+
+        <div class="ai-summary-grid">
+
+            <div class="ai-summary-item">
+                <p>Tool Name</p>
+                <strong id="mcp-tool">-</strong>
+            </div>
+
+            <div class="ai-summary-item">
+                <p>Input</p>
+                <strong id="mcp-input">-</strong>
+            </div>
+
+            <div class="ai-summary-item">
+                <p>Source</p>
+                <strong id="mcp-source">-</strong>
+            </div>
+
+            <div class="ai-summary-item">
+                <p>Status</p>
+                <strong id="mcp-status">Loading...</strong>
+            </div>
+
+        </div>
+
+        <h4 class="ai-result-title">
+            MCP Tool Result
+        </h4>
+
+        <pre
+            id="mcp-result"
+            class="ai-advice-box"
+            style="overflow-x: auto;"
+        >Waiting for MCP response...</pre>
+
+    </section>
+
     <!-- Budget Settings -->
 
  
@@ -2527,162 +2575,128 @@
  
 
     async function loadBudgetSummary() {
+        try {
 
- 
-
-    try {
-
- 
-
-        const response = await fetch(
-
-            `${API_BASE}/api/mcp/budget-summary`
-
-        );
-
- 
-
-        const data =
-
-            await response.json();
-
- 
-
-        if (!response.ok) {
-
- 
-
-            throw new Error(
-
-                data.error ||
-
-                "Unable to load budget summary through MCP"
-
+            const response = await fetch(
+                `${API_BASE}/api/mcp/budget-summary`
             );
 
- 
+            const data = await response.json();
 
+            if (!response.ok) {
+                throw new Error(
+                    data.error ||
+                    "Unable to load budget summary through MCP"
+                );
+            }
+
+            const summary = data.result;
+
+
+            // ==================================================
+            // Main Budget Summary
+            // ==================================================
+
+            document
+                .getElementById("total-budget")
+                .textContent =
+                `$${Number(
+                    summary.total_budget
+                ).toFixed(2)}`;
+
+            document
+                .getElementById("total-spent")
+                .textContent =
+                `$${Number(
+                    summary.total_spent
+                ).toFixed(2)}`;
+
+            document
+                .getElementById("remaining-budget")
+                .textContent =
+                `$${Number(
+                    summary.remaining_budget
+                ).toFixed(2)}`;
+
+            document
+                .getElementById("min-price")
+                .textContent =
+                `$${Number(
+                    summary.min_price
+                ).toFixed(2)}`;
+
+            document
+                .getElementById("max-price")
+                .textContent =
+                `$${Number(
+                    summary.max_price
+                ).toFixed(2)}`;
+
+
+            // ==================================================
+            // MCP Interaction Evidence
+            // ==================================================
+
+            document
+                .getElementById("mcp-tool")
+                .textContent =
+                data.tool || "budget_summary";
+
+            document
+                .getElementById("mcp-input")
+                .textContent =
+                "No input required";
+
+            document
+                .getElementById("mcp-source")
+                .textContent =
+                data.source || "shared-mcp-server";
+
+            document
+                .getElementById("mcp-status")
+                .textContent =
+                "Success";
+
+            document
+                .getElementById("mcp-result")
+                .textContent =
+                JSON.stringify(
+                    summary,
+                    null,
+                    2
+                );
+
+
+        } catch (error) {
+
+            const status =
+                document.getElementById(
+                    "mcp-status"
+                );
+
+            const result =
+                document.getElementById(
+                    "mcp-result"
+                );
+
+            if (status) {
+                status.textContent =
+                    "Failed";
+            }
+
+            if (result) {
+                result.textContent =
+                    `MCP Error: ${error.message}`;
+            }
+
+            showMessage(
+                error.message,
+                "error"
+            );
         }
-
- 
-
-        const summary = data.result;
-
- 
-
-        document
-
-            .getElementById(
-
-                "total-budget"
-
-            )
-
-            .textContent =
-
-            `$${Number(
-
-                summary.total_budget
-
-            ).toFixed(2)}`;
-
- 
-
-        document
-
-            .getElementById(
-
-                "total-spent"
-
-            )
-
-            .textContent =
-
-            `$${Number(
-
-                summary.total_spent
-
-            ).toFixed(2)}`;
-
- 
-
-        document
-
-            .getElementById(
-
-                "remaining-budget"
-
-            )
-
-            .textContent =
-
-            `$${Number(
-
-                summary.remaining_budget
-
-            ).toFixed(2)}`;
-
- 
-
-        document
-
-            .getElementById(
-
-                "min-price"
-
-            )
-
-            .textContent =
-
-            `$${Number(
-
-                summary.min_price
-
-            ).toFixed(2)}`;
-
- 
-
-        document
-
-            .getElementById(
-
-                "max-price"
-
-            )
-
-            .textContent =
-
-            `$${Number(
-
-                summary.max_price
-
-            ).toFixed(2)}`;
-
- 
-
-    } catch (error) {
-
- 
-
-        showMessage(
-
-            error.message,
-
-            "error"
-
-        );
-
- 
-
     }
 
- 
-
-}
-
- 
-
-async function loadBudgetSettings() {
+    async function loadBudgetSettings() {
 
  
 
