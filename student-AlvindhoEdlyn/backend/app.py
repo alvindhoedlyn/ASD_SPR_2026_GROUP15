@@ -365,7 +365,7 @@ def home():
 @app.route("/health")
 def health():
     """Health endpoint used by the integrated Docker Compose CI check."""
-    return {"status": "ok"}
+    return {"status": "ok", "student": "1"}
 
 @app.route("/ask-with-context", methods=["POST"])
 def ask_with_context():
