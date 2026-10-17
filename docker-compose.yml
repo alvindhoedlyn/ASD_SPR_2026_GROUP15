@@ -60,6 +60,7 @@ services:
       - DATABASE_SERVICE_URL=http://student-AlvindhoEdlyn-database:6001
       - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
       - OLLAMA_MODEL=qwen2.5:0.5b
+      - OLLAMA_REVIEW_MODEL=llama3.1:8b
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
