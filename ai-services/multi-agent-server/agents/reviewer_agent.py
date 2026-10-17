@@ -12,6 +12,7 @@ from agents.base import run_agent
 
 _NUMBER = re.compile(r"\d+\.\d+|\d{2,}")
 _VERDICT = re.compile(r"VERDICT:\s*(PASS|REVISE|FAIL)", re.IGNORECASE)
+_SOURCES_LINE = re.compile(r"^\s*SOURCES:.*$", re.IGNORECASE | re.MULTILINE)
 MAX_LISTED = 5
 MAX_PROMPT_TEXT = 700  # keeps the prompt small so a local 8B model can answer in time
 
@@ -34,7 +35,7 @@ def _coverage(user_request, worker_output, items):
     Returns (problems, verified): problems feed the verdict; verified are the
     terms that passed, so a human can see what was confirmed by rules.
     """
-    output = worker_output.lower()
+    output = _SOURCES_LINE.sub("", worker_output).lower()
     named = [i for i in items if ev.label(i) != "item" and ev.label(i).lower() in output]
     problems, verified = [], []
     for term in ev.requested_terms(user_request, items):

@@ -171,6 +171,12 @@ class TestReviewerChecks:
         assert "VERDICT: PASS" in reviewer["output"]
         assert any("All 2 item(s) listing 'breakfast' were named" in v for v in reviewer["verified"])
 
+    def test_stays_cited_only_in_the_sources_line_are_not_counted_as_named(self, client, monkeypatch):
+        _llm_returning(monkeypatch, "RESULT: Kyoto Riverside Ryokan and Kyoto Zen Garden Inn include breakfast.\n"
+                                    "SOURCES: Evidence: Kyoto Riverside Ryokan, Kyoto Zen Garden Inn, Kyoto Budget Hostel")
+        reviewer = _run(client, evidence=BREAKFAST_EVIDENCE).get_json()["steps"]["reviewer"]
+        assert reviewer["checks"] == []
+
     def test_missing_verdict_line_is_added(self, client, monkeypatch):
         _llm_returning(monkeypatch, "RESULT: Kyoto Riverside Ryokan includes breakfast.",
                        reviewer_text="RISKS: none identified.")
