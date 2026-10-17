@@ -164,6 +164,9 @@ services:
       MCP_ENABLED: "true"
       RAG_ENABLED: "true"
       RAG_SERVICE_URL: http://host.docker.internal:5100
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVICE_URL: http://host.docker.internal:5300
+      MULTI_AGENT_TIMEOUT_SECONDS: "700"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

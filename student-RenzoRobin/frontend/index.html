@@ -36,6 +36,7 @@
             <button class="tab-btn" data-tab="manage" id="manage-tab-btn">Manage Listings</button>
             <button class="tab-btn" data-tab="mcp" id="mcp-tab-btn">MCP Tools</button>
             <button class="tab-btn" data-tab="rag" id="rag-tab-btn">RAG Assistant</button>
+            <button class="tab-btn" data-tab="multiagent" id="multiagent-tab-btn">Multi-Agent</button>
         </div>
 
 
@@ -215,6 +216,59 @@
 
         </section>
 
+        <section id="tab-multiagent" class="tab-panel">
+
+            <div class="priority-panel">
+                <h2>Multi-Agent Review</h2>
+                <p class="panel-sub">A Planner, Worker and Reviewer agent answer from MCP evidence. You make the
+                    final decision.</p>
+
+                <div class="slider-row">
+                    <label for="multiagent-mode-toggle">Multi-Agent Enabled</label>
+                    <input type="checkbox" id="multiagent-mode-toggle" checked>
+                    <span class="slider-val" id="multiagent-mode-state">ON</span>
+                </div>
+            </div>
+
+            <div class="results-header">
+                <h2>Ask the Agents</h2>
+            </div>
+            <form id="multiagent-form" class="listing-form-modal-fields">
+                <input class="field-input" type="text" id="multiagent_city"
+                    placeholder="City / area for evidence, e.g. Kyoto" required>
+                <input class="field-input" type="text" id="multiagent_question"
+                    placeholder="e.g. Which stays include breakfast?" required>
+                <button class="btn-primary" type="submit">Run Agents</button>
+            </form>
+
+            <div class="results-header">
+                <h2>Agent Steps</h2>
+            </div>
+            <div id="multiagent-steps" class="panel-sub">Agent output will appear here.</div>
+
+            <div id="multiagent-review" hidden>
+                <div class="results-header">
+                    <h2>Human Review</h2>
+                </div>
+                <input class="field-input" type="text" id="multiagent-note" placeholder="Optional note">
+                <textarea class="field-input" id="multiagent-corrected" rows="3"
+                    placeholder="Corrected answer (required for Correct)"></textarea>
+                <div class="ma-decisions">
+                    <button class="btn-primary" type="button" data-decision="accept">Accept</button>
+                    <button class="btn-secondary" type="button" data-decision="partial">Partially accept</button>
+                    <button class="btn-secondary" type="button" data-decision="correct">Correct</button>
+                    <button class="btn-secondary" type="button" data-decision="reject">Reject</button>
+                </div>
+                <p id="multiagent-decision-status" class="panel-sub"></p>
+            </div>
+
+            <div class="results-header">
+                <h2>Raw Result</h2>
+            </div>
+            <pre id="multiagent-result" class="panel-sub">Multi-Agent responses will appear here.</pre>
+
+        </section>
+
         <!-- ===================== ADD/EDIT LISTING FORM (modal) ===================== -->
         <div id="listing-form-modal" class="modal-overlay" hidden>
             <div class="modal-box modal-wide">
@@ -269,6 +323,7 @@
     <script src="./js/accommodation.js"></script>
     <script src="./js/mcp.js"></script>
     <script src="./js/rag.js"></script>
+    <script src="./js/multiagent.js"></script>
 </body>
 
 </html>

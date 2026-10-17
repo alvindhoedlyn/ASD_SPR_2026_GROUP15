@@ -6,7 +6,8 @@ def run(user_request, feature, evidence_count):
     user_prompt = (
         f"Feature: {feature}\n"
         f"Request: {user_request}\n"
-        f"Evidence items available: {evidence_count}"
+        f"Evidence items available: {evidence_count}\n\n"
+        "Write the plan now in the required format. Do not answer the request."
     )
     fallback = (
         f"GOAL: {user_request}\n"

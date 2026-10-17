@@ -286,3 +286,86 @@ class TestExplainEndpoints:
         sent_prompt = mock_create.call_args.kwargs["messages"][1]["content"]
         assert "Villa A" in sent_prompt
         assert "90%" in sent_prompt
+
+
+
+# ===================== MULTI-AGENT ENDPOINTS =====================
+
+class TestMultiAgentEndpoints:
+    WORKFLOW = {"workflow_id": "abc123", "status": "pending_human_review", "degraded": False}
+
+    def test_run_collects_mcp_evidence_and_calls_the_multi_agent_server(self, client, backend):
+        mcp_rows = [{"name": "Kyoto Zen Garden Inn", "min_price": 85.0}]
+        with patch.object(backend, "MULTI_AGENT_ENABLED", True), \
+             patch.object(backend, "MCP_ENABLED", True), \
+             patch.object(backend, "call_mcp_tool", return_value=mcp_rows) as mock_mcp, \
+             patch.object(backend.requests, "request",
+                          return_value=make_response(dict(self.WORKFLOW))) as mock_request:
+            resp = client.post("/multi-agent/run", json={
+                "question": "Which stays include breakfast?", "city_area": "Kyoto"})
+
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["status"] == "pending_human_review"
+        assert body["evidence_source"] == "mcp"
+        mock_mcp.assert_called_once_with("accommodations_by_city", {"city_area": "Kyoto"})
+        assert mock_request.call_args.args[0] == "POST"
+        assert mock_request.call_args.args[1].endswith("/workflow")
+        sent = mock_request.call_args.kwargs["json"]
+        assert sent["user_request"] == "Which stays include breakfast?"
+        assert sent["feature"] == "accommodation"
+        assert sent["evidence"]["result"] == mcp_rows
+
+    def test_run_still_works_without_evidence_when_mcp_is_disabled(self, client, backend):
+        with patch.object(backend, "MULTI_AGENT_ENABLED", True), \
+             patch.object(backend, "MCP_ENABLED", False), \
+             patch.object(backend.requests, "request",
+                          return_value=make_response(dict(self.WORKFLOW))) as mock_request:
+            resp = client.post("/multi-agent/run", json={"question": "Any cheap stays?", "city_area": "Kyoto"})
+
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["evidence_source"] == "none"
+        assert "MCP is disabled" in body["evidence_note"]
+        assert mock_request.call_args.kwargs["json"]["evidence"] is None
+
+    def test_run_validates_input_respects_the_flag_and_reports_unavailable_server(self, client, backend):
+        with patch.object(backend, "MULTI_AGENT_ENABLED", True):
+            assert client.post("/multi-agent/run", json={}).status_code == 400
+            assert client.post("/multi-agent/run", json={"question": 123}).status_code == 400
+            with patch.object(backend, "MCP_ENABLED", False), patch.object(
+                backend.requests, "request",
+                side_effect=requests.exceptions.ConnectionError("connection refused"),
+            ):
+                resp = client.post("/multi-agent/run", json={"question": "hello"})
+            assert resp.status_code == 502
+            assert "unavailable" in resp.get_json()["error"]
+
+        with patch.object(backend, "MULTI_AGENT_ENABLED", False):
+            resp = client.post("/multi-agent/run", json={"question": "hello"})
+        assert resp.status_code == 403
+        assert resp.get_json()["error"] == "Multi-Agent mode is disabled"
+
+    def test_decision_forwards_the_human_choice(self, client, backend):
+        decided = {"workflow_id": "abc123", "status": "accepted"}
+        with patch.object(backend, "MULTI_AGENT_ENABLED", True), \
+             patch.object(backend.requests, "request", return_value=make_response(decided)) as mock_request:
+            resp = client.post("/multi-agent/abc123/decision", json={"decision": "accept", "note": "looks right"})
+
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "accepted"
+        assert mock_request.call_args.args[1].endswith("/workflow/abc123/decision")
+        sent = mock_request.call_args.kwargs["json"]
+        assert sent["decision"] == "accept"
+        assert sent["note"] == "looks right"
+
+    def test_decision_passes_server_errors_through_and_respects_the_flag(self, client, backend):
+        with patch.object(backend, "MULTI_AGENT_ENABLED", True), \
+             patch.object(backend.requests, "request", return_value=make_response(
+                 {"error": "workflow already has a human decision"}, 409)):
+            resp = client.post("/multi-agent/abc123/decision", json={"decision": "reject"})
+        assert resp.status_code == 409
+
+        with patch.object(backend, "MULTI_AGENT_ENABLED", False):
+            resp = client.post("/multi-agent/abc123/decision", json={"decision": "accept"})
+        assert resp.status_code == 403

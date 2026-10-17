@@ -4,6 +4,7 @@ from openai import OpenAI
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from mcp_client import call_mcp_tool, MCPClientError
+from urllib.parse import quote
 
 app = Flask(__name__)
 CORS(app)
@@ -21,6 +22,9 @@ client = OpenAI(base_url=f"{OLLAMA_URL}/v1", api_key="ollama")
 RAG_ENABLED = os.environ.get("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 RAG_SERVICE_URL = os.environ.get("RAG_SERVICE_URL", "http://host.docker.internal:5100")
 RAG_SERVICE_TIMEOUT_SECONDS = int(os.environ.get("RAG_SERVICE_TIMEOUT_SECONDS", "180"))
+MULTI_AGENT_ENABLED = os.environ.get("MULTI_AGENT_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+MULTI_AGENT_SERVICE_URL = os.environ.get("MULTI_AGENT_SERVICE_URL", "http://host.docker.internal:5300")
+MULTI_AGENT_TIMEOUT_SECONDS = int(os.environ.get("MULTI_AGENT_TIMEOUT_SECONDS", "200"))
 
 
 # ===================== HELPER VALIDATORS =====================
@@ -612,6 +616,98 @@ def rag_answer():
  
     k = int(data.get("k", 5))
     body, status = call_rag_service("/answer", {"query": query, "k": k, "caller": "student"})
+    return jsonify(body), status
+
+# ===================== MULTI-AGENT (shared Multi-Agent Server) =====================
+
+def multi_agent_mode_is_enabled(req):
+    if not MULTI_AGENT_ENABLED:
+        return False
+    mode_header = req.headers.get("X-Multi-Agent-Mode", "on").strip().lower()
+    return mode_header in ("1", "true", "yes", "on")
+
+
+def multi_agent_disabled_response():
+    return jsonify({"error": "Multi-Agent mode is disabled"}), 403
+
+
+def call_multi_agent_service(method, path, payload=None):
+    url = f"{MULTI_AGENT_SERVICE_URL}{path}"
+    try:
+        resp = requests.request(method, url, json=payload, timeout=MULTI_AGENT_TIMEOUT_SECONDS)
+    except requests.exceptions.ConnectionError as exc:
+        return {"error": "Multi-Agent Server unavailable", "detail": str(exc)}, 502
+    except requests.exceptions.Timeout as exc:
+        return {"error": "Multi-Agent Server timed out", "detail": str(exc)}, 502
+
+    try:
+        return resp.json(), resp.status_code
+    except ValueError:
+        return {"error": "Multi-Agent Server returned invalid response", "detail": resp.text[:200]}, 502
+
+
+def collect_mcp_evidence(city_area):
+    """Evidence comes from a real MCP tool call, never from the model."""
+    if not MCP_ENABLED:
+        return None, "MCP is disabled, so no evidence was collected"
+    if not city_area:
+        return None, "city_area was not provided, so no evidence was collected"
+    try:
+        result = call_mcp_tool("accommodations_by_city", {"city_area": city_area})
+    except Exception as exc:
+        return None, f"MCP evidence unavailable: {exc}"
+    return {"tool": "accommodations_by_city", "input": {"city_area": city_area}, "result": result}, None
+
+
+@app.route("/multi-agent/run", methods=["POST"])
+def multi_agent_run():
+    if not multi_agent_mode_is_enabled(request):
+        return multi_agent_disabled_response()
+
+    data = request.get_json(silent=True) or {}
+    question = data.get("question")
+    if not isinstance(question, str) or not question.strip():
+        return jsonify({"error": "question is required"}), 400
+    city_area = data.get("city_area")
+    city_area = city_area.strip() if isinstance(city_area, str) else ""
+
+    evidence, note = collect_mcp_evidence(city_area)
+    body, status = call_multi_agent_service("POST", "/workflow", {
+        "user_request": question.strip(),
+        "feature": "accommodation",
+        "evidence": evidence,
+        "caller": "student-3",
+    })
+    if status < 400 and isinstance(body, dict):
+        body["evidence_source"] = "mcp" if evidence else "none"
+        if note:
+            body["evidence_note"] = note
+    return jsonify(body), status
+
+
+@app.route("/multi-agent/<workflow_id>/decision", methods=["POST"])
+def multi_agent_decision(workflow_id):
+    if not multi_agent_mode_is_enabled(request):
+        return multi_agent_disabled_response()
+
+    data = request.get_json(silent=True) or {}
+    body, status = call_multi_agent_service(
+        "POST",
+        f"/workflow/{quote(workflow_id, safe='')}/decision",
+        {
+            "decision": data.get("decision"),
+            "note": data.get("note", ""),
+            "corrected_output": data.get("corrected_output", ""),
+        },
+    )
+    return jsonify(body), status
+
+
+@app.route("/multi-agent/status", methods=["GET"])
+def multi_agent_status():
+    if not multi_agent_mode_is_enabled(request):
+        return multi_agent_disabled_response()
+    body, status = call_multi_agent_service("GET", "/workflow/status")
     return jsonify(body), status
  
 if __name__ == "__main__":
