@@ -730,3 +730,225 @@ a.btn {
         font-size: 0.85rem;
     }
 }
+
+/* MultiAgent System (MAS) page styles */
+    .ma-wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* ---------- Prompt box ---------- */
+    .prompt-form {
+      display: flex;
+      align-items: stretch;
+      max-width: 860px;
+      margin: 0 auto 16px;
+      background: var(--card-face);
+      border: var(--border-w) solid var(--teal-deep);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .prompt-form input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      padding: 16px 24px;
+      font: inherit;
+      font-weight: 600;
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .prompt-form input:focus-visible {
+      outline: none;
+      background: var(--sand);
+    }
+
+    .prompt-form .send-btn {
+      border: none;
+      border-left: var(--border-w) solid var(--teal-deep);
+      background: var(--teal);
+      color: #fff;
+      font-size: 1.4rem;
+      font-weight: 800;
+      padding: 0 28px;
+      cursor: pointer;
+      transition: background 0.12s ease;
+    }
+
+    .prompt-form .send-btn:hover:not([disabled]) {
+      background: var(--teal-deep);
+    }
+
+    .prompt-form .send-btn:focus-visible {
+      outline: 3px solid var(--ink);
+      outline-offset: -6px;
+    }
+
+    .prompt-form .send-btn[disabled] {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    /* ---------- Test prompt buttons ---------- */
+    .test-prompts {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      max-width: 860px;
+      margin: 0 auto 30px;
+    }
+
+    .test-prompts .btn {
+      flex: 1 1 200px;
+      padding: 12px 20px;
+    }
+
+    .btn-alt {
+      background: var(--coral);
+      border-color: #3a0f0d;
+    }
+
+    .btn-alt:hover {
+      background: #3a0f0d;
+    }
+
+    /* ---------- Final output log ---------- */
+    .final-frame {
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .frame-title {
+      margin: 0;
+      text-align: center;
+      color: #fff;
+      font-size: 1.5rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .log-status {
+      align-self: center;
+      padding: 4px 16px;
+      border: 2px dashed #fff;
+      border-radius: 999px;
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
+
+    .log-box {
+      flex: 1;
+      background: var(--card-face);
+      border: 2px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 0.88rem/1.5 ui-monospace, Consolas, monospace;
+      color: var(--ink);
+    }
+
+    .log-box.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-soft);
+      font-family: var(--font-body);
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .log-box.error {
+      color: #B3341C;
+      border-color: var(--coral);
+    }
+
+    .final-frame .log-box {
+      max-height: 420px;
+    }
+
+    /* ---------- Per-agent logs ---------- */
+    .agent-logs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-top: 40px;
+    }
+
+    .agent-panel {
+      display: flex;
+      flex-direction: column;
+      background: var(--panel-bg);
+      border: var(--border-w) solid var(--line);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      min-height: 460px;
+    }
+
+    .agent-panel header {
+      background: var(--panel-header);
+      color: #fff;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .agent-panel h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .agent-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--line);
+      flex: none;
+    }
+
+    .agent-dot.running {
+      background: #E8A33D;
+      animation: pulse 1s infinite alternate;
+    }
+
+    .agent-dot.done {
+      background: #6FD3A8;
+    }
+
+    .agent-dot.error {
+      background: var(--coral-soft);
+    }
+
+    @keyframes pulse {
+      from { opacity: 0.4; }
+      to   { opacity: 1; }
+    }
+
+    .agent-panel .log-box {
+      margin: 14px;
+      min-height: 360px;
+      max-height: 520px;
+    }
+
+    @media (max-width: 900px) {
+      .agent-logs {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .agent-dot.running {
+        animation: none;
+      }
+    }

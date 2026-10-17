@@ -310,7 +310,7 @@ def call_model(model_name, system_prompt, user_prompt, max_tokens=150):
     try:
         client = OpenAI(
             base_url=OLLAMA_BASE_URL,
-            api_key="ollama",
+            api_key="ollama", # pragma: allowlist secret
             timeout=180.0,
         )
 
