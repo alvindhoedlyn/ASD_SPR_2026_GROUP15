@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JourneyBuddy — Multi-Server</title>
+  <link rel="stylesheet" href="css/style.css">
+
+</head>
+
+<body>
+
+<header class="app-header">
+    <div class="brand">
+        <a href="http://localhost:3000">JourneyBuddy</a>
+    </div>
+
+    <!-- Navigation Links -->
+    <nav class="nav-menu">
+        <a href="/" class="nav-link-btn">Itinerary</a>
+        <a href="/mcp_frontend.html" class="nav-link-btn">MCP Panel</a>
+        <a href="/rag_frontend.html" class="nav-link-btn">RAG Assistant</a>
+        <a href="/multi_server_frontend.html" class="nav-link-btn" aria-current="page">Multi-Server</a>
+
+    </nav>
+
+    <div class="user-area">
+        <span>Welcome!</span>
+    </div>
+</header>
+
+<main>
+    <div class="ma-wrap">
+        <h1>Multi Agent Server</h1>
+
+        <!-- Prompt input -->
+        <form class="prompt-form" id="promptForm" autocomplete="off">
+            <label for="promptInput" class="sr-only" style="position:absolute;left:-9999px;">Prompt</label>
+            <input type="text" id="promptInput" placeholder="Enter a prompt for the multi-agent workflow…" required>
+            <button type="submit" class="send-btn" id="sendBtn" aria-label="Send prompt">&rarr;</button>
+        </form>
+
+        <!-- Premade prompts: clicking fills the textbox -->
+        <div class="test-prompts">
+            <button type="button" class="btn btn-alt test-prompt" data-prompt="What activities can I do in Melbourne if it rains?">Test Prompt 1</button>
+            <button type="button" class="btn btn-alt test-prompt" data-prompt="Sugga weekend itinerary in Sydney that focuses on food and coastal walks.">Test Prompt 2</button>
+            <button type="button" class="btn btn-alt test-prompt" data-prompt="Provide a 3 day itinerary list for Darwin.">Test Prompt 3</button>
+        </div>
+
+        <!-- Final output log -->
+        <section class="plan-frame final-frame" aria-labelledby="finalTitle">
+            <h2 class="frame-title" id="finalTitle">Output Log</h2>
+            <span class="log-status" id="finalStatus">Idle</span>
+            <div class="log-box empty" id="finalLog" aria-live="polite">Send a prompt to see the final output here.</div>
+        </section>
+
+        <!-- Per-agent logs (scroll down) -->
+        <section class="agent-logs" aria-label="Agent logs">
+            <article class="agent-panel">
+                <header>
+                    <h2>Planner Log</h2>
+                    <span class="agent-dot" id="dot-planner"></span>
+                </header>
+                <div class="log-box empty" id="log-planner">No activity yet.</div>
+            </article>
+
+            <article class="agent-panel">
+                <header>
+                    <h2>Worker Log</h2>
+                    <span class="agent-dot" id="dot-worker"></span>
+                </header>
+                <div class="log-box empty" id="log-worker">No activity yet.</div>
+            </article>
+
+            <article class="agent-panel">
+                <header>
+                    <h2>Reviewer Log</h2>
+                    <span class="agent-dot" id="dot-reviewer"></span>
+                </header>
+                <div class="log-box empty" id="log-reviewer">No activity yet.</div>
+            </article>
+        </section>
+    </div>
+</main>
+
+</body>
+ <script src="http://localhost:3000/js/main.js"></script>
+ <script src="js/script.js"></script>
+ <script src="js/mas_script.js"></script>
+
+</html>

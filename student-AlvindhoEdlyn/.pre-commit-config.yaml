@@ -1,0 +1,52 @@
+# Install both hook types once:  pre-commit install
+default_install_hook_types: [pre-commit, post-commit]
+
+repos:
+  - repo: local
+    hooks:
+      # ---------------------------- pre-commit ----------------------------
+      - id: ruff-scan
+        name: Ruff Scan
+        entry: python student-AlvindhoEdlyn/tests/pre_commit_pytest.py tests/pre_commit/test_ruff_scan.py -v
+        language: python
+        additional_dependencies: ["pytest==9.1.1", "ruff==0.16.8", "tomli"]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: detect-secrets-scan
+        name: detect-secrets Scan
+        entry: python student-AlvindhoEdlyn/tests/pre_commit_pytest.py tests/pre_commit/test_secrets_scan.py -v
+        language: python
+        additional_dependencies: ["pytest==9.1.1", "detect-secrets==1.5.0"]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: pip-audit-scan
+        name: pip-audit Scan
+        entry: python student-AlvindhoEdlyn/tests/pre_commit_pytest.py tests/pre_commit/test_dependency_audit.py -v
+        language: python
+        additional_dependencies: ["pytest==9.1.1", "pip-audit==2.10.1"]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # ---------------------------- post-commit ----------------------------
+      # These import backend/app.py, so they need the backend's own packages too.
+      - id: api-tests
+        name: API Tests
+        entry: python student-AlvindhoEdlyn/tests/pre_commit_pytest.py tests/post_commit/test_api.py -v
+        language: python
+        additional_dependencies:
+          ["pytest==9.1.1", "pyjwt", "flask", "flask-cors", "python-dotenv", "openai", "requests"]
+        pass_filenames: false
+        always_run: true
+        stages: [post-commit]
+
+      - id: token-auth-tests
+        name: Token Auth Tests (PyJWT)
+        entry: python student-AlvindhoEdlyn/tests/pre_commit_pytest.py tests/post_commit/test_token_auth.py -v
+        language: python
+        additional_dependencies:
+          ["pytest==9.1.1", "pyjwt", "flask", "flask-cors", "python-dotenv", "openai", "requests"]
+        pass_filenames: false
+        always_run: true
+        stages: [post-commit]

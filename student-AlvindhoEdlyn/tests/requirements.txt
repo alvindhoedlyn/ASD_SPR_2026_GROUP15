@@ -1,0 +1,7 @@
+pytest
+requests
+pre-commit
+ruff
+detect-secrets
+pip-audit
+PyJWT>=2.11.0

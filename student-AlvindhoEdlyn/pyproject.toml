@@ -1,0 +1,44 @@
+[project]
+name = "student-alvindhoedlyn"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+# Security / test tooling (pin these in tests/requirements.txt as well)
+test = [
+    "pytest",
+    "pyjwt",
+    "ruff",
+    "pip-audit",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff: security rules ONLY (flake8-bandit, "S"). No style/format rules.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py310"
+extend-exclude = ["venv", ".venv", "database"]
+
+[tool.ruff.lint]
+select = ["S"]   # flake8-bandit only
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# pytest relies on `assert`, tests use throwaway secrets for JWT checks, and the
+# security tests shell out to trusted tools (ruff, pip-audit, gitleaks, git).
+"tests/**" = ["S101", "S105", "S106", "S404", "S603", "S607"]
+# random.choice only picks weather/activities (not security-sensitive), and the
+# services bind 0.0.0.0 because they run inside Docker containers.
+"backend/app.py" = ["S311", "S104"]
+"database/init_db.py" = ["S311", "S104"]
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "pre_commit: fast security checks that run before a commit",
+    "post_commit: API and JWT token auth checks that run after a commit",
+]
