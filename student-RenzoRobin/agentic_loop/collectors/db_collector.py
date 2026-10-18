@@ -56,7 +56,7 @@ def collect(app_dir, repo_root) -> tuple[bool, str]:
             rooms_resp = requests.get(f"{base_url}/accommodations/{accom_id}/rooms", timeout=5)
             rooms_resp.raise_for_status()
             rooms = rooms_resp.json()
-        except Exception:
+        except Exception: # noqa: S112 - skip records that fail to parse and keep collecting
             continue
 
         if not rooms:

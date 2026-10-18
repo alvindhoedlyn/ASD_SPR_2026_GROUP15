@@ -711,4 +711,4 @@ def multi_agent_status():
     return jsonify(body), status
  
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=PORT) # noqa: S104 - listens on all interfaces so the Docker container is reachable

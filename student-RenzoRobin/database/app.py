@@ -643,4 +643,4 @@ def accommodations_with_price():
 
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=PORT) # noqa: S104 - listens on all interfaces so the Docker container is reachable
