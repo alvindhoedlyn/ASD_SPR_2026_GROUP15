@@ -57,7 +57,23 @@ jobs:
           MULTI_AGENT_ENABLED: "false"
         run: |
           pip install pytest
-          pytest student-RenzoRobin/tests/ -v
+          pytest student-RenzoRobin/tests/test_backend.py student-RenzoRobin/tests/test_database.py -v
+
+      - name: Post-commit endpoint tests (POST /recommendations and POST /multi-agent/run)
+        env:
+          MCP_ENABLED: "false"
+          RAG_ENABLED: "false"
+          MULTI_AGENT_ENABLED: "false"
+        run: |
+          mkdir -p reports
+          pytest student-RenzoRobin/tests/post_commit -v --junitxml=reports/student-3-post-commit.xml
+
+      - name: Upload post-commit test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-3-post-commit-evidence
+          path: reports/
 
   docker-build:
     name: Build Accommodation Recommender Containers

@@ -29,3 +29,13 @@ repos:
         additional_dependencies: ["pytest==9.1.1", "pip-audit==2.10.1"]
         pass_filenames: false
         stages: [pre-commit]
+
+            # ---------------------------- post-commit ----------------------------
+      - id: endpoint-tests
+        name: Endpoint Tests (2 endpoints)
+        entry: python student-RenzoRobin/tests/pre_commit_pytest.py tests/post_commit/test_endpoints.py -v
+        language: python
+        additional_dependencies: ["pytest==9.1.1", "flask", "flask-cors", "python-dotenv", "openai", "requests"]
+        pass_filenames: false
+        always_run: true
+        stages: [post-commit]
