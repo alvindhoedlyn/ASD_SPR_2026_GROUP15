@@ -802,3 +802,238 @@ function displayRagResponse(responseData) {
     ragCitations.appendChild(item);
   }
 }
+
+const multiAgentForm = document.getElementById(
+  "multi-agent-form"
+);
+
+const multiAgentMode = document.getElementById(
+  "multi-agent-mode"
+);
+
+const multiAgentMessage = document.getElementById(
+  "multi-agent-message"
+);
+
+const multiAgentResults = document.getElementById(
+  "multi-agent-results"
+);
+
+const multiAgentWorkflowId = document.getElementById(
+  "multi-agent-workflow-id"
+);
+
+const multiAgentWorkflowStatus = document.getElementById(
+  "multi-agent-workflow-status"
+);
+
+const multiAgentEvidenceCount = document.getElementById(
+  "multi-agent-evidence-count"
+);
+
+const multiAgentPlannerOutput = document.getElementById(
+  "multi-agent-planner-output"
+);
+
+const multiAgentWorkerOutput = document.getElementById(
+  "multi-agent-worker-output"
+);
+
+const multiAgentReviewerOutput = document.getElementById(
+  "multi-agent-reviewer-output"
+);
+
+const humanDecisionForm = document.getElementById(
+  "human-decision-form"
+);
+
+const humanDecisionMessage = document.getElementById(
+  "human-decision-message"
+);
+
+let currentMultiAgentWorkflowId = null;
+
+
+function agentOutput(step) {
+  if (!step) {
+    return "Agent output unavailable.";
+  }
+
+  return step.output || JSON.stringify(
+    step,
+    null,
+    2
+  );
+}
+
+
+multiAgentForm.addEventListener(
+  "submit",
+  async function (event) {
+    event.preventDefault();
+
+    if (!multiAgentMode.checked) {
+      multiAgentMessage.textContent =
+        "Enable Multi-Agent Mode before running a workflow.";
+
+      return;
+    }
+
+    const requestData = {
+      question: document.getElementById(
+        "multi-agent-question"
+      ).value.trim(),
+      city: document.getElementById(
+        "multi-agent-city"
+      ).value.trim(),
+      category: document.getElementById(
+        "multi-agent-category"
+      ).value
+    };
+
+    multiAgentMessage.textContent =
+      "Running Planner, Worker, and Reviewer agents...";
+
+    multiAgentResults.hidden = true;
+    humanDecisionMessage.textContent = "";
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/multi-agent/run`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Multi-Agent-Mode": "on"
+          },
+          body: JSON.stringify(requestData)
+        }
+      );
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          responseData.error
+          || "The Multi-Agent workflow failed."
+        );
+      }
+
+      currentMultiAgentWorkflowId =
+        responseData.workflow_id;
+
+      multiAgentWorkflowId.textContent =
+        responseData.workflow_id;
+
+      multiAgentWorkflowStatus.textContent =
+        responseData.status;
+
+      multiAgentEvidenceCount.textContent =
+        String(responseData.evidence_count);
+
+      multiAgentPlannerOutput.textContent =
+        agentOutput(responseData.steps.planner);
+
+      multiAgentWorkerOutput.textContent =
+        agentOutput(responseData.steps.worker);
+
+      multiAgentReviewerOutput.textContent =
+        agentOutput(responseData.steps.reviewer);
+
+      multiAgentResults.hidden = false;
+
+      multiAgentMessage.textContent =
+        "Agent review complete. Human decision required.";
+
+      multiAgentResults.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+
+    } catch (error) {
+      multiAgentMessage.textContent = error.message;
+    }
+  }
+);
+
+
+humanDecisionForm.addEventListener(
+  "submit",
+  async function (event) {
+    event.preventDefault();
+
+    if (!currentMultiAgentWorkflowId) {
+      humanDecisionMessage.textContent =
+        "Run a workflow before recording a decision.";
+
+      return;
+    }
+
+    const decision = document.getElementById(
+      "human-decision"
+    ).value;
+
+    const note = document.getElementById(
+      "human-decision-note"
+    ).value.trim();
+
+    const correctedOutput = document.getElementById(
+      "human-corrected-output"
+    ).value.trim();
+
+    if (decision === "correct" && !correctedOutput) {
+      humanDecisionMessage.textContent =
+        "Corrected output is required for correction.";
+
+      return;
+    }
+
+    humanDecisionMessage.textContent =
+      "Recording human decision...";
+
+    try {
+      const response = await fetch(
+        (
+          `${API_BASE_URL}/api/multi-agent/`
+          + `${encodeURIComponent(
+            currentMultiAgentWorkflowId
+          )}/decision`
+        ),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Multi-Agent-Mode": "on"
+          },
+          body: JSON.stringify({
+            decision,
+            note,
+            corrected_output: correctedOutput
+          })
+        }
+      );
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          responseData.error
+          || "The human decision could not be recorded."
+        );
+      }
+
+      multiAgentWorkflowStatus.textContent =
+        responseData.status;
+
+      humanDecisionMessage.textContent =
+        (
+          "Decision recorded: "
+          + responseData.human_decision.status
+        );
+
+    } catch (error) {
+      humanDecisionMessage.textContent =
+        error.message;
+    }
+  }
+);

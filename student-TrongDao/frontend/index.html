@@ -374,6 +374,164 @@
         </article>
       </div>
     </section>
+
+    <section id="multi-agent-section">
+      <h2>Multi-Agent Workflow</h2>
+
+      <p class="section-introduction">
+        Run the Planner, Worker, and Reviewer agents using
+        trusted attraction database evidence, then record the
+        final human decision.
+      </p>
+
+      <label class="mode-toggle" for="multi-agent-mode">
+        <input
+          type="checkbox"
+          id="multi-agent-mode"
+          checked
+        >
+        Multi-Agent Mode enabled
+      </label>
+
+      <form id="multi-agent-form">
+        <div>
+          <label for="multi-agent-question">
+            Workflow request
+          </label>
+
+          <input
+            type="text"
+            id="multi-agent-question"
+            value="Which Sydney nature attractions are free?"
+            required
+          >
+        </div>
+
+        <div>
+          <label for="multi-agent-city">City</label>
+
+          <input
+            type="text"
+            id="multi-agent-city"
+            value="Sydney"
+            required
+          >
+        </div>
+
+        <div>
+          <label for="multi-agent-category">
+            Category
+          </label>
+
+          <select id="multi-agent-category">
+            <option value="">All categories</option>
+            <option value="nature">Nature</option>
+            <option value="history">History</option>
+            <option value="art">Art</option>
+            <option value="landmark">Landmark</option>
+            <option value="beach">Beach</option>
+            <option value="wildlife">Wildlife</option>
+            <option value="entertainment">
+              Entertainment
+            </option>
+          </select>
+        </div>
+
+        <button type="submit">
+          Run Multi-Agent Workflow
+        </button>
+      </form>
+
+      <p id="multi-agent-message" role="status"></p>
+
+      <section id="multi-agent-results" hidden>
+        <h3>Workflow Evidence</h3>
+
+        <p>
+          Workflow ID:
+          <strong id="multi-agent-workflow-id"></strong>
+        </p>
+
+        <p>
+          Status:
+          <strong id="multi-agent-workflow-status"></strong>
+        </p>
+
+        <p>
+          Evidence records:
+          <strong id="multi-agent-evidence-count"></strong>
+        </p>
+
+        <article>
+          <h4>1. Planner Agent</h4>
+          <pre id="multi-agent-planner-output"></pre>
+        </article>
+
+        <article>
+          <h4>2. Worker Agent</h4>
+          <pre id="multi-agent-worker-output"></pre>
+        </article>
+
+        <article>
+          <h4>3. Reviewer Agent</h4>
+          <pre id="multi-agent-reviewer-output"></pre>
+        </article>
+
+        <article>
+          <h4>4. Human Review</h4>
+
+          <form id="human-decision-form">
+            <div>
+              <label for="human-decision">
+                Decision
+              </label>
+
+              <select id="human-decision" required>
+                <option value="">Choose a decision</option>
+                <option value="accept">Accept</option>
+                <option value="partial">
+                  Partially accept
+                </option>
+                <option value="correct">
+                  Accept with correction
+                </option>
+                <option value="reject">Reject</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="human-decision-note">
+                Review note
+              </label>
+
+              <textarea
+                id="human-decision-note"
+                rows="3"
+                placeholder="Explain the evidence used for this decision."
+              ></textarea>
+            </div>
+
+            <div>
+              <label for="human-corrected-output">
+                Corrected output
+              </label>
+
+              <textarea
+                id="human-corrected-output"
+                rows="4"
+                placeholder="Required only when the decision is correction."
+              ></textarea>
+            </div>
+
+            <button type="submit">
+              Record Human Decision
+            </button>
+          </form>
+
+          <p id="human-decision-message" role="status"></p>
+        </article>
+      </section>
+    </section>
   </main>
 </body>
 

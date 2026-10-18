@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from flask_cors import CORS
 from flask import Flask, render_template, jsonify, request
 from mcp_client import call_mcp_tool
+from urllib.parse import quote
 
 app = Flask(
     __name__,
@@ -46,6 +47,10 @@ OLLAMA_REVIEW_MODEL = os.getenv(
 
 MCP_REQUEST_TIMEOUT = int(
     os.getenv("MCP_REQUEST_TIMEOUT", "30")
+)
+
+MULTI_AGENT_REQUEST_TIMEOUT = int(
+    os.getenv("MULTI_AGENT_REQUEST_TIMEOUT", "300")
 )
 
 
@@ -294,6 +299,7 @@ def environment_flag(name, default=False):
 
 MCP_ENABLED = environment_flag("MCP_ENABLED")
 RAG_ENABLED = environment_flag("RAG_ENABLED")
+MULTI_AGENT_ENABLED = environment_flag("MULTI_AGENT_ENABLED")
 
 MCP_SERVER_URL = os.getenv(
     "MCP_SERVER_URL",
@@ -304,6 +310,137 @@ RAG_SERVER_URL = os.getenv(
     "RAG_SERVER_URL",
     ""
 ).rstrip("/")
+
+MULTI_AGENT_SERVICE_URL = os.getenv(
+    "MULTI_AGENT_SERVICE_URL",
+    ""
+).rstrip("/")
+
+def multi_agent_mode_is_enabled(current_request):
+    if not MULTI_AGENT_ENABLED:
+        return False
+
+    header_value = current_request.headers.get(
+        "X-Multi-Agent-Mode",
+        "on"
+    )
+
+    return header_value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on"
+    }
+
+
+def call_multi_agent_service(method, path, payload=None):
+    if not MULTI_AGENT_SERVICE_URL:
+        return {
+            "error": "Multi-Agent Server is not configured"
+        }, 503
+
+    try:
+        response = requests.request(
+            method,
+            f"{MULTI_AGENT_SERVICE_URL}{path}",
+            json=payload,
+            timeout=MULTI_AGENT_REQUEST_TIMEOUT
+        )
+    except requests.ConnectionError:
+        return {
+            "error": "Multi-Agent Server is unavailable"
+        }, 502
+    except requests.Timeout:
+        return {
+            "error": "Multi-Agent Server request timed out"
+        }, 504
+    except requests.RequestException as error:
+        return {
+            "error": "Multi-Agent Server request failed",
+            "details": str(error)
+        }, 502
+
+    try:
+        return response.json(), response.status_code
+    except ValueError:
+        return {
+            "error": "Multi-Agent Server returned invalid JSON"
+        }, 502
+
+def collect_attraction_evidence(city, category=""):
+    try:
+        response = requests.get(
+            f"{DATABASE_API_URL}/places",
+            timeout=10
+        )
+        response.raise_for_status()
+    except requests.RequestException as error:
+        return [], (
+            "Attraction evidence could not be retrieved: "
+            + str(error)
+        )
+
+    try:
+        places = response.json()
+    except ValueError:
+        return [], "Attraction database returned invalid JSON"
+
+    if not isinstance(places, list):
+        return [], "Attraction database returned invalid evidence"
+
+    matching_places = []
+
+    for place in places:
+        if not isinstance(place, dict):
+            continue
+
+        same_city = (
+            str(place.get("city", "")).strip().casefold()
+            == city.casefold()
+        )
+
+        same_category = (
+            not category
+            or str(
+                place.get("category", "")
+            ).strip().casefold() == category.casefold()
+        )
+
+        if not same_city or not same_category:
+            continue
+
+        matching_places.append({
+            "name": place.get("attraction_name"),
+            "attraction_id": place.get("attraction_id"),
+            "city": place.get("city"),
+            "country": place.get("country"),
+            "category": place.get("category"),
+            "estimated_cost": place.get("estimated_cost"),
+            "currency": place.get("currency"),
+            "expected_duration_minutes": place.get(
+                "expected_duration_minutes"
+            ),
+            "indoor_outdoor": place.get("indoor_outdoor"),
+            "crowd_level": place.get("crowd_level"),
+            "accessibility_information": place.get(
+                "accessibility_information"
+            ),
+            "description": place.get(
+                "attraction_description"
+            )
+        })
+
+    if not matching_places:
+        return [], (
+            f"No attraction evidence found for {city}"
+            + (
+                f" in category {category}"
+                if category
+                else ""
+            )
+        )
+
+    return matching_places[:10], None
 
 def call_ollama(system_prompt, user_prompt, model):
     response = requests.post(
@@ -474,6 +611,108 @@ def answer_rag_question():
             "k": result_count,
             "caller": "student-TrongDao"
         }
+    )
+
+    return jsonify(response_data), status_code
+
+@app.post("/api/multi-agent/run")
+def run_multi_agent_workflow():
+    if not multi_agent_mode_is_enabled(request):
+        return jsonify({
+            "error": "Multi-Agent mode is disabled"
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+
+    question = str(data.get("question", "")).strip()
+    city = str(data.get("city", "")).strip()
+    category = str(data.get("category", "")).strip()
+
+    if not question:
+        return jsonify({
+            "error": "question is required"
+        }), 400
+
+    if not city:
+        return jsonify({
+            "error": "city is required"
+        }), 400
+
+    evidence, evidence_note = collect_attraction_evidence(
+        city,
+        category
+    )
+
+    payload = {
+        "user_request": question,
+        "feature": "location-recommender",
+        "evidence": evidence,
+        "caller": "student-4"
+    }
+
+    response_data, status_code = call_multi_agent_service(
+        "POST",
+        "/workflow",
+        payload
+    )
+
+    if (
+        status_code < 400
+        and isinstance(response_data, dict)
+    ):
+        response_data["evidence_source"] = (
+            "location-database"
+        )
+        response_data["evidence_note"] = evidence_note
+        response_data["evidence_city"] = city
+        response_data["evidence_category"] = (
+            category or None
+        )
+
+    return jsonify(response_data), status_code
+
+
+@app.post(
+    "/api/multi-agent/<workflow_id>/decision"
+)
+def record_multi_agent_decision(workflow_id):
+    if not multi_agent_mode_is_enabled(request):
+        return jsonify({
+            "error": "Multi-Agent mode is disabled"
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+
+    response_data, status_code = call_multi_agent_service(
+        "POST",
+        (
+            "/workflow/"
+            + quote(workflow_id, safe="")
+            + "/decision"
+        ),
+        {
+            "decision": data.get("decision"),
+            "note": data.get("note", ""),
+            "corrected_output": data.get(
+                "corrected_output",
+                ""
+            )
+        }
+    )
+
+    return jsonify(response_data), status_code
+
+
+@app.get("/api/multi-agent/status")
+def get_multi_agent_status():
+    if not multi_agent_mode_is_enabled(request):
+        return jsonify({
+            "error": "Multi-Agent mode is disabled"
+        }), 403
+
+    response_data, status_code = call_multi_agent_service(
+        "GET",
+        "/workflow/status"
     )
 
     return jsonify(response_data), status_code

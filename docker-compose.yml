@@ -224,6 +224,9 @@ services:
       RAG_ENABLED: "${RAG_ENABLED:-true}"
       RAG_SERVER_URL: http://host.docker.internal:5100
       RAG_REQUEST_TIMEOUT: "30"
+      MULTI_AGENT_ENABLED: "${MULTI_AGENT_ENABLED:-true}"
+      MULTI_AGENT_SERVICE_URL: http://host.docker.internal:5300
+      MULTI_AGENT_REQUEST_TIMEOUT: "300"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
