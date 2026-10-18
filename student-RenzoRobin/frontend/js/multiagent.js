@@ -2,7 +2,7 @@
 //
 // Talks to the backend's /multi-agent/* routes (added in backend/app.py).
 // Own constant name on purpose, so it cannot clash with other scripts' globals.
-const MULTI_AGENT_BACKEND_URL = "http://localhost:5003";
+const MULTI_AGENT_BACKEND_URL = "";
 
 const maToggle = document.getElementById("multiagent-mode-toggle");
 const maState = document.getElementById("multiagent-mode-state");

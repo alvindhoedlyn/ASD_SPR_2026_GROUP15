@@ -28,3 +28,6 @@ ai-services/rag-server/corpus/
 *.sqlite3
 
 ai-services/rag-server/rag-audit.jsonl
+
+.cloud-stage/
+.cloud-build-logs/

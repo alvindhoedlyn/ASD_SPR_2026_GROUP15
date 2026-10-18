@@ -1,0 +1,1 @@
+You are reviewing another model's verdict on the Multi-Agent evidence. Critique whether the verdict is supported by the evidence, and flag anything overstated, missing or unsupported.

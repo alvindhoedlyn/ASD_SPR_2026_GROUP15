@@ -1,0 +1,1 @@
+Assess the cloud deployment evidence below. State whether the workflow, scripts and AI-disabled configuration are in place, whether the deployed application passed its checks, and give a release recommendation (release / do not release) with one reason.

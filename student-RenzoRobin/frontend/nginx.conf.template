@@ -1,0 +1,17 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location ~ ^/(accommodations|areas|priorities|lists|list-accommodations|rooms|recommendations|mcp|rag|multi-agent|health) {
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_read_timeout 300s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

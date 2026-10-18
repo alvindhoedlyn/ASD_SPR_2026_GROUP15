@@ -7,7 +7,7 @@
 // http://localhost:3000/js/main.js) may already define a global with that
 // same name pointing at shared-backend (port 5000), which would silently
 // hijack these requests and send them to the wrong service.
-const RENZO_BACKEND_URL = "http://localhost:5003";
+const RENZO_BACKEND_URL = "";
 
 const mcpModeToggle = document.getElementById("mcp-mode-toggle");
 const mcpModeState = document.getElementById("mcp-mode-state");

@@ -4,7 +4,7 @@
 // Hardcoded on purpose, same reasoning as mcp.js: don't rely on any
 // global window.BACKEND_URL, since the shared frontend's main.js may
 // already define that name for something else.
-const RAG_BACKEND_URL = "http://localhost:5003";
+const RAG_BACKEND_URL = "";
 
 const ragModeToggle = document.getElementById("rag-mode-toggle");
 const ragModeState = document.getElementById("rag-mode-state");

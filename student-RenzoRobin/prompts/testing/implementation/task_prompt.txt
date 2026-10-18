@@ -1,0 +1,1 @@
+Assess the testing evidence below. State whether each security scan and each endpoint test suite passed, whether the hooks and the CI workflow are configured, and give an overall pass/fail verdict with one recommendation.

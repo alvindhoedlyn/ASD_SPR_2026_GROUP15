@@ -1,6 +1,6 @@
 // ===================== CONFIG =====================
 
-const API_BASE = "http://localhost:5003";
+const API_BASE = "";
 
 function getUserId() {
     const username = localStorage.getItem("jb_username");

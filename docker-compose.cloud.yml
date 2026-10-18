@@ -1,0 +1,40 @@
+# Cloud override: keeps every AI feature OFF in Azure.
+# Use together with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.cloud.yml config
+# Ollama, MCP, RAG and Multi-Agent servers are NOT deployed to the cloud, so each
+# backend that can call them is told to stay disabled.
+services:
+  student-AlvindhoEdlyn:
+    environment:
+      AI_MODE_ENABLED: "false"
+      MCP_ENABLED: "false"
+      RAG_ENABLED: "false"
+      MULTI_AGENT_ENABLED: "false"
+
+  student-KeyuanGan-backend:
+    environment:
+      AI_MODE_ENABLED: "false"
+      MCP_ENABLED: "false"
+      RAG_ENABLED: "false"
+      MULTI_AGENT_ENABLED: "false"
+
+  student-RenzoRobin-backend:
+    environment:
+      AI_MODE_ENABLED: "false"
+      MCP_ENABLED: "false"
+      RAG_ENABLED: "false"
+      MULTI_AGENT_ENABLED: "false"
+
+  student-TrongDao-backend:
+    environment:
+      AI_MODE_ENABLED: "false"
+      MCP_ENABLED: "false"
+      RAG_ENABLED: "false"
+      MULTI_AGENT_ENABLED: "false"
+
+  yajunning-backend-service:
+    environment:
+      AI_MODE_ENABLED: "false"
+      MCP_ENABLED: "false"
+      RAG_ENABLED: "false"
+      MULTI_AGENT_ENABLED: "false"
