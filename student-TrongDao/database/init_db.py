@@ -570,13 +570,19 @@ def initialise_database(reset=False):
 
         print(f"Database ready: {DATABASE_PATH}")
 
-        for table_name in (
-            "places",
-            "recommendation_requests",
-            "saved_places"
-        ):
+        count_queries = {
+            "places": "SELECT COUNT(*) FROM places",
+            "recommendation_requests": (
+                "SELECT COUNT(*) FROM recommendation_requests"
+            ),
+            "saved_places": (
+                "SELECT COUNT(*) FROM saved_places"
+            )
+        }
+
+        for table_name, count_query in count_queries.items():
             count = connection.execute(
-                f"SELECT COUNT(*) FROM {table_name}"
+                count_query
             ).fetchone()[0]
 
             print(f"{table_name}: {count} records")

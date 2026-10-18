@@ -1175,4 +1175,7 @@ def delete_saved_place(saved_place_id):
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5004"))
-    app.run(host="0.0.0.0", port=port)
+    app.run(
+        host="0.0.0.0",  # noqa: S104 - required for Docker networking
+        port=port
+    )
