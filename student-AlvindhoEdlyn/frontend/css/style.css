@@ -952,3 +952,108 @@ a.btn {
         animation: none;
       }
     }
+
+    /* ---------- Human approval ---------- */
+    .approval-panel {
+      margin-top: 40px;
+      background: var(--panel-bg);
+      border: var(--border-w) solid var(--line);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .approval-header {
+      background: var(--panel-header);
+      color: #fff;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .approval-header h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .approval-status {
+      padding: 4px 16px;
+      border: 2px dashed #fff;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
+
+    .approval-body {
+      padding: 20px 22px 24px;
+    }
+
+    .approval-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+
+    .approval-body textarea {
+      display: block;
+      width: 100%;
+      min-height: 110px;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font: inherit;
+      resize: vertical;
+      background: var(--card-face);
+      color: var(--ink);
+    }
+
+    .approval-body textarea:focus-visible {
+      outline: 2px solid var(--teal);
+      outline-offset: 1px;
+      border-color: var(--teal);
+    }
+
+    .approval-body textarea:disabled {
+      background: var(--sand);
+      cursor: not-allowed;
+    }
+
+    .approval-body textarea.invalid {
+      border-color: #B3341C;
+    }
+
+    .approval-actions {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 18px;
+      margin-top: 20px;
+    }
+
+    .approval-btn {
+      min-width: 200px;
+      letter-spacing: 0.03em;
+    }
+
+    .btn-warn {
+      background: #B5701F;
+      border-color: #7d4a12;
+    }
+
+    .btn-warn:hover {
+      background: #7d4a12;
+    }
+
+    .approval-status.ok   { background: rgba(111, 211, 168, 0.25); }
+    .approval-status.warn { background: rgba(232, 163, 61, 0.30); }
+    .approval-status.err  { background: rgba(240, 196, 174, 0.30); }
+
+    @media (max-width: 640px) {
+      .approval-btn {
+        flex: 1 1 100%;
+      }
+    }

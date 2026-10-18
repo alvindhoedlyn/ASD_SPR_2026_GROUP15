@@ -7,6 +7,8 @@ import json
 import os
 import requests
 import random
+import re
+from urllib.parse import quote
 
 load_dotenv()
 
@@ -22,6 +24,19 @@ MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", 
 
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "http://host.docker.internal:5100").rstrip("/")
 RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+# Shared multi-agent server (planner -> worker -> reviewer -> human). It runs on the host,
+# like Ollama and the RAG service, so containers reach it through host.docker.internal.
+MULTI_AGENT_URL = os.getenv("MULTI_AGENT_URL", "http://host.docker.internal:5300").rstrip("/")
+MULTI_AGENT_ENABLED = os.getenv("MULTI_AGENT_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+# Three local-model steps can take minutes (the reviewer alone may wait 300 s on the server),
+# so this must stay above the server's worst case of roughly 540 s.
+MULTI_AGENT_TIMEOUT_SECONDS = float(os.getenv("MULTI_AGENT_TIMEOUT_SECONDS", "600"))
+# Identifies this student's backend in the shared server's history and audit logs.
+MULTI_AGENT_SERVICE_ID = os.getenv("MULTI_AGENT_SERVICE_ID", "student-AlvindhoEdlyn")
+MULTI_AGENT_MAX_QUESTION_CHARS = 1000   # the shared server rejects anything longer
+MULTI_AGENT_MAX_LOCATIONS = 10          # the shared server reads at most 10 evidence items
+MULTI_AGENT_DECISIONS = ("accept", "partial", "correct", "reject")
 
 if not OLLAMA_BASE_URL.endswith("/v1"):
     OLLAMA_BASE_URL += "/v1"
@@ -355,7 +370,256 @@ def parse_k(raw, default, maximum):
         return max(1, min(int(raw), maximum))
     except (TypeError, ValueError):
         return None
-    
+
+
+# ===================== MULTI-AGENT HELPERS =====================
+
+# Weather suitability. These turn the sentences in WEATHER_RULES into hard filters, so the
+# shared worker is only ever offered activities that fit each location's weather.
+WET_WEATHER = {"Light Rain", "Thunderstorms", "Tropical Downpour"}
+
+OUTDOOR_ACTIVITIES = {
+    "Old town walk", "Harbor cruise", "Viewpoint photography",
+    "Hiking trail", "Kayaking", "Snorkeling", "Rock climbing", "Bike rental",
+    "Historic site walk", "Beach day", "Botanical gardens walk", "Park picnic",
+    "Street food tour",
+}
+
+WEATHER_EXCLUSIONS = {
+    "Windy": {"Harbor cruise", "Kayaking", "Snorkeling", "Rock climbing", "Bike rental", "Park picnic", "Beach day"},
+    "Foggy": {"Viewpoint photography"},
+}
+
+_WEATHER_LOOKUP = {w.lower(): w for w in WEATHER_POOL}
+
+# Weather as people actually type it ("if it rains"), mapped onto WEATHER_POOL values. Longer
+# phrases come first so "tropical downpour" wins over "downpour". Bare "clear" is only read as
+# weather in phrases like "clear skies", because it is an ordinary English word; send
+# {"weather": "Clear"} in the request body to set it explicitly.
+_WEATHER_PHRASES = [
+    (r"tropical downpours?|downpours?", "Tropical Downpour"),
+    (r"thunderstorms?|thunder|stormy|storms?", "Thunderstorms"),
+    (r"light rain|rain(?:s|y|ing)?|showers?|drizzl\w*", "Light Rain"),
+    (r"partly cloudy|cloudy", "Partly Cloudy"),
+    (r"overcast", "Overcast"),
+    (r"foggy|fog|misty|mist", "Foggy"),
+    (r"windy|wind", "Windy"),
+    (r"breezy|breeze", "Breezy"),
+    (r"sunny|sunshine|sun", "Sunny"),
+    (r"clear (?:sky|skies|weather|day)s?", "Clear"),
+]
+_WEATHER_PATTERN = re.compile(
+    r"\b(?:" + "|".join(f"(?P<w{i}>{phrase})" for i, (phrase, _) in enumerate(_WEATHER_PHRASES)) + r")\b",
+    re.IGNORECASE,
+)
+
+# Words too common to identify a journey or location on their own ("beach", "ocean", "weekend").
+GENERIC_WORDS = {
+    "beach", "national", "market", "markets", "valley", "mountains", "bridge", "island",
+    "harbour", "harbor", "central", "museum", "canyon", "rainforest", "vineyards", "great",
+    "weekend", "adventure", "explorer", "culture", "north", "wilderness", "centre",
+    "tropical", "ocean", "foodie", "foodies", "twelve", "springs", "house", "gorge", "kings",
+}
+
+
+def multi_agent_mode_is_enabled(req):
+    """Mirrors rag_mode_is_enabled: env switch plus an X-Multi-Agent-Mode header from the frontend."""
+    if not MULTI_AGENT_ENABLED:
+        return False
+    return req.headers.get("X-Multi-Agent-Mode", "on").strip().lower() in ("1", "true", "yes", "on")
+
+
+def multi_agent_request_guard():
+    """Gate for every /multi-agent/* route: mode must be on and the caller must have a valid
+    session. Same (user_id, err) shape as get_current_user_id()."""
+    if not multi_agent_mode_is_enabled(request):
+        return None, (jsonify({"status": "error", "error": "Multi-agent mode is disabled"}), 403)
+    return get_current_user_id()
+
+
+def multi_agent_caller(user_id):
+    """Set server-side from the verified session, never from the browser. The shared server
+    keeps only 40 characters, so truncate here too and compare like with like."""
+    return f"{MULTI_AGENT_SERVICE_ID}:user-{user_id}"[:40]
+
+
+def call_multi_agent(method, path, payload=None, timeout=15):
+    """Call the shared server. Returns (body, status, None) or (None, None, (response, status))."""
+    try:
+        resp = requests.request(method, f"{MULTI_AGENT_URL}{path}", json=payload, timeout=timeout)
+    except requests.exceptions.Timeout:
+        return None, None, (jsonify({"status": "error", "error": "Multi-agent service timed out"}), 504)
+    except requests.exceptions.RequestException as e:
+        return None, None, (jsonify({"status": "error", "error": f"Multi-agent service unreachable: {str(e)}"}), 502)
+
+    try:
+        return resp.json(), resp.status_code, None
+    except ValueError:
+        return None, None, (jsonify({"status": "error", "error": "Multi-agent service returned an invalid response"}), 502)
+
+
+def fetch_owned_workflow(workflow_id, user_id):
+    """Fetch a workflow and confirm it belongs to this user. The shared server serves any
+    workflow id to any caller, so ownership is enforced here using the `caller` it recorded.
+    Someone else's workflow gets the same 404 as a missing one, so ids can't be probed."""
+    body, status, err = call_multi_agent("GET", f"/workflow/{quote(workflow_id, safe='')}")
+    if err:
+        return None, err
+    if status != 200:
+        return None, (jsonify(body), status)
+    if body.get("caller") != multi_agent_caller(user_id):
+        return None, (jsonify({"status": "error", "error": "workflow not found"}), 404)
+    return body, None
+
+
+def normalise_weather(value):
+    """Canonical WEATHER_POOL spelling, or None if it isn't a known condition."""
+    return _WEATHER_LOOKUP.get(str(value or "").strip().lower())
+
+
+def parse_supplied_weather(raw, names):
+    """Weather sent by the frontend: one value for every location, or {location: value}.
+    Returns ({location: weather}, None) or (None, error message)."""
+    if raw in (None, "", {}):
+        return {}, None
+
+    allowed = ", ".join(WEATHER_POOL)
+    if isinstance(raw, str):
+        weather = normalise_weather(raw)
+        if not weather:
+            return None, f"weather must be one of: {allowed}"
+        return {name: weather for name in names}, None
+
+    if isinstance(raw, dict):
+        by_lower = {name.lower(): name for name in names}
+        result = {}
+        for key, value in raw.items():
+            weather = normalise_weather(value)
+            if not weather:
+                return None, f"weather for '{key}' must be one of: {allowed}"
+            name = by_lower.get(str(key).strip().lower())
+            if name:
+                result[name] = weather
+        return result, None
+
+    return None, "weather must be a string or an object keyed by location"
+
+
+def find_weather(text):
+    """(position, canonical weather) for every weather word or phrase in the text."""
+    return [
+        (match.start(), _WEATHER_PHRASES[int(match.lastgroup[1:])][1])
+        for match in _WEATHER_PATTERN.finditer(text)
+    ]
+
+
+def extract_question_weather(question, names):
+    """Read weather out of the free-text question. A weather term is given to the nearest
+    location named in the same sentence; if the whole question mentions exactly one weather
+    type, it applies to every location that did not get its own."""
+    result = {}
+
+    for segment in re.split(r"[.;\n]+", question):
+        lowered = segment.lower()
+        positions = [(lowered.find(name.lower()), name) for name in names if name.lower() in lowered]
+        if not positions:
+            continue
+        for position, weather in find_weather(segment):
+            nearest = min(positions, key=lambda item: abs(item[0] - position))
+            result.setdefault(nearest[1], weather)
+
+    distinct = {weather for _, weather in find_weather(question)}
+    if len(distinct) == 1:
+        only = next(iter(distinct))
+        for name in names:
+            result.setdefault(name, only)
+
+    return result
+
+
+def suitable_activities(weather):
+    """Every catalogue activity that suits the weather (all of them if the weather is unknown)."""
+    activities = [a for acts in ACTIVITY_CATEGORIES.values() for a in acts]
+    if not weather:
+        return activities
+    return [
+        a for a in activities
+        if not (weather in WET_WEATHER and a in OUTDOOR_ACTIVITIES)
+        and a not in WEATHER_EXCLUSIONS.get(weather, set())
+    ]
+
+
+def distinctive_words(name):
+    """Words of a journey label or location that can identify it ("Melbourne", "Uluru")."""
+    return [w for w in re.findall(r"[a-z]+", name.lower()) if len(w) >= 5 and w not in GENERIC_WORDS]
+
+
+def mentions_word(word, prompt_words):
+    """True if the prompt uses the word, a plural or possessive of it, or a stem of it that is
+    at most two letters shorter ("tasmania" for "tasmanian"). Anything looser would let
+    "queensland" match "queen"."""
+    return any(
+        (w.startswith(word) and len(w) - len(word) <= 2)
+        or (len(w) >= 5 and word.startswith(w) and len(word) - len(w) <= 2)
+        for w in prompt_words
+    )
+
+
+def select_itinerary_locations(question, journeys, journey_id=None):
+    """Locations the question is about, inferred from the free text.
+
+    1. An explicit journey_id, or a journey label / location name written out in full.
+    2. Otherwise, a distinctive word: "Melbourne" selects the whole Melbourne journey, while
+       "Bondi" selects only Bondi Beach.
+    A journey label selects every one of its locations; a location selects just itself."""
+    lowered = question.lower()
+    prompt_words = set(re.findall(r"[a-z]+", lowered))
+    selected = []
+
+    def add(journey, locations):
+        for loc in locations:
+            selected.append({"journey_id": journey.get("journey_id"),
+                             "journey": str(journey.get("label") or ""), "location": loc})
+
+    for journey in journeys:
+        label = str(journey.get("label") or "")
+        locations = [str(loc) for loc in journey.get("locations", [])]
+
+        if journey_id is not None:
+            add(journey, locations if journey.get("journey_id") == journey_id else [])
+        elif label and label.lower() in lowered:
+            add(journey, locations)
+        else:
+            add(journey, [loc for loc in locations if loc.lower() in lowered])
+
+    if not selected and journey_id is None:
+        for journey in journeys:
+            label = str(journey.get("label") or "")
+            locations = [str(loc) for loc in journey.get("locations", [])]
+
+            if any(mentions_word(w, prompt_words) for w in distinctive_words(label)):
+                add(journey, locations)
+            else:
+                add(journey, [loc for loc in locations
+                              if any(mentions_word(w, prompt_words) for w in distinctive_words(loc))])
+
+    return selected[:MULTI_AGENT_MAX_LOCATIONS]
+
+
+def build_itinerary_evidence(selected, weather_by_location):
+    """One record per location. A `name` field is what the shared reviewer uses to tell
+    whether the worker covered a record, so every record needs one."""
+    return [
+        {
+            "name": item["location"],
+            "journey": item["journey"],
+            "weather": weather_by_location.get(item["location"]) or "unknown",
+            "allowed_activities": suitable_activities(weather_by_location.get(item["location"])),
+        }
+        for item in selected
+    ]
+
+
 # ----- ROUTES -----
 
 @app.route("/")
@@ -827,6 +1091,120 @@ def rag_activities():
         "caller": f"user-{user_id}",
     }
     return forward_to_rag("/activities", payload, timeout=30)
+
+# Multi-Agent Mirror Routes
+@app.route("/multi-agent/workflow", methods=["POST"])
+def multi_agent_workflow():
+    """Answer a free-text itinerary question with the shared planner -> worker -> reviewer.
+
+    Body: {"question": "...", "journey_id": 1 (optional), "weather": "Light Rain" or
+           {"Bondi Beach": "Sunny"} (optional)}
+    The result is the shared server's workflow record, left pending until a human decides.
+    """
+    user_id, err = multi_agent_request_guard()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    question = str(data.get("question") or "").strip()
+    if not question:
+        return jsonify({"status": "error", "error": "question is required"}), 400
+    if len(question) > MULTI_AGENT_MAX_QUESTION_CHARS:
+        return jsonify({"status": "error",
+                        "error": f"question must be at most {MULTI_AGENT_MAX_QUESTION_CHARS} characters"}), 400
+
+    journey_id = None
+    if data.get("journey_id") not in (None, ""):
+        try:
+            journey_id = int(data["journey_id"])
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "error": "journey_id must be a number"}), 400
+
+    # 1. Evidence comes from this student's own database service.
+    try:
+        journeys_resp = requests.get(f"{DB_SERVICE_URL}/api/journeys", timeout=5)
+        if journeys_resp.status_code != 200:
+            return jsonify({"status": "error", "error": "Failed to retrieve journeys"}), 502
+        journeys = journeys_resp.json()
+    except requests.exceptions.RequestException as e:
+        return jsonify({"status": "error", "error": f"Database service unreachable: {str(e)}"}), 502
+    except ValueError:
+        return jsonify({"status": "error", "error": "Database service returned an invalid response"}), 502
+
+    if journey_id is not None and not any(j.get("journey_id") == journey_id for j in journeys):
+        return jsonify({"status": "error", "error": "Journey not found"}), 404
+
+    selected = select_itinerary_locations(question, journeys, journey_id)
+    if not selected:
+        return jsonify({
+            "status": "insufficient_context",
+            "error": "The question does not mention a known journey or location.",
+            "available_journeys": [j.get("label") for j in journeys],
+        }), 422
+
+    # 2. Weather: values sent by the frontend win over weather mentioned in the question.
+    names = [item["location"] for item in selected]
+    supplied, weather_err = parse_supplied_weather(data.get("weather"), names)
+    if weather_err:
+        return jsonify({"status": "error", "error": weather_err}), 400
+    weather_by_location = {**extract_question_weather(question, names), **supplied}
+
+    # 3. Hand the evidence to the shared server. caller comes from the verified session.
+    payload = {
+        "user_request": question,
+        "feature": "itinerary",
+        "evidence": build_itinerary_evidence(selected, weather_by_location),
+        "caller": multi_agent_caller(user_id),
+    }
+    body, status, err = call_multi_agent("POST", "/workflow", payload, timeout=MULTI_AGENT_TIMEOUT_SECONDS)
+    if err:
+        return err
+    if status != 200:
+        return jsonify(body), status
+
+    # Tell the frontend which locations had no weather, so it can ask for it.
+    body["locations_without_weather"] = [n for n in names if n not in weather_by_location]
+    return jsonify(body), 200
+
+
+@app.route("/multi-agent/workflow/<workflow_id>", methods=["GET"])
+def multi_agent_get_workflow(workflow_id):
+    user_id, err = multi_agent_request_guard()
+    if err:
+        return err
+
+    record, err = fetch_owned_workflow(workflow_id, user_id)
+    if err:
+        return err
+    return jsonify(record), 200
+
+
+@app.route("/multi-agent/workflow/<workflow_id>/decision", methods=["POST"])
+def multi_agent_decision(workflow_id):
+    """Human review: accept | partial | correct | reject (correct needs corrected_output)."""
+    user_id, err = multi_agent_request_guard()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    decision = str(data.get("decision") or "").strip().lower()
+    if decision not in MULTI_AGENT_DECISIONS:
+        return jsonify({"status": "error",
+                        "error": "decision must be one of: " + ", ".join(MULTI_AGENT_DECISIONS)}), 400
+
+    _, err = fetch_owned_workflow(workflow_id, user_id)
+    if err:
+        return err
+
+    payload = {
+        "decision": decision,
+        "note": str(data.get("note") or ""),
+        "corrected_output": str(data.get("corrected_output") or ""),
+    }
+    body, status, err = call_multi_agent("POST", f"/workflow/{quote(workflow_id, safe='')}/decision", payload)
+    if err:
+        return err
+    return jsonify(body), status
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)

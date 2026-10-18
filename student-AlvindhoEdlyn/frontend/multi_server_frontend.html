@@ -34,6 +34,15 @@
     <div class="ma-wrap">
         <h1>Multi Agent Server</h1>
 
+        <!-- Server on/off toggle: when off, no requests are sent to the backend -->
+        <div class="mcp-bar">
+            <span id="serverStatus" class="mcp-status off">Server off</span>
+            <label class="mcp-switch">
+                <input type="checkbox" id="serverToggle" role="switch" aria-checked="false">
+                Server
+            </label>
+        </div>
+
         <!-- Prompt input -->
         <form class="prompt-form" id="promptForm" autocomplete="off">
             <label for="promptInput" class="sr-only" style="position:absolute;left:-9999px;">Prompt</label>
@@ -80,6 +89,27 @@
                 </header>
                 <div class="log-box empty" id="log-reviewer">No activity yet.</div>
             </article>
+        </section>
+
+        <!-- Human approval -->
+        <section class="approval-panel" aria-labelledby="approvalTitle">
+            <header class="approval-header">
+                <h2 id="approvalTitle">Human Approval</h2>
+                <span class="approval-status" id="approvalStatus" role="status" aria-live="polite">Awaiting output</span>
+            </header>
+
+            <div class="approval-body">
+                <label for="approvalFeedback" class="approval-label">
+                    Feedback <span class="optional">(required for Partially Approve and Reject)</span>
+                </label>
+                <textarea id="approvalFeedback" rows="4" placeholder="Explain what is good, what needs changing, or why it was rejected…" disabled></textarea>
+
+                <div class="approval-actions">
+                    <button type="button" class="btn approval-btn" id="approveBtn" data-decision="approve" disabled>APPROVE</button>
+                    <button type="button" class="btn btn-warn approval-btn" id="partialBtn" data-decision="partial" disabled>PARTIALLY APPROVE</button>
+                    <button type="button" class="btn btn-danger approval-btn" id="rejectBtn" data-decision="reject" disabled>REJECT</button>
+                </div>
+            </div>
         </section>
     </div>
 </main>
