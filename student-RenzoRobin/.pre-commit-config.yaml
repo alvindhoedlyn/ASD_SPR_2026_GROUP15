@@ -1,5 +1,5 @@
 # Install the hooks once, from the repository root:
-#   pre-commit install -c student-RenzoRobin/.pre-commit-config.yaml
+#   python -m pre_commit install -c student-RenzoRobin/.pre-commit-config.yaml
 default_install_hook_types: [pre-commit, post-commit]
 
 repos:
@@ -30,12 +30,12 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
-            # ---------------------------- post-commit ----------------------------
+      # ---------------------------- post-commit ----------------------------
       - id: endpoint-tests
         name: Endpoint Tests (2 endpoints)
         entry: python student-RenzoRobin/tests/pre_commit_pytest.py tests/post_commit/test_endpoints.py -v
         language: python
-        additional_dependencies: ["pytest==9.1.1", "flask", "flask-cors", "python-dotenv", "openai", "requests"]
+        additional_dependencies: ["pytest==9.1.1", "flask", "flask-cors", "python-dotenv", "openai", "requests", "mcp"]
         pass_filenames: false
         always_run: true
         stages: [post-commit]
