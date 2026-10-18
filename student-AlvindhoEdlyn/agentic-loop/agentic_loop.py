@@ -48,6 +48,16 @@ RAG_PLAN = {
     ],
 }
 
+MULTI_AGENT_PLAN = {
+    "goal": "Validate multi-agent workflow behavior for the Travel Itinerary Planner's multi-agent mirror routes",
+    "checks": [
+        "POST /multi-agent/workflow (session auth, mode gating, input validation)",
+        "POST /multi-agent/workflow (planner -> worker -> reviewer round)",
+        "GET /multi-agent/workflow/{id}",
+        "POST /multi-agent/workflow/{id}/decision",
+    ],
+}
+
 # Database service - the "Endpoint testing" flow talks directly to the DB
 # layer's own CRUD routes (bypasses the backend's auth/business logic).
 BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:6001")
@@ -60,7 +70,7 @@ REVIEW_MODEL = os.getenv("OLLAMA_REVIEW_MODEL", "llama3.1:8b")
 
 
 # ============================================================
-# LOAD THE MCP / RAG COLLECTORS + PIPELINES AS LOCAL MODULES
+# LOAD THE MCP / RAG / MULTI-AGENT COLLECTORS + PIPELINES AS LOCAL MODULES
 # ============================================================
 # Same pattern RenzoRobin's agentic_loop/main.py uses to load its
 # collectors/pipelines: importlib.util against an explicit file path,
@@ -73,6 +83,8 @@ REVIEW_MODEL = os.getenv("OLLAMA_REVIEW_MODEL", "llama3.1:8b")
 #   student-AlvindhoEdlyn/agentic-loop/collector/rag_collector.py
 #   student-AlvindhoEdlyn/agentic-loop/pipeline/mcp_pipeline.py
 #   student-AlvindhoEdlyn/agentic-loop/pipeline/rag_pipeline.py
+#   student-AlvindhoEdlyn/agentic-loop/collector/multi_agent_collector.py
+#   student-AlvindhoEdlyn/agentic-loop/pipeline/multi_agent_pipeline.py
 
 THIS_FILE = Path(__file__).resolve()
 AGENTIC_LOOP_DIR = THIS_FILE.parent
@@ -97,6 +109,12 @@ mcp_pipeline = _load_local_module(
 )
 rag_pipeline = _load_local_module(
     "alvindhoedlyn_rag_pipeline", AGENTIC_LOOP_DIR / "pipeline" / "rag_pipeline.py"
+)
+multi_agent_collector = _load_local_module(
+    "alvindhoedlyn_multi_agent_collector", AGENTIC_LOOP_DIR / "collector" / "multi_agent_collector.py"
+)
+multi_agent_pipeline = _load_local_module(
+    "alvindhoedlyn_multi_agent_pipeline", AGENTIC_LOOP_DIR / "pipeline" / "multi_agent_pipeline.py"
 )
 
 
@@ -407,6 +425,32 @@ RAG_TASK_PROMPT = (
 )
 
 
+# Fed into multi_agent_pipeline.build_implementation_prompt() the same way.
+MULTI_AGENT_TASK_PROMPT = (
+    "You are the AI-MODE agent for a Flask Travel Itinerary Planner App's multi-agent integration.\n\n"
+    "Multi-Agent Mirror Routes (on the Flask backend, which forwards to the shared multi-agent "
+    "server - not the shared server directly):\n"
+    "- POST /multi-agent/workflow - runs a planner -> worker -> reviewer round on a free-text "
+    "question; the journey and weather are inferred from the question, and the result waits for "
+    "human review (requires a verified session)\n"
+    "- GET /multi-agent/workflow/<id> - returns one workflow, only to the user who created it "
+    "(requires a verified session)\n"
+    "- POST /multi-agent/workflow/<id>/decision - records the human decision "
+    "(accept, partial, correct or reject); a workflow can only be decided once "
+    "(requires a verified session)\n\n"
+    "Task:\n"
+    "Review ONLY the multi-agent behavior: whether mode gating, authentication, input validation, "
+    "workflow ownership, and the planner/worker/reviewer round behaved correctly.\n\n"
+    "Rules:\n"
+    "- Do not invent new multi-agent routes or agents.\n"
+    "- Do not modify existing API contracts.\n"
+    "- Focus on mode gating, auth handling, input validation, ownership checks, or response shape correctness.\n"
+    "- A WARNING about a fallback answer means a model step failed, not that a route is wrong.\n"
+    "- If the evidence shows no issues, respond with: 'No evidence-backed improvement identified.'\n"
+    "- Otherwise, return exactly two bullet points outlining specific code improvements."
+)
+
+
 # ============================================================
 # ADAPT
 # ============================================================
@@ -656,6 +700,68 @@ def run_rag_testing():
 
 
 # ============================================================
+# RUN: MULTI-AGENT TESTING (delegated to collector/multi_agent_collector.py + pipeline/multi_agent_pipeline.py)
+# ============================================================
+
+def run_multi_agent_testing():
+    print("\nPLAN")
+    print(MULTI_AGENT_PLAN)
+
+    print("\nACT")
+    print("Checking multi-agent mirror routes via multi_agent_collector...")
+    print("(a full planner -> worker -> reviewer round runs local models and can take several minutes)")
+
+    # OBSERVE - shared collector contract: collect() returns (ok: bool, evidence: str)
+    ok, evidence = multi_agent_collector.collect(AGENTIC_LOOP_DIR, REPO_ROOT)
+
+    print("\nOBSERVE")
+    for line in evidence.splitlines():
+        print(f"- {line}")
+
+    # AI-MODE AGENT - two-stage implementation + review via multi_agent_pipeline
+    print("\nAI-MODE AGENT (Implementation)")
+    print(f"Model: {IMPLEMENTATION_MODEL}")
+    print(f"Ollama URL: {OLLAMA_BASE_URL}")
+
+    implementation_prompt = multi_agent_pipeline.build_implementation_prompt(MULTI_AGENT_TASK_PROMPT, evidence)
+    implementation_output, impl_error = call_model(
+        IMPLEMENTATION_MODEL,
+        "You are a concise Flask/multi-agent code reviewer. Follow rules strictly.",
+        implementation_prompt,
+        max_tokens=150,
+    )
+
+    if implementation_output:
+        print(f"\n{implementation_output}")
+    else:
+        print(f"\n{impl_error}")
+
+    print("\nAI-MODE AGENT (Review)")
+    print(f"Model: {REVIEW_MODEL}")
+
+    if implementation_output:
+        review_prompt = multi_agent_pipeline.build_review_prompt(implementation_output, evidence)
+        review_output, review_error = call_model(
+            REVIEW_MODEL,
+            "You are a concise second-pass reviewer. Follow rules strictly.",
+            review_prompt,
+            max_tokens=100,
+        )
+        print(f"\n{review_output}" if review_output else f"\n{review_error}")
+    else:
+        print("\nSkipped - no implementation output to review.")
+
+    # ADAPT
+    adapt_tool_mode("Multi-Agent", ok, evidence, implementation_output is not None)
+
+    # USER REVIEW
+    review_status = prompt_user_review()
+
+    print("\nLOOP COMPLETE")
+    print(f"Final Outcome: {review_status}")
+
+
+# ============================================================
 # MAIN LOOP
 # ============================================================
 
@@ -668,9 +774,10 @@ def main():
         print("\n" + "=" * 50)
         print("MAIN MENU")
         print("=" * 50)
-        print("  1 - Endpoint testing (existing)")
+        print("  1 - Endpoint Testing")
         print("  2 - MCP")
         print("  3 - RAG")
+        print("  4 - Multi-Agent")
         print("  0 - Exit Loop")
 
         choice = input("\nChoose an option: ").strip()
@@ -684,8 +791,10 @@ def main():
             run_mcp_testing()
         elif choice == "3":
             run_rag_testing()
+        elif choice == "4":
+            run_multi_agent_testing()
         else:
-            print("Invalid choice. Please enter 1, 2, 3, or 0.")
+            print("Invalid choice. Please enter 1, 2, 3, 4, or 0.")
 
 
 if __name__ == "__main__":
