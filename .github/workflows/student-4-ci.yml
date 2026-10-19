@@ -8,6 +8,7 @@ on:
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
       - "docker-compose.yml"
+      - "ai-services/multi-agent-server/**"
 
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
       - "docker-compose.yml"
+      - "ai-services/multi-agent-server/**"
 
   workflow_dispatch:
 
@@ -84,6 +86,23 @@ jobs:
             student-TrongDao/tests/test_database.py \
             student-TrongDao/tests/test_agentic_loop.py \
             -v
+
+      - name: Run Release 2 post-commit endpoint tests
+        env:
+          MULTI_AGENT_ENABLED: "false"
+        run: |
+          mkdir -p reports/student-4
+          python -m pytest \
+            student-TrongDao/tests/post_commit/test_multi_agent_endpoints.py \
+            -v \
+            --junitxml=reports/student-4/post-commit-results.xml
+
+      - name: Upload Student 4 endpoint test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-4-post-commit-evidence
+          path: reports/student-4/
 
   docker-build:
     name: Build Location Recommender Containers

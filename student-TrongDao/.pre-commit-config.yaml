@@ -1,0 +1,35 @@
+default_install_hook_types: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-scan
+        name: Ruff Security Scan
+        entry: python student-TrongDao/tests/pre_commit_pytest.py tests/pre_commit/test_ruff_scan.py -v
+        language: python
+        additional_dependencies:
+          - pytest==9.1.1
+          - ruff==0.16.8
+          - tomli
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: detect-secrets-scan
+        name: detect-secrets Scan
+        entry: python student-TrongDao/tests/pre_commit_pytest.py tests/pre_commit/test_secrets_scan.py -v
+        language: python
+        additional_dependencies:
+          - pytest==9.1.1
+          - detect-secrets==1.5.0
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: pip-audit-scan
+        name: pip-audit Scan
+        entry: python student-TrongDao/tests/pre_commit_pytest.py tests/pre_commit/test_dependency_audit.py -v
+        language: python
+        additional_dependencies:
+          - pytest==9.1.1
+          - pip-audit==2.10.1
+        pass_filenames: false
+        stages: [pre-commit]
