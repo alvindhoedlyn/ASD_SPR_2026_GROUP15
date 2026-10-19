@@ -1,0 +1,1 @@
+Analyse the Student 4 pre-commit security scans and post-commit endpoint tests. Summarise the verified results, identify missing or failed evidence, and recommend whether the feature is ready for release validation.

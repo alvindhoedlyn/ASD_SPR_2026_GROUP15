@@ -71,5 +71,33 @@ def build_mode_config():
                 "review/review_prompt.txt",
             ),
             two_stage=True
+        ),
+
+        "testing": ModeConfig(
+            key="testing",
+            label="Testing Report Review",
+            prompt_family="testing",
+            implementation_prompts=(
+                "implementation/system_prompt.txt",
+                "implementation/task_prompt.txt"
+            ),
+            review_prompts=(
+                "review/review_prompt.txt",
+            ),
+            two_stage=True
+        ),
+
+        "multi_agent": ModeConfig(
+            key="multi_agent",
+            label="Multi-Agent Workflow Review",
+            prompt_family="multi_agent",
+            implementation_prompts=(
+                "implementation/system_prompt.txt",
+                "implementation/task_prompt.txt"
+            ),
+            review_prompts=(
+                "review/review_prompt.txt",
+            ),
+            two_stage=True
         )
     }
