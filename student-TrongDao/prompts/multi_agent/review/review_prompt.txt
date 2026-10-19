@@ -1,0 +1,1 @@
+Act as an independent Multi-Agent workflow reviewer. Compare the recommendation against the observed workflow and audit evidence. Check whether the reviewer output and final human decision are consistent. Return a final PASS, REVISE, or FAIL decision with a concise reason.

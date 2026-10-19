@@ -1,4 +1,4 @@
-"""Tests for the attraction feature's Release 1 validation modes."""
+"""Tests for the attraction feature's agentic-loop validation modes."""
 
 import importlib.util
 import sys
@@ -59,7 +59,7 @@ class FakeResponse:
         return self.data
 
 
-def test_release_one_validation_modes_are_configured():
+def test_release_modes_are_configured():
     mode_config = review_config.build_mode_config()
 
     assert set(mode_config) == {
@@ -67,12 +67,21 @@ def test_release_one_validation_modes_are_configured():
         "endpoints",
         "devops",
         "mcp",
-        "rag"
+        "rag",
+        "testing",
+        "multi_agent"
     }
     assert mode_config["mcp"].two_stage is True
     assert mode_config["rag"].two_stage is True
+    assert mode_config["testing"].two_stage is True
+    assert mode_config["multi_agent"].two_stage is True
 
-    for prompt_family in ("mcp", "rag"):
+    for prompt_family in (
+        "mcp",
+        "rag",
+        "testing",
+        "multi_agent"
+    ):
         prompt_root = STUDENT_DIR / "prompts" / prompt_family
 
         assert (
@@ -93,6 +102,46 @@ def test_release_one_validation_modes_are_configured():
     assert agentic_main.COLLECTORS["rag"] is (
         agentic_main.rag_collector.collect
     )
+    assert agentic_main.COLLECTORS["testing"] is (
+        agentic_main.testing_collector.collect
+    )
+    assert agentic_main.COLLECTORS["multi_agent"] is (
+        agentic_main.multi_agent_collector.collect
+    )
+
+
+def test_testing_review_runs_both_model_stages():
+    class FakeAIRunner:
+        def __init__(self):
+            self.review_flags = []
+
+        def call(self, system_prompt, user_prompt, review=False):
+            self.review_flags.append(review)
+            if review:
+                return "PASS - testing evidence supports release.", None
+            return "All required testing checks passed.", None
+
+    fake_ai = FakeAIRunner()
+    mode_config = review_config.build_mode_config()
+    prompts = agentic_main.PromptRegistry(STUDENT_DIR)
+
+    with patch.dict(
+        agentic_main.COLLECTORS,
+        {"testing": lambda app_dir, repo_root: (
+            True,
+            "Security scans PASS. Endpoint tests PASS."
+        )}
+    ):
+        result = agentic_main.run_review(
+            "testing",
+            mode_config,
+            prompts,
+            fake_ai
+        )
+
+    assert fake_ai.review_flags == [False, True]
+    assert "All required testing checks passed." in result
+    assert "PASS - testing evidence supports release." in result
 
 
 def test_devops_collector_enforces_local_release_one_services():

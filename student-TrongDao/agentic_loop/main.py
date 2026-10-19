@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -8,6 +9,7 @@ THIS_FILE = Path(__file__).resolve()
 AGENTIC_LOOP_DIR = THIS_FILE.parent
 APP_DIR = AGENTIC_LOOP_DIR.parent
 REPO_ROOT = APP_DIR.parent
+LOG_DIRECTORY = APP_DIR / "reports" / "agentic-loop"
 
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -70,6 +72,20 @@ rag_collector = load_local_module(
     / "rag_collector.py"
 )
 
+testing_collector = load_local_module(
+    "trongdao_testing_collector",
+    AGENTIC_LOOP_DIR
+    / "collectors"
+    / "testing_collector.py"
+)
+
+multi_agent_collector = load_local_module(
+    "trongdao_multi_agent_collector",
+    AGENTIC_LOOP_DIR
+    / "collectors"
+    / "multi_agent_collector.py"
+)
+
 review_pipeline = load_local_module(
     "trongdao_review_pipeline",
     AGENTIC_LOOP_DIR
@@ -91,13 +107,29 @@ rag_validation_pipeline = load_local_module(
     / "rag_validation_pipeline.py"
 )
 
+testing_pipeline = load_local_module(
+    "trongdao_testing_pipeline",
+    AGENTIC_LOOP_DIR
+    / "pipelines"
+    / "testing_pipeline.py"
+)
+
+multi_agent_pipeline = load_local_module(
+    "trongdao_multi_agent_pipeline",
+    AGENTIC_LOOP_DIR
+    / "pipelines"
+    / "multi_agent_pipeline.py"
+)
+
 
 COLLECTORS = {
     "db": database_collector.collect,
     "endpoints": endpoints_collector.collect,
     "devops": devops_collector.collect,
     "mcp": mcp_collector.collect,
-    "rag": rag_collector.collect
+    "rag": rag_collector.collect,
+    "testing": testing_collector.collect,
+    "multi_agent": multi_agent_collector.collect
 }
 
 
@@ -106,7 +138,9 @@ PIPELINES = {
     "endpoints": review_pipeline,
     "devops": review_pipeline,
     "mcp": mcp_validation_pipeline,
-    "rag": rag_validation_pipeline
+    "rag": rag_validation_pipeline,
+    "testing": testing_pipeline,
+    "multi_agent": multi_agent_pipeline
 }
 
 
@@ -133,6 +167,69 @@ def run_review(
         review_prompt_fn=(
             pipeline.build_review_prompt
         )
+    )
+
+
+def save_review_log(
+    mode_key,
+    mode_label,
+    result
+):
+    LOG_DIRECTORY.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    timestamp = datetime.now().astimezone().strftime(
+        "%Y-%m-%d %H:%M:%S %Z"
+    )
+
+    log_path = (
+        LOG_DIRECTORY
+        / f"{mode_key}-validation-log.md"
+    )
+
+    log_path.write_text(
+        (
+            f"# {mode_label} - Validation Log\n\n"
+            f"Run at: {timestamp}\n\n"
+            f"{result}\n"
+        ),
+        encoding="utf-8"
+    )
+
+    return log_path
+
+
+def run_and_report(
+    mode_key,
+    mode_config,
+    prompts,
+    ai_runner
+):
+    result = run_review(
+        mode_key,
+        mode_config,
+        prompts,
+        ai_runner
+    )
+
+    mode_label = mode_config[mode_key].label
+
+    reporter.print_result(
+        mode_label,
+        result
+    )
+
+    log_path = save_review_log(
+        mode_key,
+        mode_label,
+        result
+    )
+
+    print(
+        "Validation log saved to "
+        + str(log_path.relative_to(REPO_ROOT))
     )
 
 
@@ -177,6 +274,12 @@ def main():
         ),
         "RAG": str(
             APP_DIR / "prompts" / "rag"
+        ),
+        "Testing": str(
+            APP_DIR / "prompts" / "testing"
+        ),
+        "Multi-Agent": str(
+            APP_DIR / "prompts" / "multi_agent"
         )
     })
 
@@ -187,7 +290,9 @@ def main():
             ("3", "DevOps"),
             ("4", "MCP"),
             ("5", "RAG"),
-            ("6", "Run All")
+            ("6", "Run Release 1 Modes"),
+            ("7", "Multi-Agent Workflow Review"),
+            ("8", "Testing Report Review")
         ])
 
         choice = input(
@@ -203,7 +308,9 @@ def main():
             "2": "endpoints",
             "3": "devops",
             "4": "mcp",
-            "5": "rag"
+            "5": "rag",
+            "7": "multi_agent",
+            "8": "testing"
         }
 
         if choice == "6":
@@ -214,16 +321,11 @@ def main():
                 "mcp",
                 "rag"
             ]:
-                result = run_review(
+                run_and_report(
                     mode_key,
                     mode_config,
                     prompts,
                     ai_runner
-                )
-
-                reporter.print_result(
-                    mode_config[mode_key].label,
-                    result
                 )
 
             continue
@@ -233,20 +335,15 @@ def main():
         if mode_key is None:
             print(
                 "Invalid choice. "
-                "Choose 0, 1, 2, 3, 4, 5, or 6."
+                "Choose one of the displayed options."
             )
             continue
 
-        result = run_review(
+        run_and_report(
             mode_key,
             mode_config,
             prompts,
             ai_runner
-        )
-
-        reporter.print_result(
-            mode_config[mode_key].label,
-            result
         )
 
 
