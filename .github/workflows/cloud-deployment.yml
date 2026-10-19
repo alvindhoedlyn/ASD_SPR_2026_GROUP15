@@ -10,28 +10,104 @@ permissions:
 env:
   RESOURCE_GROUP: journeybuddy-rg
   LOCATION: australiaeast
+  PARALLEL: "3"
 
 jobs:
   post_commit_tests:
+    name: Validate before deployment
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install test dependencies
         run: |
-          pip install pytest -r student-RenzoRobin/backend/requirements.txt -r student-RenzoRobin/database/requirements.txt
+          pip install pytest \
+            -r student-RenzoRobin/backend/requirements.txt \
+            -r student-RenzoRobin/database/requirements.txt
 
-      - name: Endpoint tests (AI features off)
+      - name: Run endpoint tests with cloud AI disabled
         env:
+          AI_MODE_ENABLED: "false"
           MCP_ENABLED: "false"
           RAG_ENABLED: "false"
           MULTI_AGENT_ENABLED: "false"
-        run: pytest student-RenzoRobin/tests/post_commit -v
-
-      - name: Check cloud compose keeps AI features off
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.cloud.yml config >
+          pytest student-RenzoRobin/tests/post_commit -v
+
+      - name: Validate cloud Compose configuration
+        run: |
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.cloud.yml \
+            config > cloud-compose-resolved.yml
+
+      - name: Upload validated Compose configuration
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-compose-validation
+          path: cloud-compose-resolved.yml
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy and validate Azure application
+    needs: post_commit_tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Log in to Azure using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Make deployment scripts executable
+        run: chmod +x scripts/azure/*.sh
+
+      - name: Prepare Azure resources
+        run: |
+          scripts/azure/env-setup.sh
+          scripts/azure/deploy-azure-env.sh
+
+      - name: Build and push container images
+        run: scripts/azure/build-images.sh
+
+      - name: Deploy Azure Container Apps
+        run: scripts/azure/deploy-azure.sh
+
+      - name: Validate deployed application
+        run: scripts/azure/deployment-testing.sh
+
+      - name: Add deployment results to workflow summary
+        if: always()
+        run: |
+          if [ -f reports/cloud/deployment-results.md ]; then
+            cat reports/cloud/deployment-results.md \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload cloud deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-deployment-evidence
+          path: |
+            reports/cloud/deployment-results.md
+            .cloud-build-logs/
+          if-no-files-found: warn
