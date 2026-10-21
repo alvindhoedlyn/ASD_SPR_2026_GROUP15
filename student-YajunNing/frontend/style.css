@@ -1645,6 +1645,119 @@ button:focus-visible {
   }
 }
 
+.multi-agent-card {
+  margin-top: 20px;
+  padding: 28px;
+  background: #f8fbfa;
+  border: 1px solid #a8c8bd;
+  border-radius: 14px;
+}
+
+.multi-agent-heading-row,
+.workflow-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.multi-agent-heading-row h2,
+.multi-agent-form,
+.human-decision-form h3 {
+  margin-top: 0;
+}
+
+.local-service-badge {
+  padding: 6px 10px;
+  color: var(--teal-deep);
+  background: #dceee8;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.multi-agent-copy,
+.multi-agent-message,
+#human-decision-message {
+  color: var(--ink-soft);
+}
+
+.multi-agent-form,
+.human-decision-form {
+  display: grid;
+  gap: 9px;
+}
+
+.multi-agent-form input,
+.multi-agent-form textarea,
+.human-decision-form select,
+.human-decision-form textarea {
+  width: 100%;
+  padding: 11px 12px;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.multi-agent-form .primary-button,
+.human-decision-form .primary-button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.multi-agent-results {
+  margin-top: 18px;
+}
+
+.workflow-summary {
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  background: #e8f2ee;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.agent-output-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.agent-output-grid article,
+.human-decision-form {
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.agent-output-grid h3 {
+  margin: 0 0 9px;
+  font-size: 15px;
+}
+
+.agent-output-grid pre {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--ink-soft);
+  font: 12px/1.55 var(--font-body);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 800px) {
+  .agent-output-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .multi-agent-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto;

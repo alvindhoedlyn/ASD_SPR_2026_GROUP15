@@ -1,0 +1,23 @@
+[project]
+name = "journeybuddy-flight-recommender"
+version = "2.0.0"
+requires-python = ">=3.10"
+
+[tool.ruff]
+target-version = "py310"
+extend-exclude = ["venv", ".venv"]
+
+[tool.ruff.lint]
+select = ["S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S404", "S603", "S607"]
+"backend/app.py" = ["S104", "S110"]
+"database/app.py" = ["S104"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "pre_commit: local security checks executed by the commit hook",
+  "post_commit: two backend endpoint functions executed by Student 5 CI",
+]

@@ -1,5 +1,6 @@
 import os
 from datetime import date
+from urllib.parse import quote
 
 import requests
 from flask import Flask, jsonify, request
@@ -15,6 +16,13 @@ app = Flask(__name__)
 
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://shared-frontend")
 PORT = int(os.getenv("PORT", "5005"))
+MULTI_AGENT_ENABLED = os.getenv("MULTI_AGENT_ENABLED", "false").strip().lower() in {
+    "1", "true", "yes", "on"
+}
+MULTI_AGENT_SERVICE_URL = os.getenv(
+    "MULTI_AGENT_SERVICE_URL", "http://host.docker.internal:5300"
+).rstrip("/")
+MULTI_AGENT_TIMEOUT_SECONDS = int(os.getenv("MULTI_AGENT_TIMEOUT_SECONDS", "300"))
 
 @app.route("/")
 def home():
@@ -77,6 +85,62 @@ def _is_enabled(value):
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def multi_agent_mode_is_enabled(current_request):
+    """Keep the local-only Release 2 service behind an explicit feature flag."""
+    if not MULTI_AGENT_ENABLED:
+        return False
+    return _is_enabled(current_request.headers.get("X-Multi-Agent-Mode", "on"))
+
+
+def call_multi_agent_service(method, path, payload=None):
+    """Call the shared non-containerised Multi-Agent Server."""
+    try:
+        response = requests.request(
+            method,
+            f"{MULTI_AGENT_SERVICE_URL}{path}",
+            json=payload,
+            timeout=MULTI_AGENT_TIMEOUT_SECONDS,
+        )
+    except requests.ConnectionError:
+        return {"error": "Multi-Agent Server is unavailable"}, 502
+    except requests.Timeout:
+        return {"error": "Multi-Agent Server request timed out"}, 504
+    except requests.RequestException as exc:
+        return {"error": "Multi-Agent Server request failed", "detail": str(exc)}, 502
+
+    try:
+        return response.json(), response.status_code
+    except ValueError:
+        return {"error": "Multi-Agent Server returned invalid JSON"}, 502
+
+
+def collect_flight_evidence(max_budget=None):
+    """Load catalogue records for the Worker and Reviewer without inventing data."""
+    params = {}
+    if max_budget not in (None, ""):
+        try:
+            parsed_budget = float(max_budget)
+        except (TypeError, ValueError):
+            return None, "max_budget must be a number", 400
+        if parsed_budget <= 0:
+            return None, "max_budget must be greater than zero", 400
+        params["max_budget"] = parsed_budget
+
+    try:
+        response = database_request("GET", "/flights", params=params or None)
+        response.raise_for_status()
+    except requests.RequestException:
+        return None, "Flight database service is unavailable", 503
+
+    try:
+        evidence = response.json()
+    except ValueError:
+        return None, "Flight database service returned invalid JSON", 502
+    if not isinstance(evidence, list):
+        return None, "Flight database service returned invalid evidence", 502
+    return evidence, None, 200
 
 
 def verify_request_session():
@@ -194,6 +258,78 @@ def release_1_status():
         },
         "execution_boundary": "MCP, RAG and AI Mode run locally outside Docker Compose",
     })
+
+
+@app.get("/api/release2/status")
+def release_2_status():
+    """Expose safe configuration for local/cloud demonstration evidence."""
+    return jsonify({
+        "feature": "Flight Recommender",
+        "multi_agent": {
+            "enabled": MULTI_AGENT_ENABLED,
+            "endpoint": MULTI_AGENT_SERVICE_URL,
+            "workflow": ["planner", "worker", "reviewer", "human_review"],
+        },
+        "execution_boundary": "Multi-Agent Server runs locally outside Docker Compose",
+    })
+
+
+@app.post("/api/multi-agent/run")
+def run_multi_agent_workflow():
+    if not multi_agent_mode_is_enabled(request):
+        return jsonify({"error": "Multi-Agent mode is disabled"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    question = payload.get("question")
+    if not isinstance(question, str) or not question.strip():
+        return jsonify({"error": "question is required"}), 400
+
+    evidence, evidence_error, status_code = collect_flight_evidence(
+        payload.get("max_budget")
+    )
+    if evidence_error:
+        return jsonify({"error": evidence_error}), status_code
+
+    response_body, response_status = call_multi_agent_service(
+        "POST",
+        "/workflow",
+        {
+            "user_request": question.strip(),
+            "feature": "flight-recommender",
+            "evidence": evidence,
+            "caller": "student-5",
+        },
+    )
+    if response_status < 400 and isinstance(response_body, dict):
+        response_body["evidence_source"] = "flight-database"
+        response_body["evidence_budget"] = payload.get("max_budget") or None
+    return jsonify(response_body), response_status
+
+
+@app.post("/api/multi-agent/<workflow_id>/decision")
+def record_multi_agent_decision(workflow_id):
+    if not multi_agent_mode_is_enabled(request):
+        return jsonify({"error": "Multi-Agent mode is disabled"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    response_body, status_code = call_multi_agent_service(
+        "POST",
+        f"/workflow/{quote(workflow_id, safe='')}/decision",
+        {
+            "decision": payload.get("decision"),
+            "note": payload.get("note", ""),
+            "corrected_output": payload.get("corrected_output", ""),
+        },
+    )
+    return jsonify(response_body), status_code
+
+
+@app.get("/api/multi-agent/status")
+def get_multi_agent_status():
+    if not multi_agent_mode_is_enabled(request):
+        return jsonify({"error": "Multi-Agent mode is disabled"}), 403
+    response_body, status_code = call_multi_agent_service("GET", "/workflow/status")
+    return jsonify(response_body), status_code
 
 
 @app.post("/api/mcp/recommend-flights")

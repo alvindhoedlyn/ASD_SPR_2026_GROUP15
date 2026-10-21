@@ -1,0 +1,6 @@
+{"ts": "2026-10-21T07:17:17.497350+00:00", "workflow_id": "acc7529cfc49", "event": "workflow_created", "feature": "flight-recommender", "caller": "student-5", "evidence_count": 8}
+{"ts": "2026-10-21T07:17:18.634849+00:00", "workflow_id": "acc7529cfc49", "event": "agent_step_completed", "agent": "planner", "status": "ok", "model": "qwen2.5:0.5b", "elapsed_ms": 1137}
+{"ts": "2026-10-21T07:17:19.606336+00:00", "workflow_id": "acc7529cfc49", "event": "agent_step_completed", "agent": "worker", "status": "ok", "model": "qwen2.5:0.5b", "elapsed_ms": 970}
+{"ts": "2026-10-21T07:17:24.073237+00:00", "workflow_id": "acc7529cfc49", "event": "agent_step_completed", "agent": "reviewer", "status": "ok", "model": "llama3.1:8b", "elapsed_ms": 4465}
+{"ts": "2026-10-21T07:17:24.074904+00:00", "workflow_id": "acc7529cfc49", "event": "awaiting_human_review", "degraded": false}
+{"ts": "2026-10-21T07:17:30.921662+00:00", "workflow_id": "acc7529cfc49", "event": "human_decision", "decision": "correct", "status": "corrected"}

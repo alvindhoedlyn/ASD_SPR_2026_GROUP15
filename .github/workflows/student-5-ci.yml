@@ -6,6 +6,7 @@ on:
       - 'student-YajunNing/**'
       - 'ai-services/mcp-server/**'
       - 'ai-services/rag-server/**'
+      - 'ai-services/multi-agent-server/**'
       - '.github/workflows/student-5-ci.yml'
       - 'docker-compose.yml'
   pull_request:
@@ -14,8 +15,14 @@ on:
       - 'student-YajunNing/**'
       - 'ai-services/mcp-server/**'
       - 'ai-services/rag-server/**'
+      - 'ai-services/multi-agent-server/**'
       - '.github/workflows/student-5-ci.yml'
       - 'docker-compose.yml'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test-and-build:
@@ -23,6 +30,7 @@ jobs:
     env:
       MCP_ENABLED: "false"
       RAG_ENABLED: "false"
+      MULTI_AGENT_ENABLED: "false"
 
     steps:
       - name: Checkout repository
@@ -39,10 +47,31 @@ jobs:
           pip install -r student-YajunNing/backend/requirements.txt
           pip install -r student-YajunNing/database/requirements.txt
           pip install -r ai-services/rag-server/requirements.txt
+          pip install pytest
+
+      - name: Check Student 5 Python syntax
+        run: |
+          python -m py_compile student-YajunNing/backend/*.py
+          python -m py_compile student-YajunNing/database/*.py
 
       - name: Run Flight Recommender tests
         working-directory: student-YajunNing
         run: python -m unittest discover -s tests -v
+
+      - name: Run Release 2 post-commit endpoint tests
+        run: |
+          mkdir -p reports/student-5
+          python -m pytest \
+            student-YajunNing/tests/post_commit/test_multi_agent_endpoints.py \
+            -v \
+            --junitxml=reports/student-5/post-commit-results.xml
+
+      - name: Upload Student 5 endpoint test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-5-post-commit-evidence
+          path: reports/student-5/
 
       - name: Validate Flight MCP and RAG integration syntax
         run: |

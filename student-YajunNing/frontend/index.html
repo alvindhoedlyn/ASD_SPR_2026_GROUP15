@@ -179,6 +179,60 @@
       </div>
     </section>
 
+    <section id="multi-agent-section" class="multi-agent-card" aria-labelledby="multi-agent-heading">
+      <div class="multi-agent-heading-row">
+        <div>
+          <p class="step-label">Release 2 · local service</p>
+          <h2 id="multi-agent-heading">Multi-Agent flight review</h2>
+        </div>
+        <span class="local-service-badge">Local only</span>
+      </div>
+      <p class="multi-agent-copy">
+        Send catalogue evidence through Planner → Worker → Reviewer, then record the final human decision.
+        This service is intentionally disabled in the cloud baseline.
+      </p>
+
+      <form id="multi-agent-form" class="multi-agent-form">
+        <label for="multi-agent-question">Review request</label>
+        <textarea id="multi-agent-question" rows="3" required>Which Sydney to Tokyo flights provide the best value within my budget?</textarea>
+        <label for="multi-agent-budget">Maximum budget (AUD, optional)</label>
+        <input id="multi-agent-budget" type="number" min="1" step="1" value="900">
+        <button class="primary-button" type="submit">Run Multi-Agent workflow</button>
+      </form>
+
+      <p id="multi-agent-message" class="multi-agent-message" role="status" aria-live="polite"></p>
+      <section id="multi-agent-results" class="multi-agent-results" hidden>
+        <div class="workflow-summary">
+          <span>Workflow <strong id="multi-agent-workflow-id"></strong></span>
+          <span>Status <strong id="multi-agent-workflow-status"></strong></span>
+          <span>Evidence <strong id="multi-agent-evidence-count"></strong></span>
+        </div>
+        <div class="agent-output-grid">
+          <article><h3>1. Planner</h3><pre id="multi-agent-planner-output"></pre></article>
+          <article><h3>2. Worker</h3><pre id="multi-agent-worker-output"></pre></article>
+          <article><h3>3. Reviewer</h3><pre id="multi-agent-reviewer-output"></pre></article>
+        </div>
+
+        <form id="human-decision-form" class="human-decision-form">
+          <h3>4. Human review</h3>
+          <label for="human-decision">Decision</label>
+          <select id="human-decision" required>
+            <option value="">Choose a decision</option>
+            <option value="accept">Accept</option>
+            <option value="partial">Partially accept</option>
+            <option value="correct">Accept with correction</option>
+            <option value="reject">Reject</option>
+          </select>
+          <label for="human-decision-note">Review note</label>
+          <textarea id="human-decision-note" rows="3" placeholder="Explain the evidence behind your decision."></textarea>
+          <label for="human-corrected-output">Corrected output (required for correction)</label>
+          <textarea id="human-corrected-output" rows="3"></textarea>
+          <button class="primary-button" type="submit">Record human decision</button>
+          <p id="human-decision-message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </section>
+
     <section id="trust-section" class="trust-section" aria-labelledby="trust-heading">
       <div class="trust-inner">
         <div class="trust-heading-row">
@@ -313,6 +367,12 @@
     const ragForm = document.getElementById("rag-question-form");
     const ragQuestion = document.getElementById("rag-question");
     const ragResult = document.getElementById("rag-result");
+    const multiAgentForm = document.getElementById("multi-agent-form");
+    const multiAgentResults = document.getElementById("multi-agent-results");
+    const multiAgentMessage = document.getElementById("multi-agent-message");
+    const humanDecisionForm = document.getElementById("human-decision-form");
+    const humanDecisionMessage = document.getElementById("human-decision-message");
+    let activeWorkflowId = "";
     let savedFlightKeys = new Set();
     let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let selectingDate = "departure";
@@ -1032,6 +1092,92 @@
       } finally {
         button.disabled = false;
         button.textContent = "Ask RAG";
+      }
+    });
+
+    function renderMultiAgentWorkflow(workflow) {
+      activeWorkflowId = workflow.workflow_id || activeWorkflowId;
+      document.getElementById("multi-agent-workflow-id").textContent = activeWorkflowId || "Unavailable";
+      document.getElementById("multi-agent-workflow-status").textContent = workflow.status || "Unknown";
+      document.getElementById("multi-agent-evidence-count").textContent = String(workflow.evidence_count ?? 0);
+      document.getElementById("multi-agent-planner-output").textContent = workflow.steps?.planner?.output || "No planner output";
+      document.getElementById("multi-agent-worker-output").textContent = workflow.steps?.worker?.output || "No worker output";
+      document.getElementById("multi-agent-reviewer-output").textContent = workflow.steps?.reviewer?.output || "No reviewer output";
+      multiAgentResults.hidden = false;
+    }
+
+    multiAgentForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = multiAgentForm.querySelector("button[type='submit']");
+      const budget = document.getElementById("multi-agent-budget").value;
+      button.disabled = true;
+      button.textContent = "Running Planner, Worker and Reviewer...";
+      multiAgentMessage.classList.remove("is-error");
+      multiAgentMessage.textContent = "Collecting flight database evidence and starting the shared workflow...";
+      try {
+        const response = await apiFetch("/api/multi-agent/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Multi-Agent-Mode": "on" },
+          body: JSON.stringify({
+            question: document.getElementById("multi-agent-question").value,
+            max_budget: budget ? Number(budget) : null,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Multi-Agent workflow failed");
+        humanDecisionForm.reset();
+        Array.from(humanDecisionForm.elements).forEach((element) => { element.disabled = false; });
+        renderMultiAgentWorkflow(data);
+        multiAgentMessage.textContent = "Agent review complete. A human decision is now required.";
+        humanDecisionMessage.textContent = "";
+      } catch (error) {
+        multiAgentMessage.classList.add("is-error");
+        multiAgentMessage.textContent = error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Run Multi-Agent workflow";
+      }
+    });
+
+    humanDecisionForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!activeWorkflowId) {
+        humanDecisionMessage.className = "is-error";
+        humanDecisionMessage.textContent = "Run a workflow before recording a decision.";
+        return;
+      }
+      const decision = document.getElementById("human-decision").value;
+      const correctedOutput = document.getElementById("human-corrected-output").value.trim();
+      if (decision === "correct" && !correctedOutput) {
+        humanDecisionMessage.className = "is-error";
+        humanDecisionMessage.textContent = "Corrected output is required for a correction decision.";
+        return;
+      }
+
+      const button = humanDecisionForm.querySelector("button[type='submit']");
+      button.disabled = true;
+      button.textContent = "Recording decision...";
+      try {
+        const response = await apiFetch(`/api/multi-agent/${encodeURIComponent(activeWorkflowId)}/decision`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Multi-Agent-Mode": "on" },
+          body: JSON.stringify({
+            decision,
+            note: document.getElementById("human-decision-note").value,
+            corrected_output: correctedOutput,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Human decision could not be recorded");
+        renderMultiAgentWorkflow(data);
+        humanDecisionMessage.className = "";
+        humanDecisionMessage.textContent = `Decision recorded: ${data.status}.`;
+        Array.from(humanDecisionForm.elements).forEach((element) => { element.disabled = true; });
+      } catch (error) {
+        humanDecisionMessage.className = "is-error";
+        humanDecisionMessage.textContent = error.message;
+        button.disabled = false;
+        button.textContent = "Record human decision";
       }
     });
 

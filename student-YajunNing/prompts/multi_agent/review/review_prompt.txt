@@ -1,0 +1,1 @@
+Review the first validator's Multi-Agent verdict. Confirm that every claim is supported by the observed evidence and flag missing terminal, frontend, history, audit or human-review proof.

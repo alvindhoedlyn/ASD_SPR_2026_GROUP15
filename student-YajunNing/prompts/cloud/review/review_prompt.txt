@@ -1,0 +1,1 @@
+Review the first validator's cloud recommendation. Confirm that it is supported by deployment logs and a live Student 5 check, that all four AI flags are disabled, and that the final release decision is left to a human.

@@ -1,0 +1,1 @@
+Review the first validator's testing verdict against the observed scan and CI evidence. Reject any unsupported claim that a local hook or GitHub Actions workflow succeeded.
