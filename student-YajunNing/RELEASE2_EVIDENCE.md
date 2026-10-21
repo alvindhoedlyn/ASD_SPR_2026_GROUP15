@@ -61,9 +61,9 @@ python student-YajunNing/agentic_loop/main.py --mode cloud
 
 | Date | Student 5 contribution | Evidence |
 |---|---|---|
-| 2026-10-21 | Flight Multi-Agent backend routes, database evidence and human review UI | Commit/PR link |
-| 2026-10-21 | Pre-commit security scans and two post-commit endpoint tests | CI run/artifact link |
-| 2026-10-21 | Multi-Agent, Testing and Cloud review modes and report files | Validation-log paths |
+| 2026-10-21 | Flight Multi-Agent backend routes, database evidence and human review UI | Commit `5b135e5`, PR [#21](https://github.com/alvindhoedlyn/ASD_SPR_2026_GROUP15/pull/21) |
+| 2026-10-21 | Pre-commit security scans and two post-commit endpoint tests | Successful CI [run 39561374713](https://github.com/alvindhoedlyn/ASD_SPR_2026_GROUP15/actions/runs/39561374713) and `student-5-post-commit-evidence` artifact |
+| 2026-10-21 | Multi-Agent, Testing and Cloud review modes and report files | `reports/agentic-loop/` validation logs |
 
-Replace the placeholders with the final commit/PR, GitHub Actions run and cloud URLs before the
-group report is submitted.
+Add the refreshed Azure deployment URL and Student 5 CRUD evidence after PR #21 is merged and the
+group cloud workflow is rerun.

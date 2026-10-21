@@ -66,7 +66,15 @@ def collect(app_dir: Path, repo_root: Path):
         present = marker in workflow
         ok = ok and present
         lines.append(f"CI {label}: {'PASS' if present else 'FAIL'}")
-    lines.append("GitHub Actions execution screenshot/log: collect after pushing this branch.")
+
+    actions_evidence = app_dir / "reports" / "github-actions-evidence.md"
+    actions_text = actions_evidence.read_text(encoding="utf-8") if actions_evidence.exists() else ""
+    actions_passed = "Conclusion: `success`" in actions_text and "student-5-post-commit-evidence" in actions_text
+    ok = ok and actions_passed
+    lines.append(
+        "GitHub Actions run and artifact evidence: "
+        + ("PASS" if actions_passed else "FAIL - collect after pushing this branch")
+    )
     lines.append(f"Overall local testing decision: {'PASS' if ok else 'FAIL'}")
 
     reports = app_dir / "reports"
