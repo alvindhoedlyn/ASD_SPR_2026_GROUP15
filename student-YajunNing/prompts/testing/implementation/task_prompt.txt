@@ -1,0 +1,1 @@
+Assess the pre-commit security results and post-commit tests for the two assigned backend endpoint functions. Check the local commit-hook configuration, test outcomes, CI workflow, JUnit report and artifact upload. Give a PASS or FAIL recommendation and state any evidence that still must be collected after pushing.

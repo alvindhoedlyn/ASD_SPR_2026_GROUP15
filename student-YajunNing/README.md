@@ -120,3 +120,33 @@ the required UI evidence.
 file, and builds all three images. It sets `MCP_ENABLED=false` and `RAG_ENABLED=false`, so CI does
 not depend on non-containerised local services while the production integration code remains in
 the feature.
+
+## Release 2: Multi-Agent workflow, testing and cloud baseline
+
+Release 2 adds a Flight-specific integration with the one shared non-containerised Multi-Agent
+Server on port `5300`. The frontend calls the Flight backend, which supplies real catalogue records
+to the shared Planner, Worker and Reviewer. The returned workflow remains
+`pending_human_review` until the user accepts, partially accepts, corrects or rejects it in the
+frontend. Workflow history and coordination events are stored by the shared server.
+
+For local integrated execution, start `python ai-services/multi-agent-server/app.py` in another
+terminal before using the **Multi-Agent flight review** panel. The root and Student 5 Compose files
+set `MULTI_AGENT_ENABLED=true` and route the backend to
+`http://host.docker.internal:5300`. The cloud override explicitly sets AI-Mode, MCP, RAG and
+Multi-Agent to `false`, preserving core Flight search and saved-flight CRUD without deploying the
+local AI services.
+
+Student 5 testing and review commands:
+
+```bash
+python -m pre_commit install --config student-YajunNing/.pre-commit-config.yaml
+python -m pre_commit run --config student-YajunNing/.pre-commit-config.yaml --all-files
+python -m pytest student-YajunNing/tests/post_commit/test_multi_agent_endpoints.py -v
+python student-YajunNing/agentic_loop/main.py --mode multi-agent
+python student-YajunNing/agentic_loop/main.py --mode testing
+python student-YajunNing/agentic_loop/main.py --mode cloud
+```
+
+`student-5-ci.yml` runs tests for the two assigned backend endpoint functions, writes JUnit XML and
+uploads it as the `student-5-post-commit-evidence` artifact. See `RELEASE2_EVIDENCE.md` for the
+demonstration and report checklist.

@@ -16,13 +16,13 @@ BACKEND_URL = "http://localhost:5005"
 
 def request_json(method, path, payload=None):
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
-    request = Request(
+    request = Request(  # noqa: S310 - fixed localhost HTTP validation endpoint
         f"{BACKEND_URL}{path}",
         data=body,
         method=method,
         headers={"Content-Type": "application/json"},
     )
-    with urlopen(request, timeout=45) as response:
+    with urlopen(request, timeout=45) as response:  # noqa: S310 - request URL is fixed above
         return response.status, json.loads(response.read().decode("utf-8"))
 
 

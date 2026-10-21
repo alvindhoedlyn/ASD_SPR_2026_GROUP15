@@ -1,0 +1,1 @@
+Assess whether the evidence proves an integrated Planner -> Worker -> Reviewer -> Human Review workflow through the Flight backend and frontend. Check workflow history, coordination/audit events, endpoint tests and the final human decision. Give a PASS or FAIL recommendation and identify missing evidence.

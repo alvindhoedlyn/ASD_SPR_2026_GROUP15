@@ -174,7 +174,8 @@ def create_flight():
     connection = get_connection()
     try:
         cursor = connection.execute(
-            f"INSERT INTO flights ({', '.join(FLIGHT_FIELDS)}) VALUES ({placeholders})",
+            # FLIGHT_FIELDS is a fixed module-level tuple; every value remains bound.
+            f"INSERT INTO flights ({', '.join(FLIGHT_FIELDS)}) VALUES ({placeholders})",  # noqa: S608
             [clean[field] for field in FLIGHT_FIELDS],
         )
         connection.commit()
@@ -196,7 +197,8 @@ def update_flight(flight_id):
     connection = get_connection()
     try:
         cursor = connection.execute(
-            f"UPDATE flights SET {assignments} WHERE id = ?",
+            # assignments is derived only from the fixed FLIGHT_FIELDS tuple.
+            f"UPDATE flights SET {assignments} WHERE id = ?",  # noqa: S608
             [clean[field] for field in FLIGHT_FIELDS] + [flight_id],
         )
         connection.commit()

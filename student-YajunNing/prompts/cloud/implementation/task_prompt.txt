@@ -1,0 +1,1 @@
+Assess the Student 5 cloud deployment contribution. Check reusable Azure scripts, cloud-deployment.yml, the AI-disabled baseline, deployment validation output and the live Flight frontend/core functions. Recommend RELEASE or DO NOT RELEASE, while reserving the final decision for a human.

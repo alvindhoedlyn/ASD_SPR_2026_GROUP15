@@ -24,6 +24,8 @@ services:
       MCP_SERVER_URL: http://host.docker.internal:5200/mcp
       RAG_ENABLED: "true"
       RAG_SERVICE_URL: http://host.docker.internal:5100
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVICE_URL: http://host.docker.internal:5300
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
