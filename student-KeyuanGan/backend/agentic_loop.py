@@ -49,8 +49,7 @@ def run_budget_agent():
     expenses = get_budget_expenses_via_mcp()
 
     rag_result = query_rag(
-        "How should remaining budget and current spending be "
-        "interpreted in the Budget Tracker?"
+         "Remaining budget calculated"
     )
 
     trace.append({

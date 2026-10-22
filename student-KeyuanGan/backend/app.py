@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, request
 
 from agentic_loop import run_budget_agent
 
@@ -37,7 +37,7 @@ app = Flask(
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return app.send_static_file("index.html")
 
 
 # =========================================================
@@ -545,7 +545,7 @@ def internal_server_error(error):
 
 if __name__ == "__main__":
     app.run(
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104 - Docker networking
         port=5000,
-        debug=True
+        debug=False
     )
