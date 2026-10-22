@@ -4,9 +4,18 @@ Runs without Docker and preserves the existing Release 1 agent.
 """
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 from verification import run_verification
+
+
+# Add the Release 1 backend to the Python import path.
+BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
+sys.path.insert(0, str(BACKEND_DIR))
+
+from agentic_loop import run_budget_agent  # noqa: E402
 
 
 def planner():
@@ -35,12 +44,34 @@ def worker(plan, repo_root):
 
     verification = run_verification(repo_root)
 
+    # Optional Release 1 AI integration.
+    ai_result = {"status": "skipped", "reason": "AI integration not enabled"}
+
+    if os.getenv("ENABLE_AI_INTEGRATION", "false").lower() == "true":
+        try:
+            agent_result = run_budget_agent()
+            validations = agent_result.get("validation", {})
+            checks_passed = all(
+                validations.get(name, {}).get("status") == "passed"
+                for name in ("mcp", "rag", "local_ai")
+            )
+            ai_result = {
+                "status": "passed" if checks_passed else "failed",
+                "result": agent_result,
+            }
+        except Exception as error:
+            ai_result = {
+                "status": "failed",
+                "error": str(error),
+            }
+
     return {
         "agent": "Worker",
         "plan_received": plan["tasks"],
         "file_checks": checks,
         "all_files_present": all(checks.values()),
         "verification": verification,
+        "ai_integration": ai_result,
     }
 
 
@@ -51,11 +82,15 @@ def reviewer(work):
     ruff_passed = verification["ruff"]["passed"]
     audit_passed = verification["pip_audit"]["passed"]
 
+    ai_status = work.get("ai_integration", {}).get("status", "skipped")
+    ai_passed = ai_status in ("passed", "skipped")
+
     passed = (
         work["all_files_present"]
         and tests_passed
         and ruff_passed
         and audit_passed
+        and ai_passed
     )
 
     return {
