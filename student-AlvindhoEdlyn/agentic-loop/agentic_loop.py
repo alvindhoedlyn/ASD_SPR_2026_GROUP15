@@ -767,7 +767,7 @@ def run_multi_agent_testing():
 
 def main():
     print("=" * 50)
-    print("RELEASE 1 AGENTIC LOOP — Travel Itinerary Planner")
+    print("RELEASE 2 AGENTIC LOOP — Travel Itinerary Planner")
     print("=" * 50)
 
     while True:

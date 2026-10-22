@@ -4,16 +4,24 @@
 # Ollama, MCP, RAG and Multi-Agent servers are NOT deployed to the cloud, so each
 # backend that can call them is told to stay disabled.
 services:
+  ollama:
+    build:
+      context: ./ollama
+    ports:
+      - "11434:11434"
   student-AlvindhoEdlyn:
     environment:
-      AI_MODE_ENABLED: "false"
+      AI_MODE_ENABLED: "true"
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      SHARED_API_URL: http://shared-backend:5000
       MCP_ENABLED: "false"
       RAG_ENABLED: "false"
       MULTI_AGENT_ENABLED: "false"
 
   student-KeyuanGan-backend:
     environment:
-      AI_MODE_ENABLED: "false"
+      AI_MODE_ENABLED: "true"
+      OLLAMA_BASE_URL: http://ollama:11434
       MCP_ENABLED: "false"
       RAG_ENABLED: "false"
       MULTI_AGENT_ENABLED: "false"
@@ -27,14 +35,16 @@ services:
 
   student-TrongDao-backend:
     environment:
-      AI_MODE_ENABLED: "false"
+      AI_MODE_ENABLED: "true"
+      OLLAMA_API_URL: http://ollama:11434
       MCP_ENABLED: "false"
       RAG_ENABLED: "false"
       MULTI_AGENT_ENABLED: "false"
 
   yajunning-backend-service:
     environment:
-      AI_MODE_ENABLED: "false"
+      AI_MODE_ENABLED: "true"
+      OLLAMA_BASE_URL: http://ollama:11434/v1
       MCP_ENABLED: "false"
       RAG_ENABLED: "false"
       MULTI_AGENT_ENABLED: "false"

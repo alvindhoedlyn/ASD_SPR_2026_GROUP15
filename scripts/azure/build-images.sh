@@ -34,7 +34,8 @@ LOGS=".cloud-build-logs"
 rm -rf "$STAGE" "$LOGS"
 mkdir -p "$STAGE" "$LOGS"
 tar --exclude=./.git --exclude=./.cloud-stage --exclude=./.cloud-build-logs \
-  --exclude=node_modules --exclude=__pycache__ -cf - . | tar -C "$STAGE" -xf -
+  --exclude=./venv --exclude=./.venv \
+  --exclude=node_modules --exclude=__pycache__ -cf - . | tar -C "$STAGE" -xf - || [ $? -eq 1 ]
 
 # Rewrite the localhost links and nginx proxy targets in the staged copy.
 docker compose -f docker-compose.yml -f docker-compose.cloud.yml config --format json \

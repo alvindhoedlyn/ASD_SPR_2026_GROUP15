@@ -36,8 +36,10 @@ APPS = {
     "student-YajunNing": ("jb-yajunning-frontend", "frontend"),
     "yajunning-backend-service": ("jb-yajunning-backend", "backend"),
     "yajunning-database-service": ("jb-yajunning-database", "database"),
+    "ollama": ("jb-ollama", "llm"),
 }
 
+order = {"llm": 0, "database": 0, "backend": 1, "frontend": 2}
 
 def published_port(service: dict) -> int:
     return int(service["ports"][0]["published"])
@@ -52,7 +54,6 @@ def internal_urls(text: str, services: dict) -> str:
     for name in services:
         text = re.sub(rf"http://{re.escape(name)}(:\d+)?(?![\w-])", f"http://{APPS[name][0]}", text)
     return text
-
 
 def build_plan(compose: dict, domain: str) -> list[dict]:
     services = compose["services"]
@@ -70,11 +71,10 @@ def build_plan(compose: dict, domain: str) -> list[dict]:
             "dockerfile": build.get("dockerfile", "Dockerfile"),
             "target": build.get("target", ""),
             "port": target_port(service),
-            "external": kind != "database",
+            "external": kind not in ("database", "llm"),   # databases and the model server stay internal
             "url": f"https://{app}.{domain}",
             "env": env,
         })
-    order = {"database": 0, "backend": 1, "frontend": 2}   # nginx needs its backend to exist first
     return sorted(plan, key=lambda item: order[item["kind"]])
 
 
@@ -96,7 +96,7 @@ def rewrite_tree(stage: Path, domain: str, services: dict) -> int:
         if kind == "browser":
             for name, service in services.items():
                 app, app_kind = APPS[name]
-                if app_kind == "database":
+                if app_kind in ("database", "llm"):   # no public URL for these
                     continue
                 port = published_port(service)
                 text = re.sub(rf"http://localhost:{port}(?!\d)", f"https://{app}.{domain}", text)
