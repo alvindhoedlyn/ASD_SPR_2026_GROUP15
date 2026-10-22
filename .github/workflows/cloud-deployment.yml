@@ -70,6 +70,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Remove stale deployment evidence
+        run: rm -f reports/cloud/deployment-results.md
+
       - name: Log in to Azure using OIDC
         uses: azure/login@v2
         with:
