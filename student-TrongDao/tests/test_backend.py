@@ -327,6 +327,35 @@ def test_ai_fallback_when_ollama_is_unavailable(client):
     ]
 
 
+def test_ai_mode_is_rejected_when_disabled(client):
+    with (
+        patch.object(
+            backend_app,
+            "AI_MODE_ENABLED",
+            False
+        ),
+        patch.object(
+            backend_app.requests,
+            "get"
+        ) as mock_get,
+        patch.object(
+            backend_app.requests,
+            "post"
+        ) as mock_post
+    ):
+        response = client.post(
+            "/api/recommendations",
+            json=recommendation_request(ai_mode=True)
+        )
+
+    assert response.status_code == 403
+    assert response.get_json() == {
+        "error": "AI mode is disabled"
+    }
+    mock_get.assert_not_called()
+    mock_post.assert_not_called()
+
+
 def test_get_saved_places(client):
     saved_places = [
         {

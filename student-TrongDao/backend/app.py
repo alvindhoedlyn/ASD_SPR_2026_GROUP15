@@ -300,6 +300,7 @@ def environment_flag(name, default=False):
 MCP_ENABLED = environment_flag("MCP_ENABLED")
 RAG_ENABLED = environment_flag("RAG_ENABLED")
 MULTI_AGENT_ENABLED = environment_flag("MULTI_AGENT_ENABLED")
+AI_MODE_ENABLED = environment_flag("AI_MODE_ENABLED", default=True)
 
 MCP_SERVER_URL = os.getenv(
     "MCP_SERVER_URL",
@@ -776,6 +777,13 @@ def create_recommendations():
             "error": "budget_range must be free, low, medium, or high"
         }), 400
 
+    ai_mode = data.get("ai_mode", False)
+
+    if ai_mode and not AI_MODE_ENABLED:
+        return jsonify({
+            "error": "AI mode is disabled"
+        }), 403
+
     try:
         places_response = requests.get(
             f"{DATABASE_API_URL}/places",
@@ -875,8 +883,6 @@ def create_recommendations():
         )
 
         top_recommendations = recommendations[:5]
-
-        ai_mode = data.get("ai_mode", False)
 
         ai_draft = None
         ai_review = None
