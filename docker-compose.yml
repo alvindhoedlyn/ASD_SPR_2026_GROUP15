@@ -129,7 +129,7 @@ services:
     image: journeybuddy-student-keyuangan-database
     container_name: student-KeyuanGan-database
     ports:
-      - "6002:5001"
+      - "127.0.0.1:6002:5001"
     volumes:
       - keyuangan-data:/app/data
     networks:
