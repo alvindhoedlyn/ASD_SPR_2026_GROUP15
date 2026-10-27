@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Step 4. Creates (or updates) one container app per service: databases, then backends, then
 # frontends. AI features stay off because the environment variables come from
-# docker-compose.cloud.yml. Backends and frontends are public; databases are internal only.
+# docker-compose.cloud.yml. Only the frontends are public; backends, databases and the Ollama model server are internal.
 set -euo pipefail
 # Git Bash on Windows rewrites values like /app/data/app.db into C:/Program Files/Git/...
 export MSYS_NO_PATHCONV=1

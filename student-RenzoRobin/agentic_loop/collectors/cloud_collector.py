@@ -1,27 +1,35 @@
 """
 Cloud deployment review collector (Azure).
 
-Checks the deployment workflow, scripts and cloud configuration, reads the deployment
-results written by the deployment test script, and (optionally) probes the deployed
-frontend when CLOUD_URL is set.
+Checks the deployment workflow, scripts and cloud configuration and reads the deployment
+results written by the deployment test script (same approach as Lab 11).
 
 Returns (ok, evidence) like the other collectors.
 """
-import os
 from pathlib import Path
-
-import requests
 
 WORKFLOW = ".github/workflows/cloud-deployment.yml"
 CLOUD_COMPOSE = "docker-compose.cloud.yml"
 SCRIPTS_DIR = "scripts/azure"
+DEPLOY_SCRIPT = "deploy-azure.sh"
 RESULTS = "reports/cloud/deployment-results.md"
-AI_FLAGS = ("AI_MODE_ENABLED", "MCP_ENABLED", "RAG_ENABLED", "MULTI_AGENT_ENABLED")
+INFO_FLAGS = ("AI_MODE_ENABLED",)  # allowed on: AI runs through the internal Ollama container app
+OFF_FLAGS = ("MCP_ENABLED", "RAG_ENABLED", "MULTI_AGENT_ENABLED")  # must stay off in the cloud
+TRUE_VALUES = ("true", "1", "yes", "on")
 MAX_RESULT_LINES = 40
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
+
+
+def _flag_values(text: str, flag: str) -> list[str]:
+    values = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(flag):
+            values.append(stripped.split(":", 1)[-1].strip().strip('"').strip("'").lower())
+    return values
 
 
 def collect(app_dir: Path, repo_root: Path) -> tuple[bool, str]:
@@ -35,29 +43,46 @@ def collect(app_dir: Path, repo_root: Path) -> tuple[bool, str]:
         found = [word for word in ("azure/login", "workflow_dispatch", "needs:") if word in workflow]
         lines.append(f"{WORKFLOW}: present, contains {', '.join(found) or 'none of the expected keys'}.")
 
-    scripts = sorted(path.name for path in (repo_root / SCRIPTS_DIR).glob("*.sh")) if (repo_root / SCRIPTS_DIR).exists() else []
+    scripts_path = repo_root / SCRIPTS_DIR
+    scripts = sorted(path.name for path in scripts_path.glob("*.sh")) if scripts_path.exists() else []
     if scripts:
         lines.append(f"{SCRIPTS_DIR}: {len(scripts)} deployment script(s): {', '.join(scripts)}.")
     else:
         ok = False
         lines.append(f"{SCRIPTS_DIR}: no deployment scripts found.")
 
-    cloud_compose = _read(repo_root / CLOUD_COMPOSE)
-    if cloud_compose:
-        enabled = [
-            flag for flag in AI_FLAGS
-            if any(flag in line and "true" in line.lower() for line in cloud_compose.splitlines())
-        ]
-        listed = [flag for flag in AI_FLAGS if flag in cloud_compose]
+    deploy = _read(scripts_path / DEPLOY_SCRIPT)
+    if deploy.strip():
+        has_ingress = "--ingress" in deploy
+        has_both = "internal" in deploy + _read(scripts_path / "plan.py") and "external" in deploy + _read(scripts_path / "plan.py")
         lines.append(
-            f"{CLOUD_COMPOSE}: AI flags set to false: {', '.join(f for f in listed if f not in enabled) or 'none'}"
-            + (f"; STILL ENABLED: {', '.join(enabled)}" if enabled else "")
-            + "."
+            f"{DEPLOY_SCRIPT}: --ingress {'present' if has_ingress else 'MISSING'}, "
+            f"internal and external ingress {'both present' if has_both else 'NOT both present'}."
         )
-        ok = ok and not enabled
+        ok = ok and has_ingress and has_both
     else:
         ok = False
-        lines.append(f"{CLOUD_COMPOSE}: missing, so the AI-disabled baseline cannot be confirmed.")
+        lines.append(f"{DEPLOY_SCRIPT}: missing or empty.")
+
+    cloud_compose = _read(repo_root / CLOUD_COMPOSE)
+    if cloud_compose:
+        info = []
+        for flag in INFO_FLAGS:
+            values = _flag_values(cloud_compose, flag)
+            if values:
+                info.append(f"{flag}={'true' if any(v in TRUE_VALUES for v in values) else 'false'}")
+        on = [flag for flag in OFF_FLAGS if any(v in TRUE_VALUES for v in _flag_values(cloud_compose, flag))]
+        off = [flag for flag in OFF_FLAGS if flag not in on]
+        lines.append(
+            f"{CLOUD_COMPOSE}: flags that must be off and are off: {', '.join(off) or 'none'}"
+            + (f"; STILL ENABLED: {', '.join(on)}" if on else "")
+            + (f"; information (AI runs on the internal Ollama app): {', '.join(info)}" if info else "")
+            + "."
+        )
+        ok = ok and not on
+    else:
+        ok = False
+        lines.append(f"{CLOUD_COMPOSE}: missing, so the cloud configuration cannot be confirmed.")
 
     results = _read(repo_root / RESULTS)
     if results.strip():
@@ -66,18 +91,7 @@ def collect(app_dir: Path, repo_root: Path) -> tuple[bool, str]:
         if "FAIL" in results:
             ok = False
     else:
+        ok = False
         lines.append(f"deployment results: {RESULTS} not found (run the deployment test script after deploying).")
-
-    cloud_url = os.environ.get("CLOUD_URL", "").strip()
-    if cloud_url:
-        try:
-            status = requests.get(cloud_url, timeout=20).status_code
-            lines.append(f"live check {cloud_url}: HTTP {status}.")
-            ok = ok and status == 200
-        except requests.exceptions.RequestException as exc:
-            ok = False
-            lines.append(f"live check {cloud_url}: request failed - {exc}")
-    else:
-        lines.append("live check: CLOUD_URL not set, so the deployed frontend was not probed.")
 
     return ok, "\n".join(lines)
