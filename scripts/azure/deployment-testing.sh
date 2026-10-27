@@ -39,15 +39,27 @@ done
 for app in shared alvindhoedlyn keyuangan renzorobin trongdao yajunning; do
   check_status "Frontend $app" "$(BASE "jb-$app-frontend")/" 200
 done
-for app in shared alvindhoedlyn keyuangan renzorobin trongdao yajunning; do
-  check_status "Backend $app /health" "$(BASE "jb-$app-backend")/health" 200
-done
-# Backend -> database over the environment's internal network.
-check_status "Renzo backend reaches its database" "$(BASE jb-renzorobin-backend)/accommodations" 200
-# Frontend -> backend through the nginx proxy (the Lab 11 pattern).
-check_status "Renzo frontend proxies to its backend" "$(BASE jb-renzorobin-frontend)/accommodations" 200
+# Every backend is internal (Lab 11): each one is tested through its own frontend's nginx proxy.
+check_reachable() {   # name url  (passes when the backend answered: not 000/404/502/503/504)
+  local name="$1" url="$2"; shift 2
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$@" "$url" || true)
+  case "$code" in
+    000|404|502|503|504) ROWS="$ROWS| $name | $url | FAIL (got $code) |"$'\n'; OVERALL=1 ;;
+    *) ROWS="$ROWS| $name | $url | PASS ($code) |"$'\n' ;;
+  esac
+}
+check_reachable "Shared backend via shared frontend" "$(BASE jb-shared-frontend)/api/verify-session"
+check_reachable "Alvindho backend via its frontend" "$(BASE jb-alvindhoedlyn-frontend)/api/journeys"
+check_reachable "Keyuan backend via its frontend" "$(BASE jb-keyuangan-frontend)/api/expenses"
+check_reachable "Trong backend via its frontend" "$(BASE jb-trongdao-frontend)/api/places"
+check_reachable "Yajun backend via its frontend" "$(BASE jb-yajunning-frontend)/api/release1/status"
+check_status "Renzo backend /health via its frontend" "$(BASE jb-renzorobin-frontend)/health" 200
+# Backend -> database over the environment's internal network, seen through the frontend proxy.
+check_status "Renzo backend reaches its database" "$(BASE jb-renzorobin-frontend)/accommodations" 200
+check_status "Renzo frontend proxies /areas" "$(BASE jb-renzorobin-frontend)/areas" 200
 # AI features must be off in the cloud: this route answers 403 when Multi-Agent is disabled.
-check_status "Multi-Agent disabled" "$(BASE jb-renzorobin-backend)/multi-agent/run" 403 \
+check_status "Multi-Agent disabled" "$(BASE jb-renzorobin-frontend)/multi-agent/run" 403 \
   -X POST -H "Content-Type: application/json" -d '{"question":"cloud check"}'
 
 {

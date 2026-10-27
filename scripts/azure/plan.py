@@ -71,7 +71,7 @@ def build_plan(compose: dict, domain: str) -> list[dict]:
             "dockerfile": build.get("dockerfile", "Dockerfile"),
             "target": build.get("target", ""),
             "port": target_port(service),
-            "external": kind not in ("database", "llm"),   # databases and the model server stay internal
+            "external": kind == "frontend",   # only frontends are public (Lab 11); backends, databases and the model server are internal
             "url": f"https://{app}.{domain}",
             "env": env,
         })
@@ -98,10 +98,20 @@ def rewrite_tree(stage: Path, domain: str, services: dict) -> int:
                 app, app_kind = APPS[name]
                 if app_kind in ("database", "llm"):   # no public URL for these
                     continue
+                if app_kind == "backend":
+                    # Backends are internal: a browser link to a backend port goes to that module's frontend,
+                    # whose nginx proxies the /api/ calls to the backend.
+                    app = app.replace("-backend", "-frontend")
                 port = published_port(service)
                 text = re.sub(rf"http://localhost:{port}(?!\d)", f"https://{app}.{domain}", text)
+            # Trong's frontend builds the backend address from the page host plus :5004; use same-origin paths.
+            text = re.sub(
+                r"const API_BASE_URL =\s*`\$\{window\.location\.protocol\}//\$\{window\.location\.hostname\}:\d+`;",
+                'const API_BASE_URL = "";', text)
         else:
             text = internal_urls(text, services)
+            # An internal backend is routed by its Host header, so the proxy must send the backend's own name.
+            text = text.replace("proxy_set_header Host $host;", "proxy_set_header Host $proxy_host;")
         if text != original:
             path.write_text(text, encoding="utf-8")
             changed += 1
