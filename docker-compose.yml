@@ -222,6 +222,7 @@ services:
       OLLAMA_API_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen2.5:0.5b
       OLLAMA_REVIEW_MODEL: llama3.1:8b
+      AI_MODE_ENABLED: "${AI_MODE_ENABLED:-true}"
       MCP_ENABLED: "${MCP_ENABLED:-true}"
       MCP_SERVER_URL: http://host.docker.internal:5200/mcp
       RAG_ENABLED: "${RAG_ENABLED:-true}"
