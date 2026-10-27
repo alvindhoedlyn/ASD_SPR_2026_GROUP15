@@ -3,7 +3,6 @@ pyjwt
 ruff
 pip-audit
 tomli; python_version < "3.11"
-# needed to import backend/app.py and database/init_db.py under test
 flask
 flask-cors
 python-dotenv
