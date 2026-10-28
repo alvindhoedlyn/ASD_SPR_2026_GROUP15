@@ -304,6 +304,44 @@ services:
       - yajunning-data:/app/data
     networks:
       - yajunning-net
+  rag-server:
+    build:
+      context: ./ai-services/rag-server
+    ports:
+      - "5100:5100"
+    environment:
+      PORT: "5100"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:0.5b
+      ACCOMMODATION_DB_URL: http://student-RenzoRobin-database:6003
+      FLIGHT_DATABASE_URL: http://yajunning-database-service:6005
+      LOCATION_DB_URL: http://student-TrongDao-database:6004
+
+  mcp-server:
+    build:
+      context: ./ai-services/mcp-server
+    ports:
+      - "5200:5200"
+    environment:
+      MCP_PORT: "5200"
+      MCP_ALLOWED_HOSTS: "jb-mcp-server,jb-mcp-server:*"
+      ACCOMMODATION_DB_URL: http://student-RenzoRobin-database:6003
+      FLIGHT_BACKEND_URL: http://yajunning-backend-service:5005
+      FLIGHT_DATABASE_URL: http://yajunning-database-service:6005
+      ITINERARY_DB_URL: http://student-AlvindhoEdlyn-database:6001
+      ITINERARY_BACKEND_URL: http://student-AlvindhoEdlyn:5001
+      LOCATION_DB_URL: http://student-TrongDao-database:6004
+      BUDGET_BACKEND_URL: http://student-KeyuanGan-backend:5000
+  multi-agent-server:
+    build:
+      context: ./ai-services/multi-agent-server
+    ports:
+      - "5300:5300"
+    environment:
+      MULTI_AGENT_PORT: "5300"
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      OLLAMA_MODEL: qwen2.5:0.5b
+      AGENT_STEP_TIMEOUT_SECONDS: "60"
 
 networks:
   journeybuddy-net:

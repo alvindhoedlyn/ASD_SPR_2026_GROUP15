@@ -58,9 +58,6 @@ check_status "Renzo backend /health via its frontend" "$(BASE jb-renzorobin-fron
 # Backend -> database over the environment's internal network, seen through the frontend proxy.
 check_status "Renzo backend reaches its database" "$(BASE jb-renzorobin-frontend)/accommodations" 200
 check_status "Renzo frontend proxies /areas" "$(BASE jb-renzorobin-frontend)/areas" 200
-# AI features must be off in the cloud: this route answers 403 when Multi-Agent is disabled.
-check_status "Multi-Agent disabled" "$(BASE jb-renzorobin-frontend)/multi-agent/run" 403 \
-  -X POST -H "Content-Type: application/json" -d '{"question":"cloud check"}'
 
 {
   echo "# Cloud deployment results"

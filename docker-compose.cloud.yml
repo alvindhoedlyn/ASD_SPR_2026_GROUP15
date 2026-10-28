@@ -15,9 +15,11 @@ services:
       AI_MODE_ENABLED: "true"
       OLLAMA_BASE_URL: http://ollama:11434/v1
       SHARED_API_URL: http://shared-backend:5000
-      MCP_ENABLED: "false"
-      RAG_ENABLED: "false"
-      MULTI_AGENT_ENABLED: "false"
+      RAG_ENABLED: "true"
+      RAG_SERVICE_URL: http://rag-server:5100
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_URL: http://multi-agent-server:5300
+      MCP_ENABLED: "true" 
 
   student-KeyuanGan-backend:
     environment:
@@ -31,22 +33,29 @@ services:
     environment:
       AI_MODE_ENABLED: "true"
       OLLAMA_BASE_URL: http://ollama:11434
-      MCP_ENABLED: "false"
-      RAG_ENABLED: "false"
-      MULTI_AGENT_ENABLED: "false"
-
+      RAG_ENABLED: "true"
+      RAG_SERVICE_URL: http://rag-server:5100
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVICE_URL: http://multi-agent-server:5300
+      MCP_ENABLED: "true"
+      MCP_SERVICE_URL: http://mcp-server:5200/mcp
   student-TrongDao-backend:
     environment:
       AI_MODE_ENABLED: "true"
       OLLAMA_API_URL: http://ollama:11434
-      MCP_ENABLED: "false"
-      RAG_ENABLED: "false"
-      MULTI_AGENT_ENABLED: "false"
+      MCP_ENABLED: "true"
+      MCP_SERVER_URL: http://mcp-server:5200/mcp
+      RAG_ENABLED: "true"
+      RAG_SERVER_URL: http://rag-server:5100
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVICE_URL: http://multi-agent-server:5300
 
   yajunning-backend-service:
     environment:
       AI_MODE_ENABLED: "true"
       OLLAMA_BASE_URL: http://ollama:11434/v1
-      MCP_ENABLED: "false"
-      RAG_ENABLED: "false"
+      MCP_ENABLED: "true"
+      MCP_SERVER_URL: http://mcp-server:5200/mcp
+      RAG_ENABLED: "true"
+      RAG_SERVICE_URL: http://rag-server:5100
       MULTI_AGENT_ENABLED: "false"

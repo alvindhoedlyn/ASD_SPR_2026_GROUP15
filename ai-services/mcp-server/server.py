@@ -22,7 +22,7 @@ from mcp.server.transport_security import (
 
 MCP_HOST = os.getenv("MCP_HOST", "0.0.0.0")
 MCP_PORT = int(os.getenv("MCP_PORT", "5200"))
-
+MCP_ALLOWED_HOSTS = [h.strip() for h in os.getenv("MCP_ALLOWED_HOSTS", "").split(",") if h.strip()]
 
 mcp = FastMCP(
     "Group Travel App MCP Server",
@@ -37,6 +37,7 @@ mcp = FastMCP(
             f"localhost:{MCP_PORT}",
             f"127.0.0.1:{MCP_PORT}",
             f"host.docker.internal:{MCP_PORT}",
+            *MCP_ALLOWED_HOSTS,
         ],
     ),
 )

@@ -36,10 +36,13 @@ APPS = {
     "student-YajunNing": ("jb-yajunning-frontend", "frontend"),
     "yajunning-backend-service": ("jb-yajunning-backend", "backend"),
     "yajunning-database-service": ("jb-yajunning-database", "database"),
-    "ollama": ("jb-ollama", "llm"),
+    "ollama": ("jb-ollama", "llm"),     "rag-server": ("jb-rag-server", "service"),
+    "mcp-server": ("jb-mcp-server", "service"),
+    "multi-agent-server": ("jb-multi-agent-server", "service"),
 }
 
-order = {"llm": 0, "database": 0, "backend": 1, "frontend": 2}
+order = {"llm": 0, "database": 0, "service": 1, "backend": 1, "frontend": 2}
+INTERNAL_KINDS = ("database", "llm", "service")   # no public URL
 
 def published_port(service: dict) -> int:
     return int(service["ports"][0]["published"])
@@ -71,7 +74,7 @@ def build_plan(compose: dict, domain: str) -> list[dict]:
             "dockerfile": build.get("dockerfile", "Dockerfile"),
             "target": build.get("target", ""),
             "port": target_port(service),
-            "external": kind == "frontend",   # only frontends are public (Lab 11); backends, databases and the model server are internal
+            "external": kind not in INTERNAL_KINDS,
             "url": f"https://{app}.{domain}",
             "env": env,
         })
@@ -96,7 +99,7 @@ def rewrite_tree(stage: Path, domain: str, services: dict) -> int:
         if kind == "browser":
             for name, service in services.items():
                 app, app_kind = APPS[name]
-                if app_kind in ("database", "llm"):   # no public URL for these
+                if app_kind in INTERNAL_KINDS:   # no public URL for these
                     continue
                 if app_kind == "backend":
                     # Backends are internal: a browser link to a backend port goes to that module's frontend,

@@ -33,7 +33,10 @@ while IFS='|' read -r app kind port ingress context dockerfile target envs; do
 
   # Small apps by default; the model server needs far more memory.
   cpu=0.25; mem=0.5Gi
-  if [ "$kind" = "llm" ]; then cpu=4; mem=8Gi; fi
+  case "$kind" in
+    llm)     cpu=4; mem=8Gi ;;
+    service) cpu=1; mem=2Gi ;;
+  esac
   
   if az containerapp show --name "$app" --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
     echo "updating $app"
