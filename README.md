@@ -5,11 +5,13 @@ Group Project Members:
 - Keyuan Gan
 - Renzo Van Herli Robin
 - Trong Phuc Dao
-- Yajun Ning 
+- Yajun Ning
 
 # JourneyBuddy
 
-The members of Group 15 have collaborated to create JourneyBuddy, a travel planning app that aims to improve the travelling experience for upcoming tourists. This site allows users to select a flight, explore through a list of locations, plan out their itinerary, map out their accommodation options and calculate their expected budget. Each member has also managed to integrate AI into our respective features for the sake of feature implementation, performed by Qwen 2.5:0.5b and code review, performed by llama.  
+The members of Group 15 have collaborated to create JourneyBuddy, a travel planning app that aims to improve the travelling experience for upcoming tourists. The site lets users compare flights, find attractions that match their style, get accommodation recommendations weighted by their own priorities, plan out their trip on a map, and plan their budget.
+
+Each member has integrated AI into their feature: Qwen 2.5 (0.5b) for feature implementation and Llama 3.1 (8b) for code review. Release 2 adds three shared AI services (MCP, RAG and a Multi-Agent server) and a cloud deployment on Azure Container Apps.
 
 ## Table of Contents
 - [Architecture Overview](#architecture-overview)
@@ -17,31 +19,39 @@ The members of Group 15 have collaborated to create JourneyBuddy, a travel plann
 - [Prerequisites](#prerequisites)
 - [Setup Instructions](#setup-instructions)
 - [Running the Application](#running-the-application)
+- [AI Services](#ai-services)
+- [Cloud Deployment](#cloud-deployment)
 - [CI/CD Pipeline](#cicd-pipeline)
+- [Testing](#testing)
 - [Project Structure](#project-structure)
 
 ## Architecture Overview
 
 The application follows a **microservices architecture**, where:
 - A **shared frontend/backend/database** provides core platform functionality (auth, shared data).
-- Each **student module** is an independent frontend + backend + database trio focused on a specific feature (e.g. accommodation recommendations, flight search, itinerary planning).
-- All services communicate over a shared Docker network (`journeybuddy-net`), with an `ai-mode` service (Ollama) providing local LLM inference to modules that need it.
+- Each **student module** is an independent frontend + backend + database trio focused on a specific feature (flights, attractions, accommodation, map routes, budget).
+- Three **shared AI services** (MCP, RAG, Multi-Agent) are called by the module backends.
+- **Ollama** provides LLM inference to the modules and AI services that need it.
+- Locally, all services communicate over Docker networks defined in `docker-compose.yml`. In the cloud, each service runs as its own Azure Container App.
 
-Each module's frontend depends on its backend, and each backend depends on its own database (and, where relevant, on `ai-mode`) — this dependency chain is enforced both in `docker-compose.yml` and mirrored in each module's CI build order.
+Each module's frontend depends on its backend, and each backend depends on its own database. This dependency chain is enforced in `docker-compose.yml` and mirrored in each module's CI build order.
 
 ## Services
 
 | Service | Description | Port |
 |---|---|---|
 | `shared-frontend` | Main platform UI | 3000 |
-| `shared-backend` | Core platform API | 5000 |
+| `shared-backend` | Core platform API (auth) | 5000 |
 | `shared-database` | Core platform data store | 6000 |
-| `student-AlvindhoEdlyn` (+ frontend/database) | Student module | 5001 / 3001 / 6001 |
-| `student-KeyuanGan-frontend` / `-backend` / `-database` | Student module | 3002 / 5002 / 5702 |
-| `student-RenzoRobin-frontend` / `-backend` / `-database` | Accommodation Recommender module | 3003 / 5003 / 6003 |
-| `student-TrongDao` (+ backend/database) | Location recommender module | 3004 / 5004 / 6004 |
-| `student-YajunNing` (+ backend/database) | Flights module | 3005 / 5005 / 6005 |
-| `ai-mode` | Local LLM inference (Ollama) | 11434 |
+| `student-AlvindhoEdlyn` (+ `-frontend`, `-database`) | Map Routes | 5001 / 3001 / 6001 |
+| `student-KeyuanGan-frontend` / `-backend` / `-database` | Budget | 3002 / 5002 / 6002 |
+| `student-RenzoRobin-frontend` / `-backend` / `-database` | Accommodation | 3003 / 5003 / 6003 |
+| `student-TrongDao` (+ `-backend`, `-database`) | Attractions | 3004 / 5004 / 6004 |
+| `student-YajunNing` (+ `yajunning-backend-service`, `yajunning-database-service`) | Flights | 3005 / 5005 / 6005 |
+| `rag-server` | Shared RAG service | 5100 |
+| `mcp-server` | Shared MCP tool server | 5200 |
+| `multi-agent-server` | Shared Planner / Worker / Reviewer workflow | 5300 |
+| Ollama | LLM inference (`qwen2.5:0.5b`, `llama3.1:8b`) | 11434 |
 
 ## Prerequisites
 
@@ -49,27 +59,29 @@ Make sure you have the following installed before setting up the project:
 - [Docker](https://www.docker.com/get-started) and Docker Compose (v2+)
 - Git
 - Python 3.12
+- [Ollama](https://ollama.com) with `qwen2.5:0.5b` and `llama3.1:8b` pulled (for the AI features)
+- For the cloud deployment only: the Azure CLI and the GitHub CLI
 
 ## Setup Instructions
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd journeybuddy
+   git clone https://github.com/alvindhoedlyn/ASD_SPR_2026_GROUP15.git
+   cd ASD_SPR_2026_GROUP15
    ```
 
 2. **Review environment variables**
-   Each service's environment variables (ports, database paths, API URLs) are pre-configured in `docker-compose.yml`.
+   Each service's environment variables (ports, database paths, API URLs, AI switches) are pre-configured in `docker-compose.yml`.
 
 3. **Build and start all services**
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
-   This builds every service's image (if not already built) and starts all containers, including the shared platform, each student module, and the `ai-mode` LLM service.
+   This builds every service's image (if not already built) and starts the shared platform, each student module and the AI services.
 
 4. **Verify everything is running**
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
    All services should show a status of `Up`.
 
@@ -80,332 +92,105 @@ Once all containers are running, the application is accessible via:
 | App | URL |
 |---|---|
 | Main platform | http://localhost:3000 |
-| Flight Recommender (YajunNing) | http://localhost:3005 |
-| Attractions Recommender (TrongDao) | http://localhost:3004 |
-| Accommodation Recommender (RenzoRobin) | http://localhost:3003 |
-| Itinerary Planner (RenzoRobin) | http://localhost:3001 |
-| Itinerary Planner (RenzoRobin) | http://localhost:3002 |
-
+| Flights (YajunNing) | http://localhost:3005 |
+| Attractions (TrongDao) | http://localhost:3004 |
+| Accommodation (RenzoRobin) | http://localhost:3003 |
+| Map Routes (AlvindhoEdlyn) | http://localhost:3001 |
+| Budget (KeyuanGan) | http://localhost:3002 |
 
 To stop all services:
 ```bash
-docker-compose down
+docker compose down
 ```
 
 To rebuild a single service after making changes:
 ```bash
-docker-compose up --build <service-name>
+docker compose up --build <service-name>
 ```
+
+## AI Services
+
+| Service | Purpose | Switch (per backend) |
+|---|---|---|
+| `rag-server` | Answers questions from retrieved context (accommodation, flights, budget, itinerary, location) | `RAG_ENABLED` |
+| `mcp-server` | Exposes each module's data as MCP tools | `MCP_ENABLED` |
+| `multi-agent-server` | Runs a Planner → Worker → Reviewer workflow and waits for a human decision | `MULTI_AGENT_ENABLED` |
+
+- AI features inside each backend are controlled by `AI_MODE_ENABLED`.
+- The Multi-Agent server writes its audit trail to `ai-services/multi-agent-server/data/` (`coordination_audit.jsonl`, `workflow_history.jsonl`).
+- Each student also has an **agentic loop** (`student-*/agentic_loop` or `agentic-loop`) that collects evidence, asks a local model to assess it and a second model to review the result, then saves a validation log under `reports/agentic-loop/`.
+
+## Cloud Deployment
+
+The application is deployed to **Azure Container Apps** (one app per compose service, 22 in total).
+
+- Only the six frontends have a public address. Backends, databases, Ollama and the AI services are internal; each frontend's nginx proxies `/api` to its backend.
+- AI Mode, MCP, RAG and Multi-Agent are enabled in `docker-compose.cloud.yml`.
+- `qwen2.5:0.5b` is pulled when the Ollama app starts. `llama3.1:8b` is a larger model and may need to be pulled separately (`ollama pull llama3.1:8b` inside the Ollama app).
+
+### Deploying from GitHub Actions
+
+The workflow `.github/workflows/cloud-deployment.yml` runs on **manual dispatch** (Actions → Cloud Deployment → Run workflow). It logs in to Azure with OIDC, so the repository needs these secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`. It runs two jobs:
+
+1. `post_commit_tests`: runs the endpoint tests and validates the cloud compose configuration.
+2. `deploy`: prepares the Azure resources, builds and pushes the images, deploys the apps, runs the deployment checks and uploads the results as the `cloud-deployment-evidence` artifact.
+
+### Deploying by hand
+
+Scripts are in `scripts/azure/` and run in this order (Git Bash or WSL):
+
+| Step | Script | What it does |
+|---|---|---|
+| 1 | `env-setup.sh` | Registers providers, creates the resource group and tags |
+| 2 | `deploy-azure-env.sh` | Creates the Container Apps environment |
+| 3 | `build-images.sh` | Builds the images locally with Docker and pushes them to the registry |
+| 4 | `deploy-azure.sh` | Creates or updates the container apps |
+| 5 | `deployment-testing.sh` | Runs the deployment checks and writes `reports/cloud/deployment-results.md` |
+
+`cleanup.sh` deletes the whole resource group. Use it when you are finished, since the deployment costs money while it runs.
 
 ## CI/CD Pipeline
 
-Each student module has its own GitHub Actions workflow that runs automatically on every push or pull request affecting that module's folder. Each pipeline:
+**Pre-commit.** Each module runs security and test hooks before a commit: Ruff, detect-secrets, pip-audit and endpoint tests (see each module's `.pre-commit-config.yaml`).
+
+**Post-commit.** Each student module has its own GitHub Actions workflow (`student-1-ci.yml` to `student-5-ci.yml`) that runs on every push or pull request affecting that module's folder. Each pipeline:
 
 1. Checks out the code and sets up the Python environment
 2. Installs dependencies and runs a syntax check
 3. Runs the automated test suite (`pytest`)
 4. If tests pass, builds the module's Docker images (database → backend → frontend), tagged to match the names used in `docker-compose.yml`
 
+`integration-ci.yml` checks the modules together, and `cloud-deployment.yml` (above) deploys to Azure.
+
 This ensures that only tested, working code produces new images that can be run via Docker Compose.
 
-## Cloud Deployment Structure
-We have utilized Azure to upload our project to the Cloud. The images are passed through the docker-compose-cloud.yml file to rebuild the Docker containers in the Azure Cloud via the ACR.
+## Testing
 
-So far, the following features are accessible through the cloud: 
-1. Basic Feature of All Microservices
-2. AI-Mode Across All Microservices
-3. MCP Server Across All Microservices
-4. RAG Server Across All Microservices
-5. Multi Agent Server Across All Microservices
-
-Our code can now be deployed outside of the Cloud and accessible through the following link:
-https://jb-alvindhoedlyn-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io/
+Run a module's tests from the repository root, for example for the Accommodation module:
+```bash
+python -m pytest student-RenzoRobin/tests
+```
+Test results and agentic-loop validation logs are stored in each module's `reports/` folder. Cloud deployment results are in `reports/cloud/`.
 
 ## Project Structure
 
 ```
-C:.
-│   .gitignore
-│   docker-compose.yml
-│   README.md
-│
-├───.github
-│   └───workflows
-│           cloud-deployment.yml
-│           integration-ci.yml
-│           student-1-ci.yml
-│           student-2-ci.yml
-│           student-3-ci.yml
-│           student-4-ci.yml
-│           student-5-ci.yml
-│
-├───ai-services
-│   ├───ai-mode
-│   ├───mcp-server
-│   ├───multi-agent-server
-│   └───rag-server
-│
-├───docs
-│   ├───architecture
-│   ├───release-0
-│   ├───release-1
-│   ├───release-2
-│   └───reports
-│
-├───scripts
-│   ├───build
-│   ├───deploy
-│   └───test
-│
-├───shared
-│   ├───agentic_loop
-│   │   ├───config
-│   │   │       review_config.py
-│   │   │
-│   │   ├───core
-│   │   │       ai_runner.py
-│   │   │       orchestrator.py
-│   │   │       prompt_registry.py
-│   │   │       reporter.py
-│   │   │
-│   │   └───pipelines
-│   │           review_pipeline.py
-│   │
-│   ├───backend
-│   │       app.py
-│   │       Dockerfile
-│   │       requirements.txt
-│   │
-│   ├───configuration
-│   │
-│   ├───database
-│   │       app.py
-│   │       Dockerfile
-│   │       requirements.txt
-│   │       schema.sql
-│   │
-│   └───frontend
-│       │   Dockerfile
-│       │   index.html
-│       │   login.html
-│       │
-│       ├───assets
-│       ├───css
-│       │       style.css
-│       │
-│       └───js
-│               main.js
-│
-├───student-AlvindhoEdlyn
-│   │   Dockerfile
-│   │   requirements.txt
-│   │
-│   ├───backend
-│   │       app.py
-│   │
-│   ├───database
-│   │       Dockerfile
-│   │       init_db.py
-│   │       schema.sql
-│   │
-│   ├───frontend
-│   │   │   Dockerfile
-│   │   │   index.html
-│   │   │   nginx.conf
-│   │   │   script.js
-│   │   │
-│   │   └───css
-│   │           style.css
-│   │
-│   ├───prompts
-│   │       create_day.txt
-│   │       create_itinerary.txt
-│   │       fill_trip.txt
-│   │       itinerary_adjustment.txt
-│   │       plan_suggestions.txt
-│   │
-│   └───tests
-│           test_placeholder.py
-│
-├───student-KeyuanGan
-│   │   Dockerfile
-│   │
-│   ├───backend
-│   │       agentic_loop.py
-│   │       app.py
-│   │       database_client.py
-│   │       llm_client.py
-│   │       requirements.txt
-│   │
-│   ├───database
-│   │       app.py
-│   │       Dockerfile
-│   │       requirements.txt
-│   │       schema.sql
-│   │
-│   ├───frontend
-│   │       Dockerfile
-│   │       index.html
-│   │       nginx.conf
-│   │
-│   └───tests
-│           test_placeholder.py
-│
-├───student-RenzoRobin
-│   ├───agentic_loop
-│   │   │   main.py
-│   │   │
-│   │   ├───collectors
-│   │   │       db_collector.py
-│   │   │       devops_collector.py
-│   │   │       endpoints_collector.py
-│   │   │
-│   │   ├───config
-│   │   │       review_config.py
-│   │   │
-│   │   └───pipelines
-│   │           architecture_pipeline.py
-│   │           db_pipeline.py
-│   │           endpoints_pipeline.py
-│   │
-│   ├───backend
-│   │       app.py
-│   │       Dockerfile
-│   │       requirements.txt
-│   │
-│   ├───database
-│   │       app.py
-│   │       Dockerfile
-│   │       requirements.txt
-│   │       schema.sql
-│   │
-│   ├───frontend
-│   │   │   Dockerfile
-│   │   │   index.html
-│   │   │
-│   │   ├───css
-│   │   │       accommodation.css
-│   │   │
-│   │   └───js
-│   │           accommodation.js
-│   │
-│   ├───prompts
-│   │   ├───devops
-│   │   │   ├───implementation
-│   │   │   │       system_prompt.txt
-│   │   │   │       task_prompt.txt
-│   │   │   │
-│   │   │   └───review
-│   │   │           review_prompt.txt
-│   │   │
-│   │   └───service
-│   │       ├───implementation
-│   │       │       context_prompt.txt
-│   │       │       system_prompt.txt
-│   │       │       task_prompt.txt
-│   │       │
-│   │       └───review
-│   │               review_prompt.txt
-│   │
-│   └───tests
-│           test_backend.py
-│           test_database.py
-│
-├───student-TrongDao
-│   │   .dockerignore
-│   │   Dockerfile
-│   │
-│   ├───agentic_loop 
-│   │   │   main.py 
-│   │   │ 
-│   │   ├───collectors 
-│   │   │       databasse_collector.py 
-│   │   │       devops_collector.py 
-│   │   │       endpoints_collector.py 
-│   │   
-│   │   ├───config 
-│   │   │       review_config.py 
-│   │   │ 
-│   │   └───pipelines 
-│   │           review_pipeline.py 
-│   ├───backend
-│   │       app.py
-│   │       requirements.txt
-│   │
-│   ├───database
-│   │       app.py
-│   │       init_db.py
-│   │       requirements.txt
-│   │       schema.sql
-│   │
-│   ├───frontend
-│   │   │   health
-│   │   │   index.html
-│   │   │
-│   │   ├───css
-│   │   │       location.css
-│   │   │
-│   │   └───js
-│   │           location.js
-│   │
-│   ├───prompts 
-│   │   ├───database 
-│   │   │   ├───implementation 
-│   │   │   │	│ System_prompt.txt 
-│   │   │   │	│ Task_prompt.txt 
-│   │   │   ├───review 
-│   │   │   │    │ review_promp.txt 
-│   │   ├───devops 
-│   │   │   ├───implementation 
-│   │   │   │	│ System_prompt.txt 
-│   │   │   │	│ Task_prompt.txt 
-│   │   │   ├───review 
-│   │   │   │   │ review_promp.txt 
-│   │   ├───endpoints 
-│   │   │   ├───implementation 
-│   │   │   │	│ System_prompt.txt 
-│   │   │   │	│ Task_prompt.txt 
-│   │   │   ├───review 
-│   │   │   │   │ review_promp.txt 
-│   └───tests
-│           test_backend.py
-│           test_database.py
-│
-└───student-YajunNing
-    │   docker-compose.yml
-    │   Dockerfile
-    │   README.md
-    │
-    ├───backend
-    │   │   agentic_loop.py
-    │   │   app.py
-    │   │   database_client.py
-    │   │   Dockerfile
-    │   │   flights.py
-    │   │   llm_client.py
-    │   │   prompt_loader.py
-    │   │   requirements.txt
-    │   │
-    │   └───prompts
-    │           flight_recommendation_system.txt
-    │           flight_recommendation_task.txt
-    │
-    ├───database
-    │       app.py
-    │       Dockerfile
-    │       init_db.py
-    │       requirements.txt
-    │       schema.sql
-    │
-    ├───frontend
-    │       Dockerfile
-    │       flight-hero-sunset.png
-    │       index.html
-    │       nginx.conf
-    │       style.css
-    │
-    └───tests
-            test_flight_search.py
-            test_placeholder.py
-            test_saved_flights.py
+.
+├── .github/workflows      CI for each module, integration and cloud deployment
+├── ai-services            mcp-server, multi-agent-server, rag-server
+├── docs                   Release documentation
+├── ollama                 Ollama image used in the cloud
+├── reports/cloud          Cloud deployment results and human review
+├── scripts/azure          Azure deployment scripts
+├── shared                 Shared frontend, backend, database and agentic loop
+├── student-AlvindhoEdlyn  Map Routes
+├── student-KeyuanGan      Budget
+├── student-RenzoRobin     Accommodation
+├── student-TrongDao       Attractions
+├── student-YajunNing      Flights
+├── docker-compose.yml         Local development stack
+├── docker-compose.cloud.yml   Cloud overrides (Ollama and AI service addresses)
+└── README.md
 ```
+
+Each student folder follows the same layout: `backend/`, `database/`, `frontend/`, `tests/`, `prompts/`, `agentic_loop/` and `reports/`.
