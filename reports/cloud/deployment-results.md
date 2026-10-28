@@ -2,8 +2,8 @@
 
 - Target: Azure Container Apps, resource group `journeybuddy-rg` (australiaeast)
 - Shared frontend: https://jb-shared-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io
-- Checked: 2026-10-28 00:21:39 UTC
-- AI-Mode: enabled (internal Ollama); MCP, RAG and Multi-Agent: disabled (docker-compose.cloud.yml)
+- Checked: 2026-10-28 09:49:20 UTC
+- AI-Mode, MCP, RAG and Multi-Agent: enabled (internal apps)
 
 | Check | URL | Result |
 |---|---|---|
@@ -21,6 +21,5 @@
 | Renzo backend /health via its frontend | https://jb-renzorobin-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io/health | PASS (200) |
 | Renzo backend reaches its database | https://jb-renzorobin-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io/accommodations | PASS (200) |
 | Renzo frontend proxies /areas | https://jb-renzorobin-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io/areas | PASS (200) |
-| Multi-Agent disabled | https://jb-renzorobin-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io/multi-agent/run | PASS (403) |
 
 Overall: Success
