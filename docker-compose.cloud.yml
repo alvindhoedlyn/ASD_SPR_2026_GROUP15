@@ -1,8 +1,6 @@
 # Cloud override: points backends at the cloud Ollama service and the Azure service names.
 # Use together with the base file:
 #   docker compose -f docker-compose.yml -f docker-compose.cloud.yml config
-# Ollama is deployed to the cloud as jb-ollama. The MCP, RAG and Multi-Agent servers are
-# NOT deployed, so every backend that can call them is told to stay disabled.
 services:
   ollama:
     build:
@@ -25,9 +23,9 @@ services:
     environment:
       AI_MODE_ENABLED: "true"
       OLLAMA_BASE_URL: http://ollama:11434
-      MCP_ENABLED: "false"
-      RAG_ENABLED: "false"
-      MULTI_AGENT_ENABLED: "false"
+      MCP_ENABLED: "true"
+      RAG_ENABLED: "true"
+      MULTI_AGENT_ENABLED: "true"
 
   student-RenzoRobin-backend:
     environment:
@@ -58,4 +56,4 @@ services:
       MCP_SERVER_URL: http://mcp-server:5200/mcp
       RAG_ENABLED: "true"
       RAG_SERVICE_URL: http://rag-server:5100
-      MULTI_AGENT_ENABLED: "false"
+      MULTI_AGENT_ENABLED: "true"
