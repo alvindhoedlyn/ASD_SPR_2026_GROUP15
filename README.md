@@ -108,6 +108,19 @@ Each student module has its own GitHub Actions workflow that runs automatically 
 
 This ensures that only tested, working code produces new images that can be run via Docker Compose.
 
+## Cloud Deployment Structure
+We have utilized Azure to upload our project to the Cloud. The images are passed through the docker-compose-cloud.yml file to rebuild the Docker containers in the Azure Cloud via the ACR.
+
+So far, the following features are accessible through the cloud: 
+1. Basic Feature of All Microservices
+2. AI-Mode Across All Microservices
+3. MCP Server Across All Microservices
+4. RAG Server Across All Microservices
+5. Multi Agent Server Across All Microservices
+
+Our code can now be deployed outside of the Cloud and accessible through the following link:
+https://jb-alvindhoedlyn-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io/
+
 ## Project Structure
 
 ```
