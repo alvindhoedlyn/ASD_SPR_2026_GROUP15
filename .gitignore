@@ -31,3 +31,8 @@ ai-services/rag-server/rag-audit.jsonl
 
 .cloud-stage/
 .cloud-build-logs/
+dec.json
+req.json
+repo-files.txt
+tree.txt
+.cloud-build-logs/
