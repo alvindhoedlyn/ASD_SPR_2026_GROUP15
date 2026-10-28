@@ -38,10 +38,10 @@ REVIEW: The implementation recommendation is supported by the evidence. However,
 
 ## Human validation and release decision
 
-- Workflow run: https://github.com/alvindhoedlyn/ASD_SPR_2026_GROUP15/actions/runs/40665944725 (Success, 15 of 15 checks passed)
+- Workflow run: https://github.com/alvindhoedlyn/ASD_SPR_2026_GROUP15/actions/runs/40665944725 (Success, 14 of 14 checks passed)
 - Configuration: AI Mode, MCP, RAG and Multi-Agent are enabled as internal container apps. Only the six frontends are public.
 - Note on the 401: the shared backend check calls /api/verify-session without a token and is expected to return 401. It confirms the service is reachable and rejecting a missing session.
-- Multi-Agent test on the live site: Multi-Agent test on the live site: a request ran through Planner, Worker and Reviewer (llama3.1:8b) and was accepted by the human reviewer.
+- Multi-Agent test on the live site: a request ran through Planner, Worker and Reviewer (llama3.1:8b) and was accepted by the human reviewer.
 - Release decision: READY
 - Approver: Renzo Van Herli Robin
 - Date: 2026-10-28
