@@ -65,7 +65,7 @@ check_status "Renzo frontend proxies /areas" "$(BASE jb-renzorobin-frontend)/are
   echo "- Target: Azure Container Apps, resource group \`$RESOURCE_GROUP\` ($LOCATION)"
   echo "- Shared frontend: $(BASE jb-shared-frontend)"
   echo "- Checked: $STAMP"
-  echo "- AI-Mode: enabled (internal Ollama); MCP, RAG and Multi-Agent: disabled (docker-compose.cloud.yml)"
+  echo "- AI-Mode, MCP, RAG and Multi-Agent: enabled (internal apps)"
   echo
   echo "| Check | URL | Result |"
   echo "|---|---|---|"

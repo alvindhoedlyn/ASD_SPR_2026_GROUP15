@@ -74,7 +74,7 @@ def build_plan(compose: dict, domain: str) -> list[dict]:
             "dockerfile": build.get("dockerfile", "Dockerfile"),
             "target": build.get("target", ""),
             "port": target_port(service),
-            "external": kind not in INTERNAL_KINDS,
+            "external": kind == "frontend",
             "url": f"https://{app}.{domain}",
             "env": env,
         })

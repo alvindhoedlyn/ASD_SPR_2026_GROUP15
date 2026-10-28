@@ -13,8 +13,8 @@ CLOUD_COMPOSE = "docker-compose.cloud.yml"
 SCRIPTS_DIR = "scripts/azure"
 DEPLOY_SCRIPT = "deploy-azure.sh"
 RESULTS = "reports/cloud/deployment-results.md"
-INFO_FLAGS = ("AI_MODE_ENABLED",)  # allowed on: AI runs through the internal Ollama container app
-OFF_FLAGS = ("MCP_ENABLED", "RAG_ENABLED", "MULTI_AGENT_ENABLED")  # must stay off in the cloud
+INFO_FLAGS = ("AI_MODE_ENABLED", "MCP_ENABLED", "RAG_ENABLED", "MULTI_AGENT_ENABLED")
+OFF_FLAGS = ()
 TRUE_VALUES = ("true", "1", "yes", "on")
 MAX_RESULT_LINES = 40
 
