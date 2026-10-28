@@ -108,6 +108,23 @@ To rebuild a single service after making changes:
 docker compose up --build <service-name>
 ```
 
+### Cloud (Azure Container Apps)
+
+The deployed application is available at these addresses while the Azure environment is running:
+
+| App | URL |
+|---|---|
+| Main platform | https://jb-shared-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io |
+| Flights (YajunNing) | https://jb-yajunning-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io |
+| Attractions (TrongDao) | https://jb-trongdao-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io |
+| Accommodation (RenzoRobin) | https://jb-renzorobin-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io |
+| Map Routes (AlvindhoEdlyn) | https://jb-alvindhoedlyn-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io |
+| Budget (KeyuanGan) | https://jb-keyuangan-frontend.proudforest-e5cb0880.australiaeast.azurecontainerapps.io |
+
+Deployment evidence: [`reports/cloud/deployment-results.md`](reports/cloud/deployment-results.md) (GitHub Actions run [40665944725](https://github.com/alvindhoedlyn/ASD_SPR_2026_GROUP15/actions/runs/40665944725)).
+
+These links stop working once the cloud environment is deleted with `scripts/azure/cleanup.sh`. Run the workflow again to deploy a new copy, which gets a new address.
+
 ## AI Services
 
 | Service | Purpose | Switch (per backend) |
