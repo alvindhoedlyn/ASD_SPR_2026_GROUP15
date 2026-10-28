@@ -10,7 +10,9 @@ for provider in Microsoft.App Microsoft.ContainerRegistry Microsoft.OperationalI
   az provider register --namespace "$provider" --wait --output none
 done
 
-az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
+if [ "$(az group exists --name "$RESOURCE_GROUP")" != "true" ]; then
+  az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
+fi
 
 REGISTRY=$(az group show --name "$RESOURCE_GROUP" --query "tags.registryName" -o tsv)
 if [ -z "$REGISTRY" ]; then
