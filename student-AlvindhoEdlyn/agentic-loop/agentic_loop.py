@@ -58,6 +58,17 @@ MULTI_AGENT_PLAN = {
     ],
 }
 
+SECURITY_PLAN = {
+    "goal": "Validate the pre-commit and post-commit security checks for the Travel Itinerary Planner project",
+    "checks": [
+        "Ruff Scan - flake8-bandit (S) rules only (tests/pre_commit/test_ruff_scan.py)",
+        "detect-secrets Scan - hard-coded secrets (tests/pre_commit/test_secrets_scan.py)",
+        "pip-audit Scan - vulnerable dependencies (tests/pre_commit/test_dependency_audit.py)",
+        "API Tests - auth, ownership, input validation, injection (tests/post_commit/test_api.py)",
+        "Token Auth Tests - PyJWT: forged, expired and malformed tokens (tests/post_commit/test_token_auth.py)",
+    ],
+}
+
 # Database service - the "Endpoint testing" flow talks directly to the DB
 # layer's own CRUD routes (bypasses the backend's auth/business logic).
 BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:6001")
@@ -85,6 +96,8 @@ REVIEW_MODEL = os.getenv("OLLAMA_REVIEW_MODEL", "llama3.1:8b")
 #   student-AlvindhoEdlyn/agentic-loop/pipeline/rag_pipeline.py
 #   student-AlvindhoEdlyn/agentic-loop/collector/multi_agent_collector.py
 #   student-AlvindhoEdlyn/agentic-loop/pipeline/multi_agent_pipeline.py
+#   student-AlvindhoEdlyn/agentic-loop/collector/security_collector.py
+#   student-AlvindhoEdlyn/agentic-loop/pipeline/security_pipeline.py
 
 THIS_FILE = Path(__file__).resolve()
 AGENTIC_LOOP_DIR = THIS_FILE.parent
@@ -115,6 +128,12 @@ multi_agent_collector = _load_local_module(
 )
 multi_agent_pipeline = _load_local_module(
     "alvindhoedlyn_multi_agent_pipeline", AGENTIC_LOOP_DIR / "pipeline" / "multi_agent_pipeline.py"
+)
+security_collector = _load_local_module(
+    "alvindhoedlyn_security_collector", AGENTIC_LOOP_DIR / "collector" / "security_collector.py"
+)
+security_pipeline = _load_local_module(
+    "alvindhoedlyn_security_pipeline", AGENTIC_LOOP_DIR / "pipeline" / "security_pipeline.py"
 )
 
 
@@ -451,6 +470,32 @@ MULTI_AGENT_TASK_PROMPT = (
 )
 
 
+# Fed into security_pipeline.build_implementation_prompt() the same way.
+SECURITY_TASK_PROMPT = (
+    "You are the AI-MODE agent for a Flask Travel Itinerary Planner App's security checks.\n\n"
+    "Security Checks (the same test files the pre-commit and post-commit hooks run):\n"
+    "- Ruff Scan - flake8-bandit (S) rules only, over backend/, database/ and tests/\n"
+    "- detect-secrets Scan - hard-coded secrets in the project source\n"
+    "- pip-audit Scan - known vulnerabilities in the dependencies in requirements.txt\n"
+    "- API Tests - the backend and database service API: authentication, trip ownership, "
+    "input validation and injection\n"
+    "- Token Auth Tests (PyJWT) - forged, expired, unsigned and malformed session tokens\n\n"
+    "Task:\n"
+    "Review ONLY the security check results: whether each check ran, what it found, "
+    "and what should be fixed.\n\n"
+    "Rules:\n"
+    "- Do not invent findings, files, CVE ids or package versions that are not in the evidence.\n"
+    "- Never print or guess secret values; refer to findings by file and line only.\n"
+    "- Do not suggest disabling a check.\n"
+    "- A WARNING about a skipped test means a check could not run (tool missing or offline), "
+    "not that the code is insecure.\n"
+    "- A KNOWN GAP is a documented weakness that is not fixed yet. It is evidence, so suggest a fix for it.\n"
+    "- If the evidence shows no issues and no KNOWN GAP, respond with: "
+    "'No evidence-backed improvement identified.'\n"
+    "- Otherwise, return exactly two bullet points outlining specific fixes."
+)
+
+
 # ============================================================
 # ADAPT
 # ============================================================
@@ -485,6 +530,22 @@ def adapt_tool_mode(mode_label, ok, evidence, advice_available):
         print(f"ADAPT: Review any AI suggestions for improving {mode_label} auth handling or input validation.")
 
     print(f"\n{mode_label} tool evidence:")
+    for line in evidence.splitlines():
+        print(f"  - {line}")
+
+
+def adapt_security(ok, evidence, advice_available):
+    """ADAPT step for security mode. Pass/fail comes from pytest, never from the model."""
+    print()
+    if not ok:
+        print("ADAPT: One or more security checks did not pass — fix the findings below "
+              "(or allow-list a harmless one), then re-run.")
+    elif not advice_available:
+        print("ADAPT: AI-Mode unavailable — check Ollama connection and models.")
+    else:
+        print("ADAPT: All security checks passed — AI suggestions are advisory only.")
+
+    print("\nSecurity check evidence:")
     for line in evidence.splitlines():
         print(f"  - {line}")
 
@@ -762,6 +823,69 @@ def run_multi_agent_testing():
 
 
 # ============================================================
+# RUN: SECURITY TESTING - pre-commit + post-commit checks
+#      (delegated to collector/security_collector.py + pipeline/security_pipeline.py)
+# ============================================================
+
+def run_security_testing():
+    print("\nPLAN")
+    print(SECURITY_PLAN)
+
+    print("\nACT")
+    print("Running the pre-commit and post-commit security checks via security_collector...")
+    print("(pip-audit needs internet access, so this can take a minute)")
+
+    # OBSERVE - shared collector contract: collect() returns (ok: bool, evidence: str)
+    ok, evidence = security_collector.collect(AGENTIC_LOOP_DIR, REPO_ROOT)
+
+    print("\nOBSERVE")
+    for line in evidence.splitlines():
+        print(f"- {line}")
+
+    # AI-MODE AGENT - two-stage implementation + review via security_pipeline
+    print("\nAI-MODE AGENT (Implementation)")
+    print(f"Model: {IMPLEMENTATION_MODEL}")
+    print(f"Ollama URL: {OLLAMA_BASE_URL}")
+
+    implementation_prompt = security_pipeline.build_implementation_prompt(SECURITY_TASK_PROMPT, evidence)
+    implementation_output, impl_error = call_model(
+        IMPLEMENTATION_MODEL,
+        "You are a concise application-security reviewer. Follow rules strictly.",
+        implementation_prompt,
+        max_tokens=150,
+    )
+
+    if implementation_output:
+        print(f"\n{implementation_output}")
+    else:
+        print(f"\n{impl_error}")
+
+    print("\nAI-MODE AGENT (Review)")
+    print(f"Model: {REVIEW_MODEL}")
+
+    if implementation_output:
+        review_prompt = security_pipeline.build_review_prompt(implementation_output, evidence)
+        review_output, review_error = call_model(
+            REVIEW_MODEL,
+            "You are a concise second-pass reviewer. Follow rules strictly.",
+            review_prompt,
+            max_tokens=100,
+        )
+        print(f"\n{review_output}" if review_output else f"\n{review_error}")
+    else:
+        print("\nSkipped - no implementation output to review.")
+
+    # ADAPT
+    adapt_security(ok, evidence, implementation_output is not None)
+
+    # USER REVIEW
+    review_status = prompt_user_review()
+
+    print("\nLOOP COMPLETE")
+    print(f"Final Outcome: {review_status}")
+
+
+# ============================================================
 # MAIN LOOP
 # ============================================================
 
@@ -778,6 +902,7 @@ def main():
         print("  2 - MCP")
         print("  3 - RAG")
         print("  4 - Multi-Agent")
+        print("  5 - Security (pre-commit + post-commit checks)")
         print("  0 - Exit Loop")
 
         choice = input("\nChoose an option: ").strip()
@@ -793,8 +918,10 @@ def main():
             run_rag_testing()
         elif choice == "4":
             run_multi_agent_testing()
+        elif choice == "5":
+            run_security_testing()
         else:
-            print("Invalid choice. Please enter 1, 2, 3, 4, or 0.")
+            print("Invalid choice. Please enter 1, 2, 3, 4, 5, or 0.")
 
 
 if __name__ == "__main__":
